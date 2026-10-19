@@ -102,6 +102,26 @@ export {
   resolveInsideRoot,
 } from "./checkout/path-guard";
 
+export type {
+  ActionOutputFinding,
+  ActionOutputs,
+  BuildActionOutputsInput,
+  JobSummaryNotReviewedFile,
+  JobSummarySkipped,
+  RenderJobSummaryInput,
+  WriteFileFn,
+} from "./outputs";
+export { buildActionOutputs, renderJobSummaryMarkdown, writeResultJson } from "./outputs";
+export type {
+  DecideExitCodeInput,
+  DecideExitCodeResult,
+  GateErrorCode,
+  GateFailOn,
+  GateFinding,
+  GateSeverity,
+} from "./gate";
+export { decideExitCode } from "./gate";
+
 export type { SkipInput, SkipResult, SkipSender } from "./skip";
 export { decideSkip, SKIP_LABEL, SKIP_TITLE_MARKER } from "./skip";
 
