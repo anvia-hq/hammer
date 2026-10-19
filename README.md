@@ -13,6 +13,10 @@ Status: pre-release scaffold. See [docs/PRD.md](docs/PRD.md).
 | `packages/action` | `@anvia/hammer-action` | Action entry (inputs, event, outputs), bundled with tsup           |
 | `eval`            | `@anvia/hammer-eval`   | Eval runner and cases (PRD §11)                                    |
 
+## Privacy
+
+Your code is sent only to the configured model provider. Hammer collects no telemetry.
+
 ## Development
 
 ```sh
