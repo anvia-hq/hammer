@@ -1,51 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { type EventDecision, decideEvent, type GetCollaboratorPermission } from "../src/event";
-
-function pullRequestPayload(overrides: Record<string, unknown> = {}) {
-  return {
-    action: "opened",
-    sender: { login: "octocat", type: "User" },
-    repository: {
-      name: "hello-world",
-      owner: { login: "octocat" },
-    },
-    pull_request: {
-      number: 42,
-      draft: false,
-      head: { sha: "abc123" },
-    },
-    ...overrides,
-  };
-}
-
-function commentPayload(overrides: Record<string, unknown> = {}) {
-  const comment = isRecord(overrides.comment)
-    ? overrides.comment
-    : {
-        body: "/hammer review",
-        user: { login: "octocat", type: "User" },
-      };
-  const { comment: _ignored, ...rest } = overrides;
-  return {
-    action: "created",
-    sender: { login: "octocat", type: "User" },
-    repository: {
-      name: "hello-world",
-      owner: { login: "octocat" },
-    },
-    issue: {
-      number: 42,
-      pull_request: { url: "https://api.github.com/repos/o/r/pulls/42" },
-    },
-    comment,
-    ...rest,
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+import { issueCommentEvent, pullRequestEvent } from "./fixtures/index";
 
 function allow(permission: string): GetCollaboratorPermission {
   return async () => permission;
@@ -56,48 +12,51 @@ describe("pull_request triggers", () => {
     it(`runs on ${action}`, async () => {
       const decision = await decideEvent({
         eventName: "pull_request",
-        payload: pullRequestPayload({ action }),
+        payload: pullRequestEvent({ action }),
       });
 
-      expect(decision.run).toBe(true);
-      if (decision.run) {
-        expect(decision.kind).toBe("pull_request");
-      }
+      expect(decision).toMatchObject({
+        run: true,
+        kind: "pull_request",
+        owner: "anvia-hq",
+        repo: "hammer",
+        prNumber: 7,
+        action,
+        headSha: "9f2c1cd9e3d0c2b7d63f6e57eac0e1d4a51c3b6f",
+      });
     });
   }
 
-  it("skips non-trigger actions", async () => {
+  it("skips non-trigger actions with a coded reason", async () => {
     for (const action of ["closed", "labeled", "assigned", "edited"]) {
       const decision: EventDecision = await decideEvent({
         eventName: "pull_request",
-        payload: pullRequestPayload({ action }),
+        payload: pullRequestEvent({ action }),
       });
 
       expect(decision.run).toBe(false);
       if (!decision.run) {
-        expect(decision.log).toMatch(/skip/i);
+        expect(decision.reason).toBe("unsupported_action");
+        expect(decision.message.length).toBeGreaterThan(0);
+        expect(decision.log).toMatch(/^\[hammer\] skip: /);
       }
     }
   });
 
   it("skips draft PRs unless review_drafts is true", async () => {
-    const payload = pullRequestPayload({
-      pull_request: { number: 42, draft: true, head: { sha: "abc123" } },
-    });
-
     const skipped = await decideEvent({
       eventName: "pull_request",
-      payload,
+      payload: pullRequestEvent({ draft: true }),
     });
     expect(skipped.run).toBe(false);
     if (!skipped.run) {
-      expect(skipped.log).toMatch(/skip/i);
+      expect(skipped.reason).toBe("draft_pull_request");
       expect(skipped.log).toMatch(/draft/i);
     }
 
     const runs = await decideEvent({
       eventName: "pull_request",
-      payload,
+      payload: pullRequestEvent({ draft: true }),
       reviewDrafts: true,
     });
     expect(runs.run).toBe(true);
@@ -106,15 +65,15 @@ describe("pull_request triggers", () => {
   it("runs non-draft PRs with the default options", async () => {
     const decision = await decideEvent({
       eventName: "pull_request",
-      payload: pullRequestPayload(),
+      payload: pullRequestEvent(),
     });
 
     expect(decision).toMatchObject({
       run: true,
       kind: "pull_request",
-      owner: "octocat",
-      repo: "hello-world",
-      prNumber: 42,
+      owner: "anvia-hq",
+      repo: "hammer",
+      prNumber: 7,
     });
   });
 
@@ -126,47 +85,87 @@ describe("pull_request triggers", () => {
     ]) {
       const decision = await decideEvent({
         eventName: "pull_request",
-        payload: pullRequestPayload({ sender }),
+        payload: pullRequestEvent({ sender }),
       });
 
       expect(decision.run).toBe(false);
+      if (!decision.run) {
+        expect(decision.reason).toBe("bot_sender");
+      }
     }
   });
 });
 
 describe("issue_comment triggers", () => {
-  it("runs on /hammer comments from collaborators with write access", async () => {
+  it("runs on /hammer review from collaborators with write access", async () => {
     const decision = await decideEvent({
       eventName: "issue_comment",
-      payload: commentPayload(),
+      payload: issueCommentEvent({ body: "/hammer review" }),
       getPermission: allow("write"),
     });
 
     expect(decision).toMatchObject({
       run: true,
       kind: "comment",
-      owner: "octocat",
-      repo: "hello-world",
-      prNumber: 42,
-      username: "octocat",
+      owner: "anvia-hq",
+      repo: "hammer",
+      prNumber: 7,
+      username: "maintainer",
+      command: "review",
     });
   });
 
-  it("runs on comments with leading whitespace before /hammer", async () => {
+  it("runs on /hammer review with trailing text and carries the text", async () => {
     const decision = await decideEvent({
       eventName: "issue_comment",
-      payload: commentPayload({
-        comment: {
-          body: "  /hammer review focus on migrations",
-          user: { login: "octocat", type: "User" },
-        },
-      }),
+      payload: issueCommentEvent({ body: "  /hammer review focus on migrations" }),
       getPermission: allow("write"),
     });
 
     expect(decision.run).toBe(true);
     if (decision.run && decision.kind === "comment") {
       expect(decision.command).toBe("review focus on migrations");
+    }
+  });
+
+  it("skips /hammer help with unsupported_command", async () => {
+    const decision = await decideEvent({
+      eventName: "issue_comment",
+      payload: issueCommentEvent({ body: "/hammer help" }),
+      getPermission: allow("write"),
+    });
+
+    expect(decision.run).toBe(false);
+    if (!decision.run) {
+      expect(decision.reason).toBe("unsupported_command");
+      expect(decision.message.length).toBeGreaterThan(0);
+      expect(decision.log).toMatch(/^\[hammer\] skip: /);
+    }
+  });
+
+  it("runs on a bare /hammer with no command word", async () => {
+    const decision = await decideEvent({
+      eventName: "issue_comment",
+      payload: issueCommentEvent({ body: "/hammer" }),
+      getPermission: allow("write"),
+    });
+
+    expect(decision.run).toBe(true);
+  });
+
+  it("skips out-of-scope and unknown commands with unsupported_command", async () => {
+    for (const body of ["/hammer resolve", "/hammer explain", "/hammer frobnicate"]) {
+      const decision = await decideEvent({
+        eventName: "issue_comment",
+        payload: issueCommentEvent({ body }),
+        getPermission: allow("write"),
+      });
+
+      expect(decision.run).toBe(false);
+      if (!decision.run) {
+        expect(decision.reason).toBe("unsupported_command");
+        expect(decision.log).toMatch(/skip/i);
+      }
     }
   });
 
@@ -178,17 +177,13 @@ describe("issue_comment triggers", () => {
     ]) {
       const decision = await decideEvent({
         eventName: "issue_comment",
-        payload: commentPayload({
-          comment: {
-            body,
-            user: { login: "octocat", type: "User" },
-          },
-        }),
+        payload: issueCommentEvent({ body }),
         getPermission: allow("write"),
       });
 
       expect(decision.run).toBe(false);
       if (!decision.run) {
+        expect(decision.reason).toBe("not_a_command");
         expect(decision.log).toMatch(/skip/i);
       }
     }
@@ -197,28 +192,34 @@ describe("issue_comment triggers", () => {
   it("skips comments on plain issues", async () => {
     const decision = await decideEvent({
       eventName: "issue_comment",
-      payload: commentPayload({ issue: { number: 7 } }),
+      payload: issueCommentEvent({ body: "/hammer review", onPullRequest: false }),
       getPermission: allow("write"),
     });
 
     expect(decision.run).toBe(false);
+    if (!decision.run) {
+      expect(decision.reason).toBe("not_a_pull_request");
+    }
   });
 
   it("skips non-created comment actions", async () => {
     const decision = await decideEvent({
       eventName: "issue_comment",
-      payload: commentPayload({ action: "edited" }),
+      payload: issueCommentEvent({ body: "/hammer review", action: "edited" }),
       getPermission: allow("write"),
     });
 
     expect(decision.run).toBe(false);
+    if (!decision.run) {
+      expect(decision.reason).toBe("unsupported_action");
+    }
   });
 
   it("allows admin, maintain and write", async () => {
     for (const permission of ["admin", "maintain", "write"]) {
       const decision = await decideEvent({
         eventName: "issue_comment",
-        payload: commentPayload(),
+        payload: issueCommentEvent({ body: "/hammer review" }),
         getPermission: allow(permission),
       });
 
@@ -230,12 +231,13 @@ describe("issue_comment triggers", () => {
     for (const permission of ["read", "none", "triage"]) {
       const decision = await decideEvent({
         eventName: "issue_comment",
-        payload: commentPayload(),
+        payload: issueCommentEvent({ body: "/hammer review" }),
         getPermission: allow(permission),
       });
 
       expect(decision.run).toBe(false);
       if (!decision.run) {
+        expect(decision.reason).toBe("insufficient_permission");
         expect(decision.log).toMatch(/skip/i);
       }
     }
@@ -243,14 +245,15 @@ describe("issue_comment triggers", () => {
 
   it("denies bots", async () => {
     const payloads = [
-      commentPayload({
-        sender: { login: "github-actions[bot]", type: "Bot" },
+      issueCommentEvent({
+        body: "/hammer review",
+        senderLogin: "github-actions[bot]",
+        senderType: "Bot",
       }),
-      commentPayload({
-        comment: {
-          body: "/hammer review",
-          user: { login: "dependabot[bot]", type: "Bot" },
-        },
+      issueCommentEvent({
+        body: "/hammer review",
+        authorLogin: "dependabot[bot]",
+        authorType: "Bot",
       }),
     ];
 
@@ -262,6 +265,9 @@ describe("issue_comment triggers", () => {
       });
 
       expect(decision.run).toBe(false);
+      if (!decision.run) {
+        expect(decision.reason).toBe("bot_sender");
+      }
     }
   });
 
@@ -272,29 +278,36 @@ describe("issue_comment triggers", () => {
 
     const onError = await decideEvent({
       eventName: "issue_comment",
-      payload: commentPayload(),
+      payload: issueCommentEvent({ body: "/hammer review" }),
       getPermission: failing,
     });
     expect(onError.run).toBe(false);
+    if (!onError.run) {
+      expect(onError.reason).toBe("permission_check_failed");
+    }
 
     const withoutChecker = await decideEvent({
       eventName: "issue_comment",
-      payload: commentPayload(),
+      payload: issueCommentEvent({ body: "/hammer review" }),
     });
     expect(withoutChecker.run).toBe(false);
+    if (!withoutChecker.run) {
+      expect(withoutChecker.reason).toBe("missing_permission_check");
+    }
   });
 });
 
 describe("other events", () => {
-  it("skips unsupported events without throwing", async () => {
+  it("skips unsupported events with a coded reason", async () => {
     for (const eventName of ["push", "pull_request_review", "workflow_dispatch"]) {
       const decision = await decideEvent({
         eventName,
-        payload: { action: "opened" },
+        payload: pullRequestEvent(),
       });
 
       expect(decision.run).toBe(false);
       if (!decision.run) {
+        expect(decision.reason).toBe("unsupported_event");
         expect(decision.log).toMatch(/skip/i);
       }
     }

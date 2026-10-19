@@ -1,0 +1,43 @@
+{
+  "action": "opened",
+  "number": 7,
+  "pull_request": {
+    "url": "https://api.github.com/repos/anvia-hq/hammer/pulls/7",
+    "id": 1910000001,
+    "node_id": "PR_kwDOtest7",
+    "html_url": "https://github.com/anvia-hq/hammer/pull/7",
+    "number": 7,
+    "state": "open",
+    "locked": false,
+    "title": "Add the event parser",
+    "body": "Adds event parsing and trigger auth.",
+    "draft": false,
+    "merged": false,
+    "user": { "login": "octocat", "id": 583231, "type": "User", "site_admin": false },
+    "head": {
+      "label": "octocat:event-parser",
+      "ref": "event-parser",
+      "sha": "9f2c1cd9e3d0c2b7d63f6e57eac0e1d4a51c3b6f",
+      "user": { "login": "octocat", "id": 583231, "type": "User" },
+      "repo": { "id": 9900001, "name": "hammer", "private": true }
+    },
+    "base": {
+      "label": "anvia-hq:main",
+      "ref": "main",
+      "sha": "4823263d0ff2ba0e16b3a4c62a2b7e0e6f1d4e25",
+      "user": { "login": "anvia-hq", "id": 153000000, "type": "Organization" },
+      "repo": { "id": 8800001, "name": "hammer", "private": true }
+    },
+    "author_association": "CONTRIBUTOR"
+  },
+  "repository": {
+    "id": 8800001,
+    "node_id": "R_kgDOtest1",
+    "name": "hammer",
+    "full_name": "anvia-hq/hammer",
+    "private": true,
+    "owner": { "login": "anvia-hq", "id": 153000000, "type": "Organization" },
+    "default_branch": "main"
+  },
+  "sender": { "login": "octocat", "id": 583231, "type": "User" }
+}
