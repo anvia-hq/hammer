@@ -4,9 +4,9 @@ import type { CompletionModel } from "@anvia/core/completion";
 import { z } from "zod";
 
 import type { PullFileEntry } from "../github/files";
-import { parseModelRef } from "./model";
+import { parseModelRef, type SupportedModelProvider } from "./model";
 import { buildReviewPrompt, type BuildReviewPromptInput } from "./prompt";
-import { runWithRepair, type ReviewBatch } from "./schema";
+import { runWithRepair, validateBatchOutput, type ReviewBatch } from "./schema";
 import {
   getFileDiff,
   getPrDiscussion,
@@ -46,6 +46,76 @@ export interface SinglePassSuccess {
 }
 
 export type SinglePassResult = SinglePassSuccess | SinglePassFailure;
+
+export interface ModelAdapter {
+  generate(prompt: string): Promise<{ output: unknown; usage?: AdapterUsage }>;
+}
+
+export interface AdapterUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+}
+
+export type ParseAdapterModelIdResult =
+  | { ok: true; value: { provider: SupportedModelProvider; modelId: string } }
+  | { ok: false; error: "unknown_provider" | "missing_model_id" | "malformed" };
+
+export function parseModelId(raw: string): ParseAdapterModelIdResult {
+  const slash = raw.indexOf("/");
+  if (slash < 0) return { ok: false, error: "malformed" };
+  const provider = raw.slice(0, slash);
+  const modelId = raw.slice(slash + 1);
+  if (provider !== "anthropic" && provider !== "openai")
+    return { ok: false, error: "unknown_provider" };
+  if (modelId === "") return { ok: false, error: "missing_model_id" };
+  return { ok: true, value: { provider: provider as SupportedModelProvider, modelId } };
+}
+
+export type SinglePassAdapterError =
+  | "unknown_provider"
+  | "missing_model_id"
+  | "malformed"
+  | "needs_batching"
+  | "schema_violation"
+  | "generate_failed";
+
+export interface SinglePassAdapterInput {
+  modelInput: string;
+  prompt: string;
+  adapter: ModelAdapter;
+  singlePassTokens?: number;
+}
+
+export type SinglePassAdapterResult =
+  | { ok: true; batch: ReviewBatch; usage: SinglePassUsage }
+  | { ok: false; error: SinglePassAdapterError };
+
+export async function runSinglePass(
+  input: SinglePassAdapterInput,
+): Promise<SinglePassAdapterResult> {
+  const parsed = parseModelId(input.modelInput);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  const limit = input.singlePassTokens ?? DEFAULT_SINGLE_PASS_TOKENS;
+  if (Math.ceil(input.prompt.length / 4) > limit) return { ok: false, error: "needs_batching" };
+  let usage: SinglePassUsage = { ...ZERO_USAGE };
+  const repaired = await runWithRepair({
+    prompt: input.prompt,
+    generate: async (prompt: string) => {
+      const result = await input.adapter.generate(prompt);
+      const inputTokens = result.usage?.inputTokens ?? 0;
+      const outputTokens = result.usage?.outputTokens ?? 0;
+      usage = { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
+      return result.output;
+    },
+    validate: validateBatchOutput,
+  });
+  if (!repaired.ok) return { ok: false, error: repaired.error };
+  return { ok: true, batch: repaired.value, usage };
+}
+
+// TODO: real @anvia provider adapters (Anthropic/OpenAI) are not wired yet.
+// They will plug in here as ModelAdapter implementations built from the
+// parsed model id, passed to runSinglePass via its `adapter` field.
 
 export interface SinglePassRunInput extends BuildReviewPromptInput {
   model: string;

@@ -45,6 +45,12 @@ export {
   SUPPORTED_MODEL_PROVIDERS,
 } from "./agent/model";
 export type {
+  AdapterUsage,
+  ModelAdapter,
+  ParseAdapterModelIdResult,
+  SinglePassAdapterError,
+  SinglePassAdapterInput,
+  SinglePassAdapterResult,
   SinglePassErrorCode,
   SinglePassFailure,
   SinglePassResult,
@@ -53,7 +59,13 @@ export type {
   SinglePassSuccess,
   SinglePassUsage,
 } from "./agent/run";
-export { buildReviewerTools, DEFAULT_SINGLE_PASS_TOKENS, runSinglePassReview } from "./agent/run";
+export {
+  buildReviewerTools,
+  DEFAULT_SINGLE_PASS_TOKENS,
+  parseModelId,
+  runSinglePass,
+  runSinglePassReview,
+} from "./agent/run";
 export type { AgentToolReason } from "./agent/tools";
 export {
   getFileDiff,
