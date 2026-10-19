@@ -1,5 +1,18 @@
 export const CORE_PACKAGE_NAME = "@anvia/hammer-core";
 
+export type {
+  BuildReviewPromptInput,
+  PromptConfig,
+  PromptGuidelines,
+  ReviewPrompt,
+} from "./agent/prompt";
+export {
+  approxTokens,
+  buildReviewPrompt,
+  CHARS_PER_TOKEN,
+  MAX_GUIDANCE_TOKENS,
+  MAX_HUNK_RENDER_LINES,
+} from "./agent/prompt";
 export type { AgentToolReason } from "./agent/tools";
 export {
   getFileDiff,
