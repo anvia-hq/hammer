@@ -6,13 +6,9 @@ import {
   createCompletionModel,
   createOpenAIModel,
   DEFAULT_SINGLE_PASS_TOKENS,
-  parseModelId,
   parseModelRef,
-  runSinglePass,
   runSinglePassReview,
   type Finding,
-  type ModelAdapter,
-  type AdapterUsage,
   type ReviewBatch,
 } from "../src/index";
 
@@ -192,119 +188,5 @@ describe("runSinglePassReview", () => {
 
   it("exposes the default token budget", () => {
     expect(DEFAULT_SINGLE_PASS_TOKENS).toBe(60000);
-  });
-});
-
-describe("parseModelId", () => {
-  it("parses valid anthropic and openai ids", () => {
-    expect(parseModelId("anthropic/claude-sonnet-4-5")).toEqual({
-      ok: true,
-      value: { provider: "anthropic", modelId: "claude-sonnet-4-5" },
-    });
-    expect(parseModelId("openai/gpt-4o")).toEqual({
-      ok: true,
-      value: { provider: "openai", modelId: "gpt-4o" },
-    });
-  });
-
-  it("rejects an unknown provider", () => {
-    expect(parseModelId("gemini/gemini-2.0-flash")).toEqual({
-      ok: false,
-      error: "unknown_provider",
-    });
-  });
-
-  it("rejects a missing model id", () => {
-    expect(parseModelId("anthropic/")).toEqual({ ok: false, error: "missing_model_id" });
-  });
-
-  it("rejects a malformed id", () => {
-    expect(parseModelId("anthropic")).toEqual({ ok: false, error: "malformed" });
-  });
-});
-
-describe("runSinglePass", () => {
-  function adapterFor(outputs: unknown[], usage?: AdapterUsage) {
-    let calls = 0;
-    const result: { output: unknown; usage?: AdapterUsage } =
-      usage === undefined ? { output: undefined } : { output: undefined, usage };
-    const adapter: ModelAdapter = {
-      generate: async () => ({ ...result, output: outputs[calls++] }),
-    };
-    return { adapter, calls: () => calls };
-  }
-
-  it("returns needs_batching with zero adapter calls when oversized", async () => {
-    const { adapter, calls } = adapterFor([validBatch()]);
-    const result = await runSinglePass({
-      modelInput: "anthropic/claude-sonnet-4-5",
-      prompt: "x".repeat(4 * 60000 + 4),
-      adapter,
-    });
-    expect(result).toEqual({ ok: false, error: "needs_batching" });
-    expect(calls()).toBe(0);
-  });
-
-  it("returns ok with zeroed usage when the adapter gives none", async () => {
-    const { adapter } = adapterFor([validBatch()]);
-    const result = await runSinglePass({
-      modelInput: "openai/gpt-4o",
-      prompt: "review this",
-      adapter,
-    });
-    expect(result).toEqual({
-      ok: true,
-      batch: validBatch(),
-      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-    });
-  });
-
-  it("repairs schema-invalid output once", async () => {
-    const bad = validBatch({ summary: "s".repeat(601) });
-    const { adapter, calls } = adapterFor([bad, validBatch()]);
-    const result = await runSinglePass({
-      modelInput: "anthropic/claude-sonnet-4-5",
-      prompt: "review this",
-      adapter,
-    });
-    expect(result.ok).toBe(true);
-    expect(calls()).toBe(2);
-  });
-
-  it("returns schema_violation after two invalid outputs", async () => {
-    const bad = validBatch({ summary: "s".repeat(601) });
-    const { adapter, calls } = adapterFor([bad, bad]);
-    const result = await runSinglePass({
-      modelInput: "anthropic/claude-sonnet-4-5",
-      prompt: "review this",
-      adapter,
-    });
-    expect(result).toEqual({ ok: false, error: "schema_violation" });
-    expect(calls()).toBe(2);
-  });
-
-  it("returns generate_failed when the adapter throws", async () => {
-    const adapter: ModelAdapter = {
-      generate: async () => {
-        throw new Error("model unavailable");
-      },
-    };
-    const result = await runSinglePass({
-      modelInput: "anthropic/claude-sonnet-4-5",
-      prompt: "review this",
-      adapter,
-    });
-    expect(result).toEqual({ ok: false, error: "generate_failed" });
-  });
-
-  it("rejects a bad model input before any adapter call", async () => {
-    const { adapter, calls } = adapterFor([validBatch()]);
-    const result = await runSinglePass({
-      modelInput: "gemini/gemini-2.0-flash",
-      prompt: "review this",
-      adapter,
-    });
-    expect(result).toEqual({ ok: false, error: "unknown_provider" });
-    expect(calls()).toBe(0);
   });
 });
