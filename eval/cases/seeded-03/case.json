@@ -1,0 +1,22 @@
+{
+  "id": "seeded-03",
+  "kind": "seeded",
+  "title": "Seeded security defect in src/auth/session.ts",
+  "prBody": "Synthetic seeded defect for offline eval: security issue in src/auth/session.ts.",
+  "files": [
+    {
+      "path": "src/auth/session.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/auth/session.ts",
+      "startLine": 30,
+      "endLine": 33,
+      "category": "security",
+      "severity": "high"
+    }
+  ]
+}

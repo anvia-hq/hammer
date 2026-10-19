@@ -1,0 +1,22 @@
+{
+  "id": "seeded-19",
+  "kind": "seeded",
+  "title": "Seeded maintainability defect in src/legacy/parse.ts",
+  "prBody": "Synthetic seeded defect for offline eval: maintainability issue in src/legacy/parse.ts.",
+  "files": [
+    {
+      "path": "src/legacy/parse.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/legacy/parse.ts",
+      "startLine": 190,
+      "endLine": 194,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ]
+}

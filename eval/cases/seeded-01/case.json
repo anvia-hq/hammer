@@ -1,0 +1,22 @@
+{
+  "id": "seeded-01",
+  "kind": "seeded",
+  "title": "Seeded correctness defect in src/webhook/client.ts",
+  "prBody": "Synthetic seeded defect for offline eval: correctness issue in src/webhook/client.ts.",
+  "files": [
+    {
+      "path": "src/webhook/client.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/webhook/client.ts",
+      "startLine": 10,
+      "endLine": 14,
+      "category": "correctness",
+      "severity": "high"
+    }
+  ]
+}

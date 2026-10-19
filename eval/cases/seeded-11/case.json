@@ -1,0 +1,22 @@
+{
+  "id": "seeded-11",
+  "kind": "seeded",
+  "title": "Seeded reliability defect in src/net/retry.ts",
+  "prBody": "Synthetic seeded defect for offline eval: reliability issue in src/net/retry.ts.",
+  "files": [
+    {
+      "path": "src/net/retry.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/net/retry.ts",
+      "startLine": 110,
+      "endLine": 119,
+      "category": "reliability",
+      "severity": "medium"
+    }
+  ]
+}

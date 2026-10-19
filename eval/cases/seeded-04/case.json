@@ -1,0 +1,22 @@
+{
+  "id": "seeded-04",
+  "kind": "seeded",
+  "title": "Seeded security defect in src/payments/charge.ts",
+  "prBody": "Synthetic seeded defect for offline eval: security issue in src/payments/charge.ts.",
+  "files": [
+    {
+      "path": "src/payments/charge.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/payments/charge.ts",
+      "startLine": 40,
+      "endLine": 43,
+      "category": "security",
+      "severity": "high"
+    }
+  ]
+}

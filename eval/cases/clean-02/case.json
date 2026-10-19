@@ -1,0 +1,14 @@
+{
+  "id": "clean-02",
+  "kind": "clean",
+  "title": "Extract helper in date formatting",
+  "prBody": "Refactor: extract a named helper.",
+  "files": [
+    {
+      "path": "src/dates/format.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": []
+}

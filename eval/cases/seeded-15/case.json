@@ -1,0 +1,22 @@
+{
+  "id": "seeded-15",
+  "kind": "seeded",
+  "title": "Seeded reliability defect in src/i18n/t.ts",
+  "prBody": "Synthetic seeded defect for offline eval: reliability issue in src/i18n/t.ts.",
+  "files": [
+    {
+      "path": "src/i18n/t.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/i18n/t.ts",
+      "startLine": 150,
+      "endLine": 153,
+      "category": "reliability",
+      "severity": "low"
+    }
+  ]
+}

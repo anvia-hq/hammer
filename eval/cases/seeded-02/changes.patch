@@ -1,0 +1,5 @@
+@@ -20,2 +20,4 @@
+ export async function findUser(db: Db, name: string) {
+   const q = "SELECT * FROM users WHERE name = '" + name + "'";
++  return db.query(q);
++}

@@ -1,0 +1,22 @@
+{
+  "id": "seeded-10",
+  "kind": "seeded",
+  "title": "Seeded reliability defect in src/config/load.ts",
+  "prBody": "Synthetic seeded defect for offline eval: reliability issue in src/config/load.ts.",
+  "files": [
+    {
+      "path": "src/config/load.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/config/load.ts",
+      "startLine": 100,
+      "endLine": 103,
+      "category": "reliability",
+      "severity": "medium"
+    }
+  ]
+}

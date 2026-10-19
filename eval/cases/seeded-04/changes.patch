@@ -1,0 +1,5 @@
+@@ -40,2 +40,4 @@
+ export async function charge(card: Card, cents: number) {
+   const res = await gateway.charge(card, cents);
++  await ledger.write({ card: card.number, cents });
++  return res;

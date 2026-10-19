@@ -1,0 +1,22 @@
+{
+  "id": "seeded-14",
+  "kind": "seeded",
+  "title": "Seeded correctness defect in src/flags/eval.ts",
+  "prBody": "Synthetic seeded defect for offline eval: correctness issue in src/flags/eval.ts.",
+  "files": [
+    {
+      "path": "src/flags/eval.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/flags/eval.ts",
+      "startLine": 140,
+      "endLine": 143,
+      "category": "correctness",
+      "severity": "high"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "clean-03",
+  "kind": "clean",
+  "title": "Update review guide docs",
+  "prBody": "Docs only: clarify severity guidance.",
+  "files": [
+    {
+      "path": "docs/review-guide.md",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": []
+}

@@ -1,0 +1,22 @@
+{
+  "id": "seeded-05",
+  "kind": "seeded",
+  "title": "Seeded security defect in src/fs/store.ts",
+  "prBody": "Synthetic seeded defect for offline eval: security issue in src/fs/store.ts.",
+  "files": [
+    {
+      "path": "src/fs/store.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/fs/store.ts",
+      "startLine": 50,
+      "endLine": 53,
+      "category": "security",
+      "severity": "high"
+    }
+  ]
+}

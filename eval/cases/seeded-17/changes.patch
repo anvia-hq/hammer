@@ -1,0 +1,4 @@
+@@ -170,2 +170,3 @@
+ export async function seedDb(db: Db) {
+   await db.insert("users", { name: "ada" });
++}

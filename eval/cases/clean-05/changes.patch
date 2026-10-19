@@ -1,0 +1,6 @@
+@@ -5,6 +5,6 @@
+ {
+   "review.title": "Review",
+-  "review.empty": "No issues",
++  "review.empty": "No issues found",
+   "review.cta": "Fix"

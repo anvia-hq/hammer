@@ -1,0 +1,5 @@
+@@ -30,2 +30,4 @@
+ export function verify(token: string) {
+   const parts = token.split(".");
++  const payload = JSON.parse(atob(parts[1] as string));
++  return payload;

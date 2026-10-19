@@ -1,0 +1,22 @@
+{
+  "id": "seeded-17",
+  "kind": "seeded",
+  "title": "Seeded tests defect in src/tests/helpers.ts",
+  "prBody": "Synthetic seeded defect for offline eval: tests issue in src/tests/helpers.ts.",
+  "files": [
+    {
+      "path": "src/tests/helpers.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/tests/helpers.ts",
+      "startLine": 170,
+      "endLine": 172,
+      "category": "tests",
+      "severity": "medium"
+    }
+  ]
+}

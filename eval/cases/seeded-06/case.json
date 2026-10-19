@@ -1,0 +1,22 @@
+{
+  "id": "seeded-06",
+  "kind": "seeded",
+  "title": "Seeded security defect in src/crypto/otp.ts",
+  "prBody": "Synthetic seeded defect for offline eval: security issue in src/crypto/otp.ts.",
+  "files": [
+    {
+      "path": "src/crypto/otp.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/crypto/otp.ts",
+      "startLine": 60,
+      "endLine": 65,
+      "category": "security",
+      "severity": "medium"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+@@ -100,2 +100,4 @@
+ export function loadConfig(env: Env): Config {
+   const timeout = Number(env.TIMEOUT_MS);
++  return { timeoutMs: timeout, retries: 3 };
++}

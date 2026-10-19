@@ -1,0 +1,22 @@
+{
+  "id": "seeded-13",
+  "kind": "seeded",
+  "title": "Seeded correctness defect in src/dates/format.ts",
+  "prBody": "Synthetic seeded defect for offline eval: correctness issue in src/dates/format.ts.",
+  "files": [
+    {
+      "path": "src/dates/format.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/dates/format.ts",
+      "startLine": 130,
+      "endLine": 133,
+      "category": "correctness",
+      "severity": "medium"
+    }
+  ]
+}

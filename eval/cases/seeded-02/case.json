@@ -1,0 +1,22 @@
+{
+  "id": "seeded-02",
+  "kind": "seeded",
+  "title": "Seeded security defect in src/db/query.ts",
+  "prBody": "Synthetic seeded defect for offline eval: security issue in src/db/query.ts.",
+  "files": [
+    {
+      "path": "src/db/query.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/db/query.ts",
+      "startLine": 20,
+      "endLine": 23,
+      "category": "security",
+      "severity": "high"
+    }
+  ]
+}

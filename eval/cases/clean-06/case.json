@@ -1,0 +1,14 @@
+{
+  "id": "clean-06",
+  "kind": "clean",
+  "title": "Refactor comparator",
+  "prBody": "Refactor: equivalent comparator with named function.",
+  "files": [
+    {
+      "path": "src/util/sort.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": []
+}

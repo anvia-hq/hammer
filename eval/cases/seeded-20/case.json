@@ -1,0 +1,22 @@
+{
+  "id": "seeded-20",
+  "kind": "seeded",
+  "title": "Seeded reliability defect in src/webhook/backoff.ts",
+  "prBody": "Synthetic seeded defect for offline eval: reliability issue in src/webhook/backoff.ts.",
+  "files": [
+    {
+      "path": "src/webhook/backoff.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/webhook/backoff.ts",
+      "startLine": 200,
+      "endLine": 209,
+      "category": "reliability",
+      "severity": "medium"
+    }
+  ]
+}

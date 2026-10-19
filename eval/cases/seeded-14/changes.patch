@@ -1,0 +1,5 @@
+@@ -140,2 +140,4 @@
+ export function isEnabled(flags: Flags, name: string) {
+   const flag = flags[name];
++  if (flag === undefined) return true;
++  return flag.enabled;

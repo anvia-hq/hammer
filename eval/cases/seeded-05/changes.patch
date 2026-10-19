@@ -1,0 +1,5 @@
+@@ -50,2 +50,4 @@
+ export async function save(root: string, name: string, data: string) {
+   const target = join(root, name);
++  return writeFile(target, data);
++}

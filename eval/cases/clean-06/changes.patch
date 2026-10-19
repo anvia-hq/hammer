@@ -1,0 +1,6 @@
+@@ -12,5 +12,6 @@
+ export function byName(a: Item, b: Item) {
+-  return a.name < b.name ? -1 : 1;
++  if (a.name === b.name) return 0;
++  return a.name < b.name ? -1 : 1;
+ }

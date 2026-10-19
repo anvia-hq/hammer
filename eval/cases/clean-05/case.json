@@ -1,0 +1,14 @@
+{
+  "id": "clean-05",
+  "kind": "clean",
+  "title": "Update English strings",
+  "prBody": "Copy change only.",
+  "files": [
+    {
+      "path": "src/i18n/en.json",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": []
+}

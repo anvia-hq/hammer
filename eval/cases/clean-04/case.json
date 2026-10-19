@@ -1,0 +1,14 @@
+{
+  "id": "clean-04",
+  "kind": "clean",
+  "title": "Bump a dev dependency",
+  "prBody": "chore(deps): bump oxlint.",
+  "files": [
+    {
+      "path": "package.json",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": []
+}

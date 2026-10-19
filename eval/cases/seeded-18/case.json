@@ -1,0 +1,22 @@
+{
+  "id": "seeded-18",
+  "kind": "seeded",
+  "title": "Seeded rule defect in src/rules/webhook.ts",
+  "prBody": "Synthetic seeded defect for offline eval: rule issue in src/rules/webhook.ts.",
+  "files": [
+    {
+      "path": "src/rules/webhook.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/rules/webhook.ts",
+      "startLine": 180,
+      "endLine": 183,
+      "category": "rule",
+      "severity": "medium"
+    }
+  ]
+}

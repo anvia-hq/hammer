@@ -1,0 +1,5 @@
+@@ -90,2 +90,4 @@
+ export async function drain(queue: Queue) {
+   const job = await queue.next();
++  await job.run();
++  await queue.ack(job.id);

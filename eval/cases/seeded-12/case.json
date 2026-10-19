@@ -1,0 +1,22 @@
+{
+  "id": "seeded-12",
+  "kind": "seeded",
+  "title": "Seeded correctness defect in src/render/list.ts",
+  "prBody": "Synthetic seeded defect for offline eval: correctness issue in src/render/list.ts.",
+  "files": [
+    {
+      "path": "src/render/list.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/render/list.ts",
+      "startLine": 120,
+      "endLine": 122,
+      "category": "correctness",
+      "severity": "medium"
+    }
+  ]
+}

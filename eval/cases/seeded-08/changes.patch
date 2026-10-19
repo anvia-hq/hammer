@@ -1,0 +1,8 @@
+@@ -80,3 +80,7 @@
+ const cache = new Map<string, Entry>();
+ export function lookup(key: string): Entry | undefined {
+   return cache.get(key);
++}
++export function insert(key: string, value: Entry) {
++  cache.set(key, value);
++}

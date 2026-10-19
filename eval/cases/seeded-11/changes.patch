@@ -1,0 +1,11 @@
+@@ -110,2 +110,10 @@
+ export async function fetchWithRetry(url: string) {
+   let last: unknown;
++  for (let i = 0; i < 5; i += 1) {
++    try {
++      return await fetch(url);
++    } catch (err) {
++      last = err;
++    }
++  }
++  throw last;

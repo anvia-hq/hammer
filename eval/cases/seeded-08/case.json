@@ -1,0 +1,22 @@
+{
+  "id": "seeded-08",
+  "kind": "seeded",
+  "title": "Seeded performance defect in src/cache/lookup.ts",
+  "prBody": "Synthetic seeded defect for offline eval: performance issue in src/cache/lookup.ts.",
+  "files": [
+    {
+      "path": "src/cache/lookup.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/cache/lookup.ts",
+      "startLine": 80,
+      "endLine": 86,
+      "category": "performance",
+      "severity": "medium"
+    }
+  ]
+}

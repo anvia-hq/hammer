@@ -1,0 +1,6 @@
+@@ -1,4 +1,5 @@
+ # Review guide
+ High means a likely bug or security hole.
++Medium means an edge-case bug or missing handling.
+ Low is hidden by default.
+ Praise is never posted.

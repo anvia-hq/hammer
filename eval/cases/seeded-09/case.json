@@ -1,0 +1,22 @@
+{
+  "id": "seeded-09",
+  "kind": "seeded",
+  "title": "Seeded reliability defect in src/worker/queue.ts",
+  "prBody": "Synthetic seeded defect for offline eval: reliability issue in src/worker/queue.ts.",
+  "files": [
+    {
+      "path": "src/worker/queue.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/worker/queue.ts",
+      "startLine": 90,
+      "endLine": 93,
+      "category": "reliability",
+      "severity": "high"
+    }
+  ]
+}

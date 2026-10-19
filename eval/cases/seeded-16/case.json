@@ -1,0 +1,22 @@
+{
+  "id": "seeded-16",
+  "kind": "seeded",
+  "title": "Seeded correctness defect in src/util/clone.ts",
+  "prBody": "Synthetic seeded defect for offline eval: correctness issue in src/util/clone.ts.",
+  "files": [
+    {
+      "path": "src/util/clone.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/util/clone.ts",
+      "startLine": 160,
+      "endLine": 162,
+      "category": "correctness",
+      "severity": "medium"
+    }
+  ]
+}

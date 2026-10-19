@@ -1,0 +1,22 @@
+{
+  "id": "seeded-07",
+  "kind": "seeded",
+  "title": "Seeded performance defect in src/api/paginate.ts",
+  "prBody": "Synthetic seeded defect for offline eval: performance issue in src/api/paginate.ts.",
+  "files": [
+    {
+      "path": "src/api/paginate.ts",
+      "status": "modified",
+      "patchFile": "changes.patch"
+    }
+  ],
+  "expected": [
+    {
+      "path": "src/api/paginate.ts",
+      "startLine": 70,
+      "endLine": 79,
+      "category": "performance",
+      "severity": "medium"
+    }
+  ]
+}
