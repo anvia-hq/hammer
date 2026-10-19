@@ -134,6 +134,23 @@ export {
 export type { IncrementalScope, PatchHunk, PatchLine, ReviewScopeOptions } from "./github/patch";
 export { commentableLines, decideReviewScope, extractLastSha, parsePatch } from "./github/patch";
 
+export type {
+  GeneralNoteReason,
+  ValidateDropped,
+  ValidateDropReason,
+  ValidatedInlineComment,
+  ValidatedSingleComment,
+  ValidateFindingsOptions,
+  ValidateFindingsResult,
+  ValidateGeneralNote,
+} from "./validate";
+export {
+  DEFAULT_MAX_COMMENTS,
+  DEFAULT_MIN_SEVERITY,
+  MIN_FINDING_CONFIDENCE,
+  validateFindings,
+} from "./validate";
+
 export type { PlanOptions, ReviewPlan, SkippedPlanFile } from "./plan";
 export { buildReviewPlan, isTestPath, matchesGlob } from "./plan";
 
