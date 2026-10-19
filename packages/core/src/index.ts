@@ -32,6 +32,9 @@ export {
 export type { IncrementalScope, PatchHunk, PatchLine, ReviewScopeOptions } from "./github/patch";
 export { commentableLines, decideReviewScope, extractLastSha, parsePatch } from "./github/patch";
 
+export type { PlanOptions, ReviewPlan, SkippedPlanFile } from "./plan";
+export { buildReviewPlan, isTestPath, matchesGlob } from "./plan";
+
 export type {
   CommentRun,
   DecideEventOptions,

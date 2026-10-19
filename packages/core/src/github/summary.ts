@@ -16,6 +16,7 @@ export interface SkippedSummaryFile {
 export interface RenderSummaryOptions {
   files: SummaryScopeFile[];
   skipped?: SkippedSummaryFile[];
+  notReviewed?: SkippedSummaryFile[];
   headSha?: string | null | undefined;
 }
 
@@ -53,6 +54,13 @@ export function renderSummaryBody(options: RenderSummaryOptions): string {
   if (skipped.length > 0) {
     lines.push("", `Skipped files (${skipped.length}):`, "");
     for (const entry of skipped) {
+      lines.push(`- \`${sanitizeSummaryText(entry.path)}\` — ${sanitizeSummaryText(entry.reason)}`);
+    }
+  }
+  const notReviewed = options.notReviewed ?? [];
+  if (notReviewed.length > 0) {
+    lines.push("", `Not reviewed (${notReviewed.length}):`, "");
+    for (const entry of notReviewed) {
       lines.push(`- \`${sanitizeSummaryText(entry.path)}\` — ${sanitizeSummaryText(entry.reason)}`);
     }
   }
