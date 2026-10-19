@@ -6,7 +6,7 @@ import { z } from "zod";
 import type { PullFileEntry } from "../github/files";
 import { parseModelRef } from "./model";
 import { buildReviewPrompt, type BuildReviewPromptInput } from "./prompt";
-import { runWithRepair, type ReviewBatch } from "./schema";
+import { buildRepairPrompt, runWithRepair, validateBatchOutput, type ReviewBatch } from "./schema";
 import {
   getFileDiff,
   getPrDiscussion,
@@ -91,6 +91,14 @@ function toSinglePassUsage(raw: unknown): SinglePassUsage {
   const totalTokens =
     record["totalTokens"] === undefined ? inputTokens + outputTokens : pick("totalTokens");
   return { inputTokens, outputTokens, totalTokens };
+}
+
+function addUsage(left: SinglePassUsage, right: SinglePassUsage): SinglePassUsage {
+  return {
+    inputTokens: left.inputTokens + right.inputTokens,
+    outputTokens: left.outputTokens + right.outputTokens,
+    totalTokens: left.totalTokens + right.totalTokens,
+  };
 }
 
 async function resolveDiscussion(
@@ -211,12 +219,30 @@ export async function runSinglePassReview(
       `Agent run ended with "${outcome.type}" instead of a response.`,
     );
   }
-  const repaired = await runWithRepair({
-    prompt: reviewed.prompt,
-    generate: () => outcome.text,
-  });
-  if (!repaired.ok) {
-    return { ok: false, error: "schema_violation", issues: repaired.issues };
+  let usage = toSinglePassUsage(outcome.usage);
+  const first = validateBatchOutput(outcome.text);
+  if (first.ok) {
+    return { ok: true, batch: first.value, usage };
   }
-  return { ok: true, batch: repaired.value, usage: toSinglePassUsage(outcome.usage) };
+  let repairedOutcome: Awaited<ReturnType<typeof agent.generate>>;
+  try {
+    repairedOutcome = await agent.generate({
+      prompt: buildRepairPrompt(reviewed.prompt, first.issues),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return failure("generate_failed", message, "(generate)");
+  }
+  if (repairedOutcome.type !== "response") {
+    return failure(
+      "unexpected_outcome",
+      `Agent repair run ended with "${repairedOutcome.type}" instead of a response.`,
+    );
+  }
+  usage = addUsage(usage, toSinglePassUsage(repairedOutcome.usage));
+  const second = validateBatchOutput(repairedOutcome.text);
+  if (!second.ok) {
+    return { ok: false, error: "schema_violation", issues: second.issues };
+  }
+  return { ok: true, batch: second.value, usage };
 }

@@ -1,4 +1,8 @@
-import type { CompletionModel, CompletionResponse } from "@anvia/core/completion";
+import type {
+  CompletionModel,
+  CompletionRequest,
+  CompletionResponse,
+} from "@anvia/core/completion";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -8,6 +12,7 @@ import {
   DEFAULT_SINGLE_PASS_TOKENS,
   parseModelRef,
   runSinglePassReview,
+  validateBatchOutput,
   type Finding,
   type ReviewBatch,
 } from "../src/index";
@@ -188,5 +193,71 @@ describe("runSinglePassReview", () => {
 
   it("exposes the default token budget", () => {
     expect(DEFAULT_SINGLE_PASS_TOKENS).toBe(60000);
+  });
+});
+
+describe("runSinglePassReview agent repair", () => {
+  function repairingModel(texts: string[], seen: CompletionRequest[]): CompletionModel {
+    let calls = 0;
+    return {
+      provider: "test",
+      modelId: "test-model",
+      capabilities: {
+        streaming: false,
+        tools: true,
+        toolChoice: true,
+        imageInput: false,
+        documentInput: false,
+        outputSchema: false,
+        reasoning: false,
+      },
+      completion: async (request: CompletionRequest): Promise<CompletionResponse<unknown>> => {
+        seen.push(request);
+        const text = texts[Math.min(calls++, texts.length - 1)] ?? "";
+        return {
+          choice: [{ type: "text", text }] as CompletionResponse<unknown>["choice"],
+          usage: {
+            inputTokens: 10,
+            outputTokens: 5,
+            totalTokens: 15,
+            cachedInputTokens: 0,
+            cacheCreationInputTokens: 0,
+          },
+          rawResponse: null,
+        };
+      },
+    };
+  }
+
+  it("re-runs the agent with a repair prompt containing the validation issues", async () => {
+    const badText = "not json";
+    const goodText = JSON.stringify(validBatch());
+    const seen: CompletionRequest[] = [];
+    const result = await runSinglePassReview(baseInput(), {
+      model: repairingModel([badText, goodText], seen),
+      checkoutRoot: "/tmp",
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.batch.summary).toContain("null handling");
+      expect(result.usage).toEqual({ inputTokens: 20, outputTokens: 10, totalTokens: 30 });
+    }
+    expect(seen).toHaveLength(2);
+    const first = validateBatchOutput(badText);
+    expect(first.ok).toBe(false);
+    if (!first.ok) {
+      expect(JSON.stringify(seen[1])).toContain(first.issues[0]?.message ?? "");
+    }
+  });
+
+  it("returns schema_violation after two invalid agent responses", async () => {
+    const badText = "not json";
+    const seen: CompletionRequest[] = [];
+    const result = await runSinglePassReview(baseInput(), {
+      model: repairingModel([badText, badText], seen),
+      checkoutRoot: "/tmp",
+    });
+    expect(result).toMatchObject({ ok: false, error: "schema_violation" });
+    expect(seen).toHaveLength(2);
   });
 });
