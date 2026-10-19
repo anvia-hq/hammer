@@ -156,6 +156,22 @@ export type {
 export { clampTurns, createBudget, DEFAULT_MAX_TURNS } from "./budget";
 export type { SkipInput, SkipResult, SkipSender } from "./skip";
 export { decideSkip, SKIP_LABEL, SKIP_TITLE_MARKER } from "./skip";
+export type {
+  BuildObserversInput,
+  ObservabilityConfig,
+  ObservabilityDisabled,
+  ObservabilityEnabled,
+  ObserverFactory,
+  ObservabilityErrorCode,
+  ResolveObservabilityInput,
+  ResolveObservabilityResult,
+} from "./observe";
+export {
+  buildObservers,
+  isValidObservabilityEndpoint,
+  resolveObservability,
+  traceUrlForRun,
+} from "./observe";
 
 export type {
   FetchFilesPage,

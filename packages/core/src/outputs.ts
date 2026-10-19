@@ -67,6 +67,7 @@ export interface RenderJobSummaryInput {
   partialReason?: string | null;
   modelSummary?: string | null;
   error?: string | null;
+  traceUrl?: string | null;
 }
 
 export type WriteFileFn = (path: string, data: string) => void | Promise<void>;
@@ -154,6 +155,10 @@ export function renderJobSummaryMarkdown(input: RenderJobSummaryInput = {}): str
   lines.push(row("Tokens", tokens));
   lines.push(row("Cost (USD)", cost));
   lines.push(row("Partial", partial));
+
+  if (input.traceUrl !== null && input.traceUrl !== undefined && input.traceUrl !== "") {
+    lines.push(row("Trace", input.traceUrl));
+  }
 
   if (input.error !== null && input.error !== undefined && input.error !== "") {
     lines.push("", "### Error", "", sanitizeForPosting(input.error));
