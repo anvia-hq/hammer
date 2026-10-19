@@ -29,6 +29,31 @@ export {
   runWithRepair,
   validateBatchOutput,
 } from "./agent/schema";
+export type {
+  ModelClientOptions,
+  ModelParseErrorCode,
+  ModelParseIssue,
+  ParsedModelRef,
+  ParseModelResult,
+  SupportedModelProvider,
+} from "./agent/model";
+export {
+  createAnthropicModel,
+  createCompletionModel,
+  createOpenAIModel,
+  parseModelRef,
+  SUPPORTED_MODEL_PROVIDERS,
+} from "./agent/model";
+export type {
+  SinglePassErrorCode,
+  SinglePassFailure,
+  SinglePassResult,
+  SinglePassRunInput,
+  SinglePassRunOptions,
+  SinglePassSuccess,
+  SinglePassUsage,
+} from "./agent/run";
+export { buildReviewerTools, DEFAULT_SINGLE_PASS_TOKENS, runSinglePassReview } from "./agent/run";
 export type { AgentToolReason } from "./agent/tools";
 export {
   getFileDiff,
