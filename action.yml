@@ -1,0 +1,101 @@
+name: Hammer
+description: Read-only AI pull request review, built on Anvia. Bring your own model key.
+author: Anvia
+branding:
+  icon: check-circle
+  color: gray-dark
+
+inputs:
+  model:
+    description: Model as provider/model-id, e.g. anthropic/claude-sonnet-5-5.
+    required: true
+  api-key:
+    description: API key for the model provider.
+    required: true
+  base-url:
+    description: Base URL for the openai-compatible provider.
+    required: false
+  github-token:
+    description: Token used to read the PR and post the review.
+    required: false
+    default: ${{ github.token }}
+  config-path:
+    description: Repo config file, read from the base branch.
+    required: false
+    default: .github/hammer.yml
+  min_severity:
+    description: Lowest severity to post (high | medium | low). Overrides config.
+    required: false
+  max_comments:
+    description: Maximum inline comments per run. Overrides config.
+    required: false
+  fail_on:
+    description: Fail the job on posted findings at this severity (none | high | medium). Overrides config.
+    required: false
+  review_drafts:
+    description: Review draft PRs. Overrides config.
+    required: false
+  ignore:
+    description: Newline-separated globs to skip. Overrides config.
+    required: false
+  include:
+    description: Newline-separated globs to allowlist. Overrides config.
+    required: false
+  max_files:
+    description: Maximum files reviewed after filtering.
+    required: false
+    default: "50"
+  max_diff_lines:
+    description: Maximum diff lines reviewed after filtering.
+    required: false
+    default: "3000"
+  max_turns:
+    description: Maximum agent turns per batch.
+    required: false
+    default: "12"
+  max_tokens:
+    description: Maximum tokens per run.
+    required: false
+    default: "400000"
+  max_cost_usd:
+    description: Maximum model cost per run in USD.
+    required: false
+    default: "1.00"
+  verify:
+    description: Run the verification pass on findings.
+    required: false
+    default: "true"
+  verify_threshold:
+    description: Minimum verification score (0-10) to keep a finding.
+    required: false
+    default: "6"
+  fail_on_error:
+    description: Fail the job if Hammer itself errors.
+    required: false
+    default: "false"
+  lens-endpoint:
+    description: Anvia Lens endpoint for traces.
+    required: false
+  otel-endpoint:
+    description: OpenTelemetry endpoint for traces.
+    required: false
+
+outputs:
+  findings_count:
+    description: Number of findings posted.
+  high_count:
+    description: Number of high-severity findings posted.
+  review_url:
+    description: URL of the posted review.
+  result_path:
+    description: Path to the full result JSON.
+  tokens:
+    description: Total tokens used.
+  cost_usd:
+    description: Estimated model cost in USD.
+
+runs:
+  using: node24
+  main: packages/action/dist/index.js
+  post: packages/action/dist/post.js
+  post-if: always()

@@ -1,0 +1,20 @@
+{
+  "name": "@anvia/hammer-eval",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Hammer eval runner and cases (docs/PRD.md §11).",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "eval": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anvia/hammer-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3"
+  }
+}

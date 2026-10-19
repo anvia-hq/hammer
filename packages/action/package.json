@@ -1,0 +1,22 @@
+{
+  "name": "@anvia/hammer-action",
+  "version": "0.0.0",
+  "private": true,
+  "description": "GitHub Action entry for Hammer, bundled to dist/ for action.yml.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anvia/hammer-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}
