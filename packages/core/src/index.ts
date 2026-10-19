@@ -11,6 +11,24 @@ export type {
 } from "./github/files";
 export { fetchPullFiles, MAX_PULL_FILES, PULL_FILES_PER_PAGE } from "./github/files";
 
+export type {
+  CreateIssueComment,
+  ListedComment,
+  ListCommentPage,
+  RenderSummaryOptions,
+  SkippedSummaryFile,
+  SummaryScopeFile,
+  UpdateComment,
+  UpsertSummaryOptions,
+  UpsertSummaryResult,
+} from "./github/summary";
+export {
+  renderSummaryBody,
+  sanitizeSummaryText,
+  SUMMARY_MARKER,
+  upsertSummaryComment,
+} from "./github/summary";
+
 export type { IncrementalScope, PatchHunk, PatchLine, ReviewScopeOptions } from "./github/patch";
 export { commentableLines, decideReviewScope, extractLastSha, parsePatch } from "./github/patch";
 
