@@ -10,4 +10,9 @@ export default {
   splitting: false,
   sourcemap: false,
   clean: true,
+  banner: {
+    // Bundled CJS deps call require("process") etc.; ESM output has no
+    // require, so provide one or the bundle throws at load on every runner.
+    js: 'import { createRequire as __hammerCreateRequire } from "node:module"; const require = __hammerCreateRequire(import.meta.url);',
+  },
 } satisfies Options;

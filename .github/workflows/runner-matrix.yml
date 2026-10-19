@@ -1,0 +1,76 @@
+name: Runner matrix
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: Run the live end-to-end job against the sandbox repo (needs sandbox secrets).
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  portable:
+    name: portable (${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: ubuntu-latest
+            arch: x64
+            experimental: false
+          - label: ubuntu-24.04-arm
+            arch: arm64
+            experimental: false
+          - label: blacksmith-2vcpu-ubuntu-2404
+            arch: x64
+            experimental: true
+          - label: blacksmith-2vcpu-ubuntu-2404-arm
+            arch: arm64
+            experimental: true
+    runs-on: ${{ matrix.label }}
+    continue-on-error: ${{ matrix.experimental }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node packages/action/scripts/smoke-bundle.mjs
+      - run: pnpm test
+      - run: pnpm --filter @anvia/hammer-eval eval
+
+  self-hosted:
+    name: self-hosted linux (not yet enabled)
+    # TODO: remove `if: false` once a minimal self-hosted Linux runner
+    # (runner agent in a container, no git, behind proxy, per PRD §8.9) is registered.
+    if: false
+    runs-on: [self-hosted, linux, X64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node packages/action/scripts/smoke-bundle.mjs
+      - run: pnpm test
+      - run: pnpm --filter @anvia/hammer-eval eval
+
+  e2e-sandbox:
+    name: live end-to-end on sandbox repo (disabled)
+    # TODO: implement the real release end-to-end run against a sandbox repo:
+    # install the built action on a fixture PR and assert a review is posted.
+    # Needs a sandbox repo plus model and GitHub secrets; enable via the run_e2e input.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_e2e }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "sandbox end-to-end not implemented yet (PRD M2 exit); enable with run_e2e once wired."
