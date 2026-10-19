@@ -1,5 +1,34 @@
 export const CORE_PACKAGE_NAME = "@anvia/hammer-core";
 
+export type { AgentToolReason } from "./agent/tools";
+export {
+  getFileDiff,
+  getPrDiscussion,
+  listDir,
+  MAX_DIR_ENTRIES,
+  MAX_DISCUSSION_COMMENTS,
+  MAX_SEARCH_HITS,
+  MAX_SEARCH_LINE_CHARS,
+  MAX_TOOL_OUTPUT_CHARS,
+  readFile,
+  search,
+  truncateText,
+} from "./agent/tools";
+export type {
+  DiscussionCommentInput,
+  FileDiffResult,
+  FileDiffSuccess,
+  ListDirResult,
+  ListDirSuccess,
+  PrDiscussionInput,
+  PrDiscussionResult,
+  ReadFileResult,
+  ReadFileSuccess,
+  SearchHit,
+  SearchResult,
+  SearchSuccess,
+  TruncatedText,
+} from "./agent/tools";
 export type { CheckoutPlanOptions, CheckoutResult, CheckoutStep, ExecFn } from "./checkout/git";
 export {
   assertReadOnlySteps,
