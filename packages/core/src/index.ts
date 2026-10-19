@@ -13,6 +13,22 @@ export {
   MAX_GUIDANCE_TOKENS,
   MAX_HUNK_RENDER_LINES,
 } from "./agent/prompt";
+export type {
+  BatchValidationIssue,
+  BatchValidationResult,
+  Finding,
+  RepairFailureCode,
+  ReviewBatch,
+  RunWithRepairOptions,
+  RunWithRepairResult,
+} from "./agent/schema";
+export {
+  buildRepairPrompt,
+  FindingSchema,
+  ReviewBatchSchema,
+  runWithRepair,
+  validateBatchOutput,
+} from "./agent/schema";
 export type { AgentToolReason } from "./agent/tools";
 export {
   getFileDiff,
