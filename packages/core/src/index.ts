@@ -122,6 +122,16 @@ export type {
 } from "./gate";
 export { decideExitCode } from "./gate";
 
+export type {
+  BatchGate,
+  Budget,
+  BudgetCapReason,
+  BudgetSummary,
+  BudgetUsageInput,
+  CreateBudgetInput,
+  PricingFn,
+} from "./budget";
+export { clampTurns, createBudget, DEFAULT_MAX_TURNS } from "./budget";
 export type { SkipInput, SkipResult, SkipSender } from "./skip";
 export { decideSkip, SKIP_LABEL, SKIP_TITLE_MARKER } from "./skip";
 
