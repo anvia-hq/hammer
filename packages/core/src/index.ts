@@ -131,6 +131,36 @@ export {
   upsertSummaryComment,
 } from "./github/summary";
 
+export type {
+  CreateReviewFn,
+  CreateReviewPayload,
+  MovedToSummaryNote,
+  PostPullReviewDeps,
+  PostPullReviewInput,
+  PostPullReviewResult,
+  PostPullReviewSuccess,
+  PullReviewInlineInput,
+  ReviewApiComment,
+  ReviewCommentEvent,
+  ReviewPostErrorCode,
+  ReviewPostFailure,
+  SleepFn,
+} from "./github/review";
+export {
+  assertCommentEvent,
+  formatAnchoredNote,
+  GENERIC_RETRY_SLEEPS_MS,
+  postPullReview,
+} from "./github/review";
+
+export type { SanitizeCommentOptions } from "./github/sanitize";
+export {
+  MAX_COMMENT_CHARS,
+  REDACTED,
+  redactSecrets,
+  sanitizeComment,
+  sanitizeForPosting,
+} from "./github/sanitize";
 export type { IncrementalScope, PatchHunk, PatchLine, ReviewScopeOptions } from "./github/patch";
 export { commentableLines, decideReviewScope, extractLastSha, parsePatch } from "./github/patch";
 
