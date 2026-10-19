@@ -4,6 +4,17 @@ export type { SkipInput, SkipResult, SkipSender } from "./skip";
 export { decideSkip, SKIP_LABEL, SKIP_TITLE_MARKER } from "./skip";
 
 export type {
+  FetchFilesPage,
+  FetchPullFilesOptions,
+  PullFileEntry,
+  PullFileStatus,
+} from "./github/files";
+export { fetchPullFiles, MAX_PULL_FILES, PULL_FILES_PER_PAGE } from "./github/files";
+
+export type { IncrementalScope, PatchHunk, PatchLine, ReviewScopeOptions } from "./github/patch";
+export { commentableLines, decideReviewScope, extractLastSha, parsePatch } from "./github/patch";
+
+export type {
   CommentRun,
   DecideEventOptions,
   EventDecision,
