@@ -1,17 +1,24 @@
 import { AnthropicClient } from "@anvia/anthropic";
 import type { CompletionModel } from "@anvia/core/completion";
+import { GeminiClient } from "@anvia/gemini";
 import { OpenAIClient } from "@anvia/openai";
 
-export const SUPPORTED_MODEL_PROVIDERS = ["anthropic", "openai"] as const;
+export const SUPPORTED_MODEL_PROVIDERS = [
+  "anthropic",
+  "openai",
+  "gemini",
+  "openai-compatible",
+] as const;
 
 export type SupportedModelProvider = (typeof SUPPORTED_MODEL_PROVIDERS)[number];
 
 export interface ParsedModelRef {
   provider: SupportedModelProvider;
   modelId: string;
+  baseUrl?: string;
 }
 
-export type ModelParseErrorCode = "invalid_model" | "unsupported_provider";
+export type ModelParseErrorCode = "invalid_model" | "unsupported_provider" | "missing_base_url";
 
 export interface ModelParseIssue {
   code: ModelParseErrorCode;
@@ -22,7 +29,15 @@ export type ParseModelResult =
   | { ok: true; value: ParsedModelRef }
   | { ok: false; issues: ModelParseIssue[] };
 
-export function parseModelRef(raw: string): ParseModelResult {
+export interface ParseModelOptions {
+  baseUrl?: string;
+}
+
+export function parseModelRef(raw: string, options: ParseModelOptions = {}): ParseModelResult {
+  return parseModelRefWithBase(raw, options.baseUrl);
+}
+
+export function parseModelRefWithBase(raw: string, baseUrl?: string): ParseModelResult {
   const input = raw.trim();
   const slash = input.indexOf("/");
   if (slash < 0) {
@@ -60,6 +75,21 @@ export function parseModelRef(raw: string): ParseModelResult {
       ],
     };
   }
+  if (provider === "openai-compatible") {
+    const normalized = baseUrl?.trim() ?? "";
+    if (normalized === "") {
+      return {
+        ok: false,
+        issues: [
+          {
+            code: "missing_base_url",
+            message: `Model "${raw}" needs the "base-url" action input for the openai-compatible provider.`,
+          },
+        ],
+      };
+    }
+    return { ok: true, value: { provider, modelId, baseUrl: normalized } };
+  }
   return { ok: true, value: { provider, modelId } };
 }
 
@@ -69,6 +99,7 @@ function isSupportedProvider(provider: string): provider is SupportedModelProvid
 
 export interface ModelClientOptions {
   apiKey: string;
+  baseUrl?: string | undefined;
 }
 
 export function createAnthropicModel(
@@ -84,10 +115,40 @@ export function createOpenAIModel(modelId: string, options: ModelClientOptions):
   return client.completionModel({ modelId }) as unknown as CompletionModel;
 }
 
+export function createGeminiModel(modelId: string, options: ModelClientOptions): CompletionModel {
+  const client = new GeminiClient({ apiKey: options.apiKey });
+  return client.completionModel({ modelId }) as unknown as CompletionModel;
+}
+
+export function createOpenAICompatibleModel(
+  modelId: string,
+  options: ModelClientOptions,
+): CompletionModel {
+  const baseUrl = options.baseUrl?.trim() ?? "";
+  if (baseUrl === "") {
+    throw new Error(
+      'Missing base URL for the openai-compatible provider: pass "base-url" as an action input.',
+    );
+  }
+  const client = new OpenAIClient({ apiKey: options.apiKey, baseUrl });
+  return client.completionModel({ modelId }) as unknown as CompletionModel;
+}
+
 export function createCompletionModel(
   ref: ParsedModelRef,
   options: ModelClientOptions,
 ): CompletionModel {
   if (ref.provider === "anthropic") return createAnthropicModel(ref.modelId, options);
+  if (ref.provider === "gemini") return createGeminiModel(ref.modelId, options);
+  if (ref.provider === "openai-compatible") {
+    const baseUrl = ref.baseUrl ?? options.baseUrl;
+    if (baseUrl === undefined) {
+      return createOpenAICompatibleModel(ref.modelId, { apiKey: options.apiKey });
+    }
+    return createOpenAICompatibleModel(ref.modelId, {
+      apiKey: options.apiKey,
+      baseUrl,
+    });
+  }
   return createOpenAIModel(ref.modelId, options);
 }

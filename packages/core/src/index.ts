@@ -34,14 +34,18 @@ export type {
   ModelParseErrorCode,
   ModelParseIssue,
   ParsedModelRef,
+  ParseModelOptions,
   ParseModelResult,
   SupportedModelProvider,
 } from "./agent/model";
 export {
   createAnthropicModel,
   createCompletionModel,
+  createGeminiModel,
+  createOpenAICompatibleModel,
   createOpenAIModel,
   parseModelRef,
+  parseModelRefWithBase,
   SUPPORTED_MODEL_PROVIDERS,
 } from "./agent/model";
 export type {

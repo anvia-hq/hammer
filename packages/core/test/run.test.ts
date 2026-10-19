@@ -8,9 +8,12 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createAnthropicModel,
   createCompletionModel,
+  createGeminiModel,
+  createOpenAICompatibleModel,
   createOpenAIModel,
   DEFAULT_SINGLE_PASS_TOKENS,
   parseModelRef,
+  parseModelRefWithBase,
   runSinglePassReview,
   validateBatchOutput,
   type Finding,
@@ -49,7 +52,7 @@ function baseInput(model = "anthropic/claude-sonnet-4-5") {
 }
 
 describe("parseModelRef", () => {
-  it("parses anthropic and openai refs", () => {
+  it("parses anthropic, openai and gemini refs", () => {
     expect(parseModelRef("anthropic/claude-sonnet-4-5")).toEqual({
       ok: true,
       value: { provider: "anthropic", modelId: "claude-sonnet-4-5" },
@@ -58,14 +61,54 @@ describe("parseModelRef", () => {
       ok: true,
       value: { provider: "openai", modelId: "gpt-4o" },
     });
+    expect(parseModelRef("gemini/gemini-2.0-flash")).toEqual({
+      ok: true,
+      value: { provider: "gemini", modelId: "gemini-2.0-flash" },
+    });
+  });
+
+  it("parses openai-compatible with a base URL", () => {
+    expect(
+      parseModelRefWithBase("openai-compatible/my-model", "https://llm.example.com/v1"),
+    ).toEqual({
+      ok: true,
+      value: {
+        provider: "openai-compatible",
+        modelId: "my-model",
+        baseUrl: "https://llm.example.com/v1",
+      },
+    });
+    expect(
+      parseModelRef("openai-compatible/my-model", { baseUrl: "https://llm.example.com/v1" }),
+    ).toEqual({
+      ok: true,
+      value: {
+        provider: "openai-compatible",
+        modelId: "my-model",
+        baseUrl: "https://llm.example.com/v1",
+      },
+    });
+  });
+
+  it("rejects openai-compatible without a base URL", () => {
+    const result = parseModelRef("openai-compatible/my-model");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues[0]?.code).toBe("missing_base_url");
+    }
+    const blank = parseModelRefWithBase("openai-compatible/my-model", "  ");
+    expect(blank.ok).toBe(false);
+    if (!blank.ok) {
+      expect(blank.issues[0]?.code).toBe("missing_base_url");
+    }
   });
 
   it("rejects an unknown provider with a coded error", () => {
-    const result = parseModelRef("gemini/gemini-2.0-flash");
+    const result = parseModelRef("cohere/command-r");
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.issues[0]?.code).toBe("unsupported_provider");
-      expect(result.issues[0]?.message).toContain("gemini");
+      expect(result.issues[0]?.message).toContain("cohere");
     }
   });
 
@@ -85,11 +128,38 @@ describe("provider factory", () => {
     expect(anthropic.provider).toBe("anthropic");
     const openai = createOpenAIModel("gpt-4o", { apiKey: "test-key" });
     expect(openai.provider).toBe("openai");
+    const gemini = createGeminiModel("gemini-2.0-flash", { apiKey: "test-key" });
+    expect(gemini.provider).toBe("gemini");
+    const compatible = createOpenAICompatibleModel("my-model", {
+      apiKey: "test-key",
+      baseUrl: "https://llm.example.com/v1",
+    });
+    expect(compatible.provider).toBe("openai");
     const routed = createCompletionModel(
       { provider: "openai", modelId: "gpt-4o" },
       { apiKey: "test-key" },
     );
     expect(routed.provider).toBe("openai");
+    const routedGemini = createCompletionModel(
+      { provider: "gemini", modelId: "gemini-2.0-flash" },
+      { apiKey: "test-key" },
+    );
+    expect(routedGemini.provider).toBe("gemini");
+    const routedCompatible = createCompletionModel(
+      {
+        provider: "openai-compatible",
+        modelId: "my-model",
+        baseUrl: "https://llm.example.com/v1",
+      },
+      { apiKey: "test-key" },
+    );
+    expect(routedCompatible.provider).toBe("openai");
+  });
+
+  it("throws when the openai-compatible base URL is missing", () => {
+    expect(() => createOpenAICompatibleModel("my-model", { apiKey: "test-key" })).toThrowError(
+      /base-url/i,
+    );
   });
 });
 
@@ -117,11 +187,30 @@ describe("runSinglePassReview", () => {
 
   it("rejects unknown providers before calling generate", async () => {
     const generate = vi.fn(() => validBatch());
-    const result = await runSinglePassReview(baseInput("gemini/gemini-2.0-flash"), {
+    const result = await runSinglePassReview(baseInput("cohere/command-r"), {
       generate,
     });
     expect(result).toMatchObject({ ok: false, error: "unsupported_provider" });
     expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("rejects openai-compatible without a base URL before calling generate", async () => {
+    const generate = vi.fn(() => validBatch());
+    const result = await runSinglePassReview(baseInput("openai-compatible/my-model"), {
+      generate,
+    });
+    expect(result).toMatchObject({ ok: false, error: "missing_base_url" });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("accepts openai-compatible with a base URL", async () => {
+    const generate = vi.fn(() => validBatch());
+    const result = await runSinglePassReview(
+      { ...baseInput("openai-compatible/my-model"), baseUrl: "https://llm.example.com/v1" },
+      { generate },
+    );
+    expect(result.ok).toBe(true);
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 
   it("repairs schema-invalid output once", async () => {

@@ -4,7 +4,7 @@ import type { CompletionModel } from "@anvia/core/completion";
 import { z } from "zod";
 
 import type { PullFileEntry } from "../github/files";
-import { parseModelRef } from "./model";
+import { parseModelRefWithBase } from "./model";
 import { buildReviewPrompt, type BuildReviewPromptInput } from "./prompt";
 import { buildRepairPrompt, runWithRepair, validateBatchOutput, type ReviewBatch } from "./schema";
 import {
@@ -22,6 +22,7 @@ export const DEFAULT_SINGLE_PASS_TOKENS = 60000;
 export type SinglePassErrorCode =
   | "invalid_model"
   | "unsupported_provider"
+  | "missing_base_url"
   | "needs_batching"
   | "schema_violation"
   | "generate_failed"
@@ -49,6 +50,7 @@ export type SinglePassResult = SinglePassSuccess | SinglePassFailure;
 
 export interface SinglePassRunInput extends BuildReviewPromptInput {
   model: string;
+  baseUrl?: string;
 }
 
 export interface SinglePassRunOptions {
@@ -160,10 +162,15 @@ export async function runSinglePassReview(
   input: SinglePassRunInput,
   options: SinglePassRunOptions = {},
 ): Promise<SinglePassResult> {
-  const parsed = parseModelRef(input.model);
+  const parsed = parseModelRefWithBase(input.model, input.baseUrl);
   if (!parsed.ok) {
     const issue = parsed.issues[0];
-    const code = issue?.code === "unsupported_provider" ? "unsupported_provider" : "invalid_model";
+    const code =
+      issue?.code === "unsupported_provider"
+        ? "unsupported_provider"
+        : issue?.code === "missing_base_url"
+          ? "missing_base_url"
+          : "invalid_model";
     return {
       ok: false,
       error: code,

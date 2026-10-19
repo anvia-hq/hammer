@@ -2,7 +2,9 @@ packages:
   - "packages/*"
   - "eval"
 allowBuilds:
+  "@google/genai": false
   esbuild: true
+  protobufjs: false
 minimumReleaseAgeExclude:
   - "@anvia/anthropic@1.1.9"
   - "@anvia/core@1.17.0"
