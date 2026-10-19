@@ -245,6 +245,29 @@ export {
   validateFindings,
 } from "./validate";
 
+export type {
+  ApplyVerificationInput,
+  ApplyVerificationResult,
+  BuildVerificationPromptInput,
+  RunVerifierFn,
+  VerificationResult,
+  VerificationScore,
+  VerifyDropped,
+  VerifyDropReason,
+  VerifyStatus,
+} from "./verify";
+export {
+  applyVerification,
+  buildVerificationPrompt,
+  DEFAULT_VERIFY_MAX_RATIO,
+  DEFAULT_VERIFY_THRESHOLD,
+  MAX_VERIFICATION_SCORES,
+  verificationId,
+  VerificationResultSchema,
+  VerificationScoreSchema,
+  verifyCostOk,
+} from "./verify";
+
 export type { PlanOptions, ReviewPlan, SkippedPlanFile } from "./plan";
 export { buildReviewPlan, isTestPath, matchesGlob } from "./plan";
 

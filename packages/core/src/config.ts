@@ -55,6 +55,8 @@ const repoConfigSchema = z.object({
   max_turns: z.number().int().min(1).optional(),
   max_tokens: z.number().int().min(1).optional(),
   max_cost_usd: z.number().nonnegative().optional(),
+  verify: z.boolean().default(true),
+  verify_threshold: z.number().int().min(0).max(10).default(6),
 });
 
 export type RepoConfig = z.infer<typeof repoConfigSchema>;
@@ -71,6 +73,8 @@ export interface ConfigInputOverrides {
   max_turns?: number;
   max_tokens?: number;
   max_cost_usd?: number;
+  verify?: boolean;
+  verify_threshold?: number;
 }
 
 export interface EffectiveConfig {
@@ -90,6 +94,8 @@ export interface EffectiveConfig {
   max_turns: number;
   max_tokens: number;
   max_cost_usd: number;
+  verify: boolean;
+  verify_threshold: number;
 }
 
 export interface LoadConfigOptions {
@@ -209,5 +215,7 @@ export function resolveConfig(
     max_turns: clampCap(config.max_turns, inputs.max_turns, DEFAULT_CAPS.max_turns),
     max_tokens: clampCap(config.max_tokens, inputs.max_tokens, DEFAULT_CAPS.max_tokens),
     max_cost_usd: clampCap(config.max_cost_usd, inputs.max_cost_usd, DEFAULT_CAPS.max_cost_usd),
+    verify: inputs.verify ?? config.verify,
+    verify_threshold: inputs.verify_threshold ?? config.verify_threshold,
   };
 }

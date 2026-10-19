@@ -90,6 +90,8 @@ path_instructions:
       max_turns: undefined,
       max_tokens: undefined,
       max_cost_usd: undefined,
+      verify: true,
+      verify_threshold: 6,
     });
   });
 
