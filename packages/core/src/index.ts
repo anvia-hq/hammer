@@ -11,3 +11,21 @@ export type {
   SkipDecision,
 } from "./event";
 export { decideEvent, PULL_REQUEST_TRIGGER_ACTIONS } from "./event";
+export type {
+  ConfigInputOverrides,
+  ConfigRule,
+  EffectiveConfig,
+  FailOn,
+  LoadConfigOptions,
+  PathInstruction,
+  RepoConfig,
+  Severity,
+} from "./config";
+export {
+  ConfigError,
+  DEFAULT_CAPS,
+  DEFAULT_CONFIG_PATH,
+  defaultRepoConfig,
+  loadConfig,
+  resolveConfig,
+} from "./config";
