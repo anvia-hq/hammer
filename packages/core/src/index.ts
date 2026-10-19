@@ -123,6 +123,24 @@ export type {
 export { decideExitCode } from "./gate";
 
 export type {
+  BatchRunEntry,
+  BatchUsage,
+  FileBatch,
+  MergedBatches,
+  PlanBatchesInput,
+  PlanBatchesResult,
+  RunBatchesInput,
+  RunBatchesResult,
+  RunBatchResult,
+} from "./batching";
+export {
+  DEFAULT_BATCH_TOKENS,
+  DEFAULT_MAX_CONCURRENT,
+  mergeBatchResults,
+  planBatches,
+  runBatches,
+} from "./batching";
+export type {
   BatchGate,
   Budget,
   BudgetCapReason,
