@@ -1,5 +1,24 @@
 export const CORE_PACKAGE_NAME = "@anvia/hammer-core";
 
+export type { CheckoutPlanOptions, CheckoutResult, CheckoutStep, ExecFn } from "./checkout/git";
+export {
+  assertReadOnlySteps,
+  CHECKOUT_ENV,
+  checkoutArgs,
+  checkoutSteps,
+  fetchArgs,
+  HOOKS_PATH,
+  initArgs,
+  remoteArgs,
+  runCheckoutPlan,
+} from "./checkout/git";
+export type { PathGuardReason, PathGuardResult } from "./checkout/path-guard";
+export {
+  isDenylistedBasename,
+  MAX_READABLE_FILE_BYTES,
+  resolveInsideRoot,
+} from "./checkout/path-guard";
+
 export type { SkipInput, SkipResult, SkipSender } from "./skip";
 export { decideSkip, SKIP_LABEL, SKIP_TITLE_MARKER } from "./skip";
 
