@@ -181,8 +181,24 @@ export {
   sanitizeComment,
   sanitizeForPosting,
 } from "./github/sanitize";
+export type { DedupeFinding, FindingFingerprints, PriorFinding } from "./dedupe";
+export {
+  buildPriorFindingsContext,
+  filterDuplicates,
+  fingerprints,
+  formatFingerprintComment,
+  isDuplicate,
+  MAX_PRIOR_FINDINGS_CHARS,
+  parsePriorFingerprints,
+} from "./dedupe";
 export type { IncrementalScope, PatchHunk, PatchLine, ReviewScopeOptions } from "./github/patch";
 export { commentableLines, decideReviewScope, extractLastSha, parsePatch } from "./github/patch";
+export type {
+  DecideIncrementalScopeOptions,
+  IncrementalScopeDecision,
+  IncrementalScopeReason,
+} from "./github/scope";
+export { decideIncrementalScope } from "./github/scope";
 
 export type {
   GeneralNoteReason,
