@@ -1,6 +1,6 @@
 # Eval harness (PRD §11)
 
-Deterministic offline evaluation for Hammer. The full PRD target is 40
+Offline and model-backed evaluation for Hammer. The full PRD target is 40
 seeded-defect PRs, 20 clean PRs and 10 adversarial PRs; this task ships
 31 cases as **synthetic before/after files** (not real OSS history):
 

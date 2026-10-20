@@ -52,3 +52,29 @@ The original diagnostic COMMENT review is [anchored to the defect](https://githu
 [Custom gateway review](https://github.com/anvia-hq/aven-harness/actions/runs/39357816958/attempts/1): `openai-compatible/muse-spark-1.3-contributor` at `https://gateway-staging.devscale.id/v1`, using `native-json-schema: "false"`, completed verification, retained the seeded high-severity defect, and suppressed its existing inline duplicate. It reported 35,100 tokens, no partial result, and a successful post step. Price is unknown, so cost is null and the USD cap is not enforced; token, turn and request-timeout limits remain enabled. The same single sticky summary was updated. The workflow reads its API key from an Actions secret; no key was committed.
 
 [The Muse same-head rerun](https://github.com/anvia-hq/aven-harness/actions/runs/39357816958/attempts/2) also passed: one retained finding, one duplicate suppressed, verification complete, 47,686 reported tokens, no partial result, and a successful post step.
+
+## Measured model baseline
+
+[The corrected 31-case run](https://github.com/anvia-hq/aven-harness/actions/runs/39360849292) used Muse Spark 1.3 Contributor through the custom gateway as reviewer and Haiku 5.5 as independent judge, with verification enabled, native JSON schema disabled, and three concurrent cases. The earlier run was stopped because the initial fixture ground truth was invalid; its incomplete results are not a quality baseline.
+
+The repaired corpus contains complete before/after files. Each of its 20 seeded changes has a hidden behavioral witness that passes before the change and fails afterward. Hunk counts and clean/adversarial source syntax are tested. Witnesses and expected labels are never sent to the model. These are synthetic files, not real-repository accuracy evidence.
+
+| Metric                             | Result                                                              |
+| ---------------------------------- | ------------------------------------------------------------------- |
+| Automated M1 metric gate           | PASS                                                                |
+| Completed reviews                  | 31/31; one generated fixture was filtered without a model call      |
+| Judge-adjusted precision           | 100% (21/21 findings)                                               |
+| Strict high-severity recall        | 81.8% (9/11 expected high findings matched path, line and category) |
+| False positives on six clean cases | 0                                                                   |
+| Adversarial cases                  | 5/5 passed                                                          |
+| Strict case matches                | 25/31                                                               |
+| Median findings                    | 1                                                                   |
+| p50 / p95 reviewer latency         | 35.4 / 73.2 seconds, at concurrency 3; judge time excluded          |
+| Reviewer / judge tokens            | 280,559 / 5,591                                                     |
+| USD cost                           | Unavailable; no Muse price is configured                            |
+
+The six strict case mismatches were reliability findings classified by Muse as correctness. Haiku validated their defect reports, so they count toward precision but not strict category-based recall. A seventh unmatched finding described another supported undefined-value regression in the clone helper. Labels and scores were not changed after the run.
+
+The assistant inspected the two marked sample judgments ([timeout fallback](../eval/cases/seeded-10/changes.patch) and [webhook deduplication](../eval/cases/seeded-18/changes.patch)); both are supported by the patch and their executable witness. This is an assistant audit, not the PRD's human review. Human sign-off on that 2/7 sample remains pending. The full 70-case corpus, a verification-off comparison, and the remaining release gates are still open.
+
+[The latest sandbox integration run](https://github.com/anvia-hq/aven-harness/actions/runs/39360862424) also passed with the parser fix: one retained finding, one duplicate suppressed, verification complete, 53,166 tokens, and successful post cleanup. The existing two inline comments and single sticky summary did not increase.
