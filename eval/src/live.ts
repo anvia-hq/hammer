@@ -9,6 +9,7 @@ import {
   runReviewPipeline,
   resolvePricing,
   type PullFileEntry,
+  type Finding,
   type ReviewPipelineInput,
 } from "@anvia/hammer-core";
 import { loadCases, type EvalCase } from "./cases";
@@ -82,6 +83,7 @@ export async function runLiveEval(options: LiveEvalOptions) {
     reason: string;
     tokens: number;
     humanSpotCheck: boolean;
+    finding: Finding;
   }> = [];
   const pricing = resolvePricing(options.modelRef);
   for (const c of cases) {
@@ -150,6 +152,7 @@ export async function runLiveEval(options: LiveEvalOptions) {
             ...judgment,
             tokens: judgment.tokens ?? 0,
             humanSpotCheck: judgments.length % 5 === 0,
+            finding,
           });
           if (judgment.verdict === "valid") {
             score.truePositives += 1;
@@ -212,6 +215,7 @@ export async function runLiveEval(options: LiveEvalOptions) {
     model: options.modelRef,
     judgeModel: options.judgeModel ?? null,
     verify: options.verify ?? true,
+    nativeJsonSchema: options.model.capabilities.outputSchema,
     totals,
     metrics,
     measurements,

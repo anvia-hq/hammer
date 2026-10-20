@@ -66,6 +66,26 @@ describe("live-model evaluation", () => {
       model,
     });
     expect(model.completion).toHaveBeenCalled();
+    const candidate = {
+      path: "src/a.ts",
+      line: 1,
+      severity: "high",
+      category: "correctness",
+      title: "Candidate",
+      body: "Concrete trigger and impact.",
+      confidence: 0.9,
+    };
+    const judged = await runLiveEval({
+      casesRoot: cases,
+      reportsDir: join(root, "judged"),
+      modelRef: "openai/fake",
+      verify: false,
+      model: fakeModel(JSON.stringify({ summary: "PR", findings: [candidate], generalNotes: [] })),
+      judgeModel: "anthropic/fake",
+      judge: { judge: async () => ({ verdict: "invalid", reason: "No supported trigger." }) },
+    });
+    expect(judged.report.judgments[0]).toMatchObject({ finding: candidate, humanSpotCheck: true });
+    expect(judged.report.nativeJsonSchema).toBe(false);
     expect(result.report.measurements[0]?.tokens).toBe(15);
     expect(JSON.parse(await readFile(join(reports, "report.json"), "utf8")).mode).toBe(
       "live-model",

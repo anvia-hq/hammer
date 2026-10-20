@@ -61,3 +61,9 @@ present in each patch and leave other lines blank; they cannot establish
 accuracy on complete real-world repositories. The 70-case launch corpus,
 manual judge spot-checks, regression baseline, and launch metrics remain
 outstanding. An offline oracle PASS never establishes model quality.
+
+## Private-repository evaluation action
+
+A release ref also exposes `anvia-hq/hammer/eval@<sha>`. This composite action installs the trusted Hammer workspace, runs the same CLI with separate reviewer/judge secrets, publishes a job summary, and returns `report-path`. It runs Hammer's synthetic fixtures; it does not check out or execute the sandbox PR. This is evaluation tooling, separate from the bundled production review Action's install-free runtime. The caller can retain the reports as private workflow artifacts.
+
+Each unmatched judgment includes its candidate finding so the entries marked `humanSpotCheck` can be checked against the fixture patch. Reports also record whether native JSON schema was enabled. Keep model outputs and reports out of version control.

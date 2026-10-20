@@ -1,6 +1,6 @@
 # Sandbox review
 
-The Action run flow is implemented on the source branch. The live sandbox is [aven-harness PR #3](https://github.com/anvia-hq/aven-harness/pull/3), using `anthropic/claude-haiku-5-5`. Both repositories are private, and Hammer is available to repositories in the `anvia-hq` organization. The sandbox workflow pins the generated Action bundle on `release/sandbox-haiku-5-5`; generated bundles remain off the source branch.
+The Action run flow is implemented on the source branch. The live sandbox is [aven-harness PR #3](https://github.com/anvia-hq/aven-harness/pull/3), currently using `openai-compatible/muse-spark-1.3-contributor` through a custom gateway. Earlier Haiku 5.5 results are recorded below. Both repositories are private, and Hammer is available to repositories in the `anvia-hq` organization. The sandbox workflow pins the generated Action bundle on `release/sandbox-haiku-5-5`; generated bundles remain off the source branch.
 
 ## Local acceptance without credentials
 
@@ -37,7 +37,7 @@ The tracing inputs are rejected explicitly until the observer constructors and e
 
 Budget checks happen before each model request and after each response, including repair and verification requests. Already-running requests can exceed a threshold before their usage is returned; this is not a provider-side billing limit. Each provider request has a 120-second timeout.
 
-Live acceptance currently covers a same-repository Haiku 5.5 review on GitHub-hosted Linux x64. Other provider/runner combinations, maintainer-triggered fork review, the full 70-case evaluation corpus, verification's precision/cost benefit, nightly real-key checks, and launch gates remain outstanding. Local tests use injected GitHub APIs and model adapters and do not prove those live paths.
+Live acceptance currently covers same-repository Haiku 5.5 and OpenAI-compatible Muse reviews on GitHub-hosted Linux x64. Other provider/runner combinations, maintainer-triggered fork review, the full 70-case evaluation corpus, verification's precision/cost benefit, nightly real-key checks, and launch gates remain outstanding. Local tests use injected GitHub APIs and model adapters and do not prove those live paths.
 
 The sandbox fixture is intentionally defective and must not be merged. Its test establishes the percentage contract: a 10% discount on a 1,000-cent order must return 900 cents; the fixture returns −9,000. The Action reads the repository but never executes this test. The initial run returned no findings. A diagnostic run with an explicit test contract, verification disabled and low-severity findings enabled identified the seeded defect. This is acceptance of the plumbing, not an unbiased model-quality evaluation: the PR description discloses the defect.
 
@@ -48,3 +48,7 @@ The sandbox fixture is intentionally defective and must not be merged. Its test 
 The original diagnostic COMMENT review is [anchored to the defect](https://github.com/anvia-hq/aven-harness/pull/3#discussion_r4320718729). The full verified run did not create another review. The sticky summary remained comment `6281509708`.
 
 [Same-head rerun](https://github.com/anvia-hq/aven-harness/actions/runs/39356491762/attempts/2) also passed with verification complete: one finding, one duplicate suppressed, 28,771 tokens, estimated $0.0036707, and a successful post step. Review and inline-comment counts did not increase; the same single sticky summary was updated.
+
+[Custom gateway review](https://github.com/anvia-hq/aven-harness/actions/runs/39357816958/attempts/1): `openai-compatible/muse-spark-1.3-contributor` at `https://gateway-staging.devscale.id/v1`, using `native-json-schema: "false"`, completed verification, retained the seeded high-severity defect, and suppressed its existing inline duplicate. It reported 35,100 tokens, no partial result, and a successful post step. Price is unknown, so cost is null and the USD cap is not enforced; token, turn and request-timeout limits remain enabled. The same single sticky summary was updated. The workflow reads its API key from an Actions secret; no key was committed.
+
+[The Muse same-head rerun](https://github.com/anvia-hq/aven-harness/actions/runs/39357816958/attempts/2) also passed: one retained finding, one duplicate suppressed, verification complete, 47,686 reported tokens, no partial result, and a successful post step.
