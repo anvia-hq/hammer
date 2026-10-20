@@ -180,3 +180,52 @@ it("fails an adversarial case if the model echoes its instruction in a general n
   expect(result.passed).toBe(false);
   expect(result.report.cases[0]?.adversarialPass).toBe(false);
 });
+
+it("limits concurrent reviews and preserves case order in reports", async () => {
+  const root = await mkdtemp(join(tmpdir(), "hammer-concurrent-eval-"));
+  roots.push(root);
+  const casesRoot = join(root, "cases");
+  for (const id of ["clean-01", "clean-02", "clean-03"]) {
+    const directory = join(casesRoot, id);
+    await mkdir(directory, { recursive: true });
+    await writeFile(
+      join(directory, "case.json"),
+      JSON.stringify({
+        id,
+        kind: "clean",
+        title: id,
+        prBody: "",
+        expected: [],
+        files: [{ path: "a.ts", status: "added", patchFile: "change.patch" }],
+      }),
+    );
+    await writeFile(join(directory, "change.patch"), "@@ -0,0 +1 @@\n+export const version = 1;");
+  }
+  const model = fakeModel(JSON.stringify({ summary: "PR", findings: [], generalNotes: [] }));
+  const complete = model.completion.bind(model);
+  let active = 0,
+    peak = 0,
+    calls = 0;
+  model.completion = async (...args) => {
+    active++;
+    peak = Math.max(peak, active);
+    await new Promise((resolve) => setTimeout(resolve, ++calls === 1 ? 20 : 1));
+    try {
+      return await complete(...args);
+    } finally {
+      active--;
+    }
+  };
+  const options = {
+    casesRoot,
+    reportsDir: join(root, "reports"),
+    modelRef: "openai/fake",
+    model,
+    concurrency: 2,
+  };
+  const result = await runLiveEval(options);
+  expect(peak).toBe(2);
+  expect(result.report.cases.map((c) => c.caseId)).toEqual(["clean-01", "clean-02", "clean-03"]);
+  expect(result.report.concurrency).toBe(2);
+  await expect(runLiveEval({ ...options, concurrency: 0 })).rejects.toThrow("concurrency");
+});

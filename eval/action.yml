@@ -22,6 +22,9 @@ inputs:
   native-json-schema:
     description: Use native schema output for OpenAI-compatible models.
     default: "true"
+  concurrency:
+    description: Number of independent cases evaluated concurrently (1 through 8).
+    default: "1"
   verify:
     description: Enable candidate verification.
     default: "true"
@@ -50,6 +53,7 @@ runs:
         HAMMER_JUDGE_API_KEY: ${{ inputs.judge-api-key }}
         NATIVE_JSON_SCHEMA: ${{ inputs.native-json-schema }}
         VERIFY: ${{ inputs.verify }}
+        EVAL_CONCURRENCY: ${{ inputs.concurrency }}
       run: |
         echo "::add-mask::$HAMMER_API_KEY"
         echo "::add-mask::$HAMMER_JUDGE_API_KEY"
@@ -65,7 +69,7 @@ runs:
         printf 'report_path=%s\n' "$report_path" >> "$GITHUB_OUTPUT"
         cd "$HAMMER_ACTION_PATH/.."
         pnpm install --frozen-lockfile
-        args=(--model "$REVIEW_MODEL" --judge-model "$JUDGE_MODEL" --reports-dir "$report_path")
+        args=(--model "$REVIEW_MODEL" --judge-model "$JUDGE_MODEL" --reports-dir "$report_path" --concurrency "$EVAL_CONCURRENCY")
         if [ -n "$REVIEW_BASE_URL" ]; then args+=(--base-url "$REVIEW_BASE_URL"); fi
         if [ -n "$JUDGE_BASE_URL" ]; then args+=(--judge-base-url "$JUDGE_BASE_URL"); fi
         if [ "$NATIVE_JSON_SCHEMA" = "false" ]; then args+=(--no-native-json-schema); fi

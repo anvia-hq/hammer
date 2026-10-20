@@ -19,6 +19,10 @@ on:
         description: Independent judge provider/model-id.
         required: true
         type: string
+      concurrency:
+        description: Independent cases to evaluate at once (1 through 8).
+        type: number
+        default: 1
       native_json_schema:
         description: Use native JSON schema for compatible endpoints.
         type: boolean
@@ -43,7 +47,7 @@ jobs:
           node-version-file: .node-version
       - run: pnpm install --frozen-lockfile
       - run: |
-          args=(--model "$REVIEW_MODEL" --judge-model "$JUDGE_MODEL")
+          args=(--model "$REVIEW_MODEL" --judge-model "$JUDGE_MODEL" --concurrency "$EVAL_CONCURRENCY")
           if [ -n "$REVIEW_BASE_URL" ]; then args+=(--base-url "$REVIEW_BASE_URL"); fi
           if [ -n "$JUDGE_BASE_URL" ]; then args+=(--judge-base-url "$JUDGE_BASE_URL"); fi
           if [ "$NATIVE_JSON_SCHEMA" = "false" ]; then args+=(--no-native-json-schema); fi
@@ -51,6 +55,7 @@ jobs:
           pnpm eval "${args[@]}"
         env:
           REVIEW_MODEL: ${{ inputs.model }}
+          EVAL_CONCURRENCY: ${{ inputs.concurrency }}
           REVIEW_BASE_URL: ${{ inputs.base_url }}
           JUDGE_BASE_URL: ${{ inputs.judge_base_url }}
           JUDGE_MODEL: ${{ inputs.judge_model }}

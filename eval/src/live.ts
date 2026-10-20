@@ -63,10 +63,14 @@ export interface LiveEvalOptions {
   judge?: LlmJudge;
   judgeModel?: string;
   verify?: boolean;
+  concurrency?: number;
   onCase?: (id: string) => void;
 }
 
 export async function runLiveEval(options: LiveEvalOptions) {
+  const concurrency = options.concurrency ?? 1;
+  if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 8)
+    throw new Error("Evaluation concurrency must be an integer from 1 to 8.");
   const cases = loadCases(options.casesRoot);
   const scored: ScoredCase[] = [];
   const measurements: Array<{
@@ -86,7 +90,7 @@ export async function runLiveEval(options: LiveEvalOptions) {
     finding: Finding;
   }> = [];
   const pricing = resolvePricing(options.modelRef);
-  for (const c of cases) {
+  const reviewCase = async (c: EvalCase) => {
     options.onCase?.(c.id);
     const directory = await mkdtemp(join(tmpdir(), "hammer-eval-"));
     const started = performance.now();
@@ -108,7 +112,7 @@ export async function runLiveEval(options: LiveEvalOptions) {
           costUsd: 0,
           latencyMs: performance.now() - started,
         });
-        continue;
+        return;
       }
       const result = await runReviewPipeline({
         title: c.title,
@@ -151,7 +155,7 @@ export async function runLiveEval(options: LiveEvalOptions) {
             index,
             ...judgment,
             tokens: judgment.tokens ?? 0,
-            humanSpotCheck: judgments.length % 5 === 0,
+            humanSpotCheck: false,
             finding,
           });
           if (judgment.verdict === "valid") {
@@ -183,7 +187,21 @@ export async function runLiveEval(options: LiveEvalOptions) {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
-  }
+  };
+  const queue = [...cases];
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, cases.length) }, async () => {
+      for (;;) {
+        const next = queue.shift();
+        if (!next) return;
+        await reviewCase(next);
+      }
+    }),
+  );
+  scored.sort((a, b) => a.caseId.localeCompare(b.caseId));
+  measurements.sort((a, b) => a.caseId.localeCompare(b.caseId));
+  judgments.sort((a, b) => a.caseId.localeCompare(b.caseId) || a.index - b.index);
+  for (const [index, judgment] of judgments.entries()) judgment.humanSpotCheck = index % 5 === 0;
   const totals = summarize(scored, cases);
   const percentile = (values: number[], fraction: number): number | null => {
     const sorted = [...values].sort((left, right) => left - right);
@@ -216,6 +234,7 @@ export async function runLiveEval(options: LiveEvalOptions) {
     judgeModel: options.judgeModel ?? null,
     verify: options.verify ?? true,
     nativeJsonSchema: options.model.capabilities.outputSchema,
+    concurrency,
     totals,
     metrics,
     measurements,

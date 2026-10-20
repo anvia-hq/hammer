@@ -13,6 +13,7 @@ const { values } = parseArgs({
     "judge-base-url": { type: "string" },
     "no-verify": { type: "boolean" },
     "no-native-json-schema": { type: "boolean" },
+    concurrency: { type: "string", default: "1" },
     "reports-dir": { type: "string" },
   },
 });
@@ -48,6 +49,7 @@ try {
       modelRef: values.model,
       model: reviewer,
       verify: !values["no-verify"],
+      concurrency: Number(values.concurrency),
       ...(judge ? { judge, judgeModel: judgeRef! } : {}),
       ...(values["base-url"] ? { baseUrl: values["base-url"] } : {}),
       onCase: (id) => console.log(`reviewing ${id}`),

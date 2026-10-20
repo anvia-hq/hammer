@@ -66,3 +66,5 @@ A release ref also exposes `anvia-hq/hammer/eval@<sha>`. This composite action i
 Each unmatched judgment includes its candidate finding so the entries marked `humanSpotCheck` can be checked against the fixture patch. Reports also record whether native JSON schema was enabled. Keep model outputs and reports out of version control.
 
 The earlier corpus contained incomplete functions, pre-existing behavior labeled as newly introduced defects, low-severity seeds hidden by the default policy, and malformed hunk counts. Its interrupted live runs are invalid as quality evidence. The repaired corpus replaces those with executable before/after witnesses and neutral PR descriptions; the full 70-case real-repository corpus remains outstanding.
+
+`--concurrency 1` is the default. Set a value from 1 through 8 to evaluate independent cases concurrently; each case retains its own checkout, agent and budget. Reports preserve case order and record concurrency. Latency measured under parallel load should not be compared directly with a serial run.
