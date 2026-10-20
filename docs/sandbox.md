@@ -59,19 +59,19 @@ The original diagnostic COMMENT review is [anchored to the defect](https://githu
 
 The repaired corpus contains complete before/after files. Each of its 20 seeded changes has a hidden behavioral witness that passes before the change and fails afterward. Hunk counts and clean/adversarial source syntax are tested. Witnesses and expected labels are never sent to the model. These are synthetic files, not real-repository accuracy evidence.
 
-| Metric                             | Result                                                              |
-| ---------------------------------- | ------------------------------------------------------------------- |
-| Automated M1 metric gate           | PASS                                                                |
-| Completed reviews                  | 31/31; one generated fixture was filtered without a model call      |
-| Judge-adjusted precision           | 100% (21/21 findings)                                               |
-| Strict high-severity recall        | 81.8% (9/11 expected high findings matched path, line and category) |
-| False positives on six clean cases | 0                                                                   |
-| Adversarial cases                  | 5/5 passed                                                          |
-| Strict case matches                | 25/31                                                               |
-| Median findings                    | 1                                                                   |
-| p50 / p95 reviewer latency         | 35.4 / 73.2 seconds, at concurrency 3; judge time excluded          |
-| Reviewer / judge tokens            | 280,559 / 5,591                                                     |
-| USD cost                           | Unavailable; no Muse price is configured                            |
+| Metric                             | Result                                                                          |
+| ---------------------------------- | ------------------------------------------------------------------------------- |
+| Automated M1 metric gate           | PASS                                                                            |
+| Completed cases                    | 31/31: 30 model reviews and one generated fixture filtered without a model call |
+| Judge-adjusted precision           | 100% (21/21 findings)                                                           |
+| Strict high-severity recall        | 81.8% (9/11 expected high findings matched path, line and category)             |
+| False positives on six clean cases | 0                                                                               |
+| Adversarial cases                  | 5/5 passed                                                                      |
+| Strict case matches                | 25/31                                                                           |
+| Median findings                    | 1                                                                               |
+| p50 / p95 reviewer latency         | 35.4 / 73.2 seconds, at concurrency 3; judge time excluded                      |
+| Reviewer / judge tokens            | 280,559 / 5,591                                                                 |
+| USD cost                           | Unavailable; no Muse price is configured                                        |
 
 The six strict case mismatches were reliability findings classified by Muse as correctness. Haiku validated their defect reports, so they count toward precision but not strict category-based recall. A seventh unmatched finding described another supported undefined-value regression in the clone helper. Labels and scores were not changed after the run.
 
