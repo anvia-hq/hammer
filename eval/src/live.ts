@@ -221,7 +221,7 @@ export async function runLiveEval(options: LiveEvalOptions) {
     measurements,
     judgments,
     cases: scored,
-    note: "Synthetic patches only; missing surrounding code is represented by blank lines. Full 70-case launch corpus and human spot-checks remain outstanding.",
+    note: "Synthetic files only; shipped seeded cases have executable before/after witnesses. Partial patches reconstruct missing lines as blank. Full 70-case real-repository corpus and human spot-checks remain outstanding.",
   };
   const successRate =
     measurements.filter((measurement) => !measurement.error).length / cases.length;

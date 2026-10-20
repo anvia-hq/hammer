@@ -1,13 +1,13 @@
 {
   "id": "clean-06",
   "kind": "clean",
-  "title": "Refactor comparator",
-  "prBody": "Refactor: equivalent comparator with named function.",
+  "title": "Handle equal names in the comparator",
+  "prBody": "Return zero when both names are equal.",
   "files": [
     {
       "path": "src/util/sort.ts",
       "status": "modified",
-      "patchFile": "changes.patch"
+      "patchFile": "file-1.patch"
     }
   ],
   "expected": []

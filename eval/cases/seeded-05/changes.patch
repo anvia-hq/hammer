@@ -1,5 +1,5 @@
-@@ -50,2 +50,4 @@
- export async function save(root: string, name: string, data: string) {
-   const target = join(root, name);
-+  return writeFile(target, data);
-+}
+@@ -1,4 +1,3 @@
+ export function storeUpload(name: string, write: (path: string) => void) {
+-  if (name.includes("/") || name.includes("\\")) throw new Error("invalid upload name");
+   write("uploads/" + name);
+ }

@@ -1,8 +1,8 @@
 {
   "id": "seeded-20",
   "kind": "seeded",
-  "title": "Seeded reliability defect in src/webhook/backoff.ts",
-  "prBody": "Synthetic seeded defect for offline eval: reliability issue in src/webhook/backoff.ts.",
+  "title": "Streamline delivery completion",
+  "prBody": "After all three delivery attempts fail, this promise must reject so the caller leaves the message queued for a later retry.",
   "files": [
     {
       "path": "src/webhook/backoff.ts",
@@ -13,10 +13,10 @@
   "expected": [
     {
       "path": "src/webhook/backoff.ts",
-      "startLine": 200,
-      "endLine": 209,
+      "startLine": 7,
+      "endLine": 7,
       "category": "reliability",
-      "severity": "medium"
+      "severity": "high"
     }
   ]
 }

@@ -1,8 +1,8 @@
 {
   "id": "seeded-06",
   "kind": "seeded",
-  "title": "Seeded security defect in src/crypto/otp.ts",
-  "prBody": "Synthetic seeded defect for offline eval: security issue in src/crypto/otp.ts.",
+  "title": "Simplify OTP comparison",
+  "prBody": "Both inputs represent complete six-digit codes; an empty or partial submitted code must not authenticate.",
   "files": [
     {
       "path": "src/crypto/otp.ts",
@@ -13,10 +13,10 @@
   "expected": [
     {
       "path": "src/crypto/otp.ts",
-      "startLine": 60,
-      "endLine": 65,
+      "startLine": 2,
+      "endLine": 2,
       "category": "security",
-      "severity": "medium"
+      "severity": "high"
     }
   ]
 }

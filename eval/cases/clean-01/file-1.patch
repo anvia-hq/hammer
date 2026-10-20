@@ -1,0 +1,7 @@
+@@ -1,4 +1,4 @@
+ export async function postEvent(url: string, body: string) {
+-  const res = await fetch(url, {method: "POST", body});
+-  return res;
++  const response = await fetch(url, {method: "POST", body});
++  return response;
+ }

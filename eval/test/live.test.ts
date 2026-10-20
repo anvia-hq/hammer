@@ -135,13 +135,17 @@ describe("live-model evaluation", () => {
           id: "case",
           kind: "clean",
           title: "PR",
-          prBody: "",
+          prBody: "Contract: rejected requests must not acknowledge work.",
           files: [],
           expected: [],
           patches: new Map(),
         },
       }),
     ).toMatchObject({ verdict: "valid", tokens: 15 });
+    const request = vi.mocked(model.completion).mock.calls[0]?.[0];
+    const data = JSON.parse(String(request?.chatHistory?.[0]?.content));
+    expect(data.description).toBe("Contract: rejected requests must not acknowledge work.");
+    expect(data).not.toHaveProperty("expected");
   });
 });
 

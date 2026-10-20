@@ -1,8 +1,8 @@
 {
   "id": "seeded-02",
   "kind": "seeded",
-  "title": "Seeded security defect in src/db/query.ts",
-  "prBody": "Synthetic seeded defect for offline eval: security issue in src/db/query.ts.",
+  "title": "Inline user lookup SQL",
+  "prBody": "The name comes from an HTTP request. The database callback supports positional ? placeholders with a separate parameter array.",
   "files": [
     {
       "path": "src/db/query.ts",
@@ -13,8 +13,8 @@
   "expected": [
     {
       "path": "src/db/query.ts",
-      "startLine": 20,
-      "endLine": 23,
+      "startLine": 2,
+      "endLine": 2,
       "category": "security",
       "severity": "high"
     }

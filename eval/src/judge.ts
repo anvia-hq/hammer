@@ -35,6 +35,8 @@ export function createLlmJudge(options: {
                 role: "user",
                 content: JSON.stringify({
                   finding: input.finding,
+                  title: input.case.title,
+                  description: input.case.prBody,
                   patches: Object.fromEntries(input.case.patches),
                   repair: attempt > 0,
                 }),

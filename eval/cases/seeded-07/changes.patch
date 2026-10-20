@@ -1,11 +1,13 @@
-@@ -70,2 +70,10 @@
- export async function listAll(client: Client, path: string) {
-   const out: Row[] = [];
-+  let page = 1;
-+  while (true) {
-+    const res = await client.get(path, { page });
-+    out.push(...res.rows);
-+    if (res.rows.length === 0) break;
-+    page += 1;
-+  }
-+  return out;
+@@ -1,11 +1,11 @@
+ type Page = {rows: number[]; nextPage: number | null};
+ export async function listAll(get: (page: number) => Promise<Page>) {
+   const rows: number[] = [];
+   let page: number | null = 1;
+   while (page !== null) {
+     const result = await get(page);
+     rows.push(...result.rows);
+-    page = result.nextPage;
++    page = result.rows.length ? page + 1 : null;
+   }
+   return rows;
+ }

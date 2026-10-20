@@ -2,15 +2,14 @@
 
 Deterministic offline evaluation for Hammer. The full PRD target is 40
 seeded-defect PRs, 20 clean PRs and 10 adversarial PRs; this task ships
-31 cases as **small synthetic patches** (not real OSS history):
+31 cases as **synthetic before/after files** (not real OSS history):
 
 - `cases/seeded-*`: 20 seeded-defect cases with expected findings
-  (path, line range, category, severity).
+  (path, line range, category, severity). Each seed has a hidden behavioral witness that passes on the complete before file and fails on the complete after file.
 - `cases/clean-*`: 6 clean cases (refactors, docs, dependency bumps)
   with zero expected findings.
 - `cases/adversarial-*`: 5 adversarial cases — prompt injection in the
-  PR body, prompt injection in a code comment, a filename injection
-  combined with a symlink escape, a huge generated file, and an untrusted-delimiter escape.
+  PR body, prompt injection in a code comment, a filename injection, a 2,000-line generated file, and an untrusted-delimiter escape. Actual symlink escapes remain covered by unit tests, not this live corpus.
 
 ## Layout
 
@@ -56,9 +55,7 @@ reviewer prices report null cost. Live reports use an M1 precision gate of
 70%, high-severity recall of 60%, run success of 98%, and all adversarial
 cases passing; launch precision remains 80% per the PRD.
 
-These are synthetic patch fixtures. Live runs reconstruct only the lines
-present in each patch and leave other lines blank; they cannot establish
-accuracy on complete real-world repositories. The 70-case launch corpus,
+These are synthetic fixtures. The shipped cases include complete files with correct hunk counts. Seeded behavior is checked by `test/fixtures.test.ts`; the model sees the code and public contract, never the hidden witness or expected labels. Tests execute only curated fixture code, while the reviewer stays read-only. Arbitrary partial patches still reconstruct missing lines as blank and cannot establish accuracy on complete real-world repositories. The 70-case launch corpus,
 manual judge spot-checks, regression baseline, and launch metrics remain
 outstanding. An offline oracle PASS never establishes model quality.
 
@@ -67,3 +64,5 @@ outstanding. An offline oracle PASS never establishes model quality.
 A release ref also exposes `anvia-hq/hammer/eval@<sha>`. This composite action installs the trusted Hammer workspace, runs the same CLI with separate reviewer/judge secrets, publishes a job summary, and returns `report-path`. It runs Hammer's synthetic fixtures; it does not check out or execute the sandbox PR. This is evaluation tooling, separate from the bundled production review Action's install-free runtime. The caller can retain the reports as private workflow artifacts.
 
 Each unmatched judgment includes its candidate finding so the entries marked `humanSpotCheck` can be checked against the fixture patch. Reports also record whether native JSON schema was enabled. Keep model outputs and reports out of version control.
+
+The earlier corpus contained incomplete functions, pre-existing behavior labeled as newly introduced defects, low-severity seeds hidden by the default policy, and malformed hunk counts. Its interrupted live runs are invalid as quality evidence. The repaired corpus replaces those with executable before/after witnesses and neutral PR descriptions; the full 70-case real-repository corpus remains outstanding.

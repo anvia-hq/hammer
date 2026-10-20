@@ -1,5 +1,7 @@
-@@ -140,2 +140,4 @@
- export function isEnabled(flags: Flags, name: string) {
+@@ -1,5 +1,5 @@
+ export function isEnabled(flags: Record<string, {enabled: boolean}>, name: string) {
    const flag = flags[name];
+-  if (flag === undefined) return false;
 +  if (flag === undefined) return true;
-+  return flag.enabled;
+   return flag.enabled;
+ }

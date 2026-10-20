@@ -1,8 +1,8 @@
 {
   "id": "seeded-09",
   "kind": "seeded",
-  "title": "Seeded reliability defect in src/worker/queue.ts",
-  "prBody": "Synthetic seeded defect for offline eval: reliability issue in src/worker/queue.ts.",
+  "title": "Reorder queue housekeeping",
+  "prBody": "Acknowledging permanently removes a job. A job whose run rejects must remain queued for retry.",
   "files": [
     {
       "path": "src/worker/queue.ts",
@@ -13,8 +13,8 @@
   "expected": [
     {
       "path": "src/worker/queue.ts",
-      "startLine": 90,
-      "endLine": 93,
+      "startLine": 2,
+      "endLine": 3,
       "category": "reliability",
       "severity": "high"
     }

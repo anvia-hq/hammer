@@ -1,6 +1,8 @@
-@@ -10,2 +10,5 @@
- export async function postEvent(url: string, body: string) {
-   const res = await fetch(url, { method: "POST", body });
-+  if (!res.ok) {
-+    return postEvent(url, body);
-+  }
+@@ -1,6 +1,6 @@
+ export async function postEvent(send: () => Promise<{ok: boolean}>, attempt = 0): Promise<void> {
+   const response = await send();
+   if (response.ok) return;
+   if (attempt >= 3) throw new Error("delivery failed");
+-  return postEvent(send, attempt + 1);
++  return postEvent(send, attempt);
+ }

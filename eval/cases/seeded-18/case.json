@@ -1,8 +1,8 @@
 {
   "id": "seeded-18",
   "kind": "seeded",
-  "title": "Seeded rule defect in src/rules/webhook.ts",
-  "prBody": "Synthetic seeded defect for offline eval: rule issue in src/rules/webhook.ts.",
+  "title": "Simplify webhook request construction",
+  "prBody": "The receiver deduplicates requests by Idempotency-Key. Delivery of the same event can be retried after a lost response and must not apply it twice.",
   "files": [
     {
       "path": "src/rules/webhook.ts",
@@ -13,10 +13,10 @@
   "expected": [
     {
       "path": "src/rules/webhook.ts",
-      "startLine": 180,
-      "endLine": 183,
-      "category": "rule",
-      "severity": "medium"
+      "startLine": 3,
+      "endLine": 3,
+      "category": "reliability",
+      "severity": "high"
     }
   ]
 }

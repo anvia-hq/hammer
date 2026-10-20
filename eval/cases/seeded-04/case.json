@@ -1,8 +1,8 @@
 {
   "id": "seeded-04",
   "kind": "seeded",
-  "title": "Seeded security defect in src/payments/charge.ts",
-  "prBody": "Synthetic seeded defect for offline eval: security issue in src/payments/charge.ts.",
+  "title": "Update payment audit records",
+  "prBody": "The audit sink is retained for support staff and may store only the final four digits of a payment card number.",
   "files": [
     {
       "path": "src/payments/charge.ts",
@@ -13,8 +13,8 @@
   "expected": [
     {
       "path": "src/payments/charge.ts",
-      "startLine": 40,
-      "endLine": 43,
+      "startLine": 2,
+      "endLine": 2,
       "category": "security",
       "severity": "high"
     }

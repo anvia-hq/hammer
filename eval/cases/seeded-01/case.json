@@ -1,8 +1,8 @@
 {
   "id": "seeded-01",
   "kind": "seeded",
-  "title": "Seeded correctness defect in src/webhook/client.ts",
-  "prBody": "Synthetic seeded defect for offline eval: correctness issue in src/webhook/client.ts.",
+  "title": "Simplify delivery retry bookkeeping",
+  "prBody": "Webhook delivery must make at most four attempts, including the initial request, when the receiver repeatedly returns a non-2xx response.",
   "files": [
     {
       "path": "src/webhook/client.ts",
@@ -13,8 +13,8 @@
   "expected": [
     {
       "path": "src/webhook/client.ts",
-      "startLine": 10,
-      "endLine": 14,
+      "startLine": 5,
+      "endLine": 5,
       "category": "correctness",
       "severity": "high"
     }

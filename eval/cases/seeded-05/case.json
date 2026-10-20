@@ -1,8 +1,8 @@
 {
   "id": "seeded-05",
   "kind": "seeded",
-  "title": "Seeded security defect in src/fs/store.ts",
-  "prBody": "Synthetic seeded defect for offline eval: security issue in src/fs/store.ts.",
+  "title": "Simplify the upload writer",
+  "prBody": "Names are supplied by multipart uploads. The writer opens the supplied filesystem path. Uploads must stay inside the uploads directory.",
   "files": [
     {
       "path": "src/fs/store.ts",
@@ -13,8 +13,8 @@
   "expected": [
     {
       "path": "src/fs/store.ts",
-      "startLine": 50,
-      "endLine": 53,
+      "startLine": 2,
+      "endLine": 2,
       "category": "security",
       "severity": "high"
     }

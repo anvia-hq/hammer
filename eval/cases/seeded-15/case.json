@@ -1,8 +1,8 @@
 {
   "id": "seeded-15",
   "kind": "seeded",
-  "title": "Seeded reliability defect in src/i18n/t.ts",
-  "prBody": "Synthetic seeded defect for offline eval: reliability issue in src/i18n/t.ts.",
+  "title": "Simplify translation lookup",
+  "prBody": "Unknown translation keys fall back to the key string. The existing shout consumer immediately calls toUpperCase on the result.",
   "files": [
     {
       "path": "src/i18n/t.ts",
@@ -13,10 +13,10 @@
   "expected": [
     {
       "path": "src/i18n/t.ts",
-      "startLine": 150,
-      "endLine": 153,
+      "startLine": 3,
+      "endLine": 3,
       "category": "reliability",
-      "severity": "low"
+      "severity": "medium"
     }
   ]
 }

@@ -1,8 +1,8 @@
 {
   "id": "seeded-10",
   "kind": "seeded",
-  "title": "Seeded reliability defect in src/config/load.ts",
-  "prBody": "Synthetic seeded defect for offline eval: reliability issue in src/config/load.ts.",
+  "title": "Simplify environment timeout parsing",
+  "prBody": "TIMEOUT_MS is optional. The caller passes undefined when absent, and the timeout must default to 1000 milliseconds.",
   "files": [
     {
       "path": "src/config/load.ts",
@@ -13,8 +13,8 @@
   "expected": [
     {
       "path": "src/config/load.ts",
-      "startLine": 100,
-      "endLine": 103,
+      "startLine": 2,
+      "endLine": 2,
       "category": "reliability",
       "severity": "medium"
     }

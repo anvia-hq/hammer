@@ -1,4 +1,8 @@
-@@ -120,2 +120,3 @@
- export function renderItems(items: Item[]) {
-   return items.map((item, i) => `<li key={i}>${item.name}</li>`).join("");
-+}
+@@ -1,6 +1,6 @@
+ function escapeHtml(value: string) {
+   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+ }
+ export function renderItems(names: string[]) {
+-  return names.map(name => "<li>" + escapeHtml(name) + "</li>").join("");
++  return names.map(name => "<li>" + name + "</li>").join("");
+ }

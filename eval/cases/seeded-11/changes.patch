@@ -1,11 +1,10 @@
-@@ -110,2 +110,10 @@
- export async function fetchWithRetry(url: string) {
-   let last: unknown;
-+  for (let i = 0; i < 5; i += 1) {
-+    try {
-+      return await fetch(url);
-+    } catch (err) {
-+      last = err;
-+    }
-+  }
-+  throw last;
+@@ -1,8 +1,8 @@
+ export async function fetchWithRetry(send: () => Promise<{status: number}>) {
+   for (let attempt = 0; attempt < 3; attempt += 1) {
+     const response = await send();
+-    if (response.status >= 500 && attempt < 2) continue;
++    if (response.status > 500 && attempt < 2) continue;
+     return response;
+   }
+   throw new Error("unreachable");
+ }
