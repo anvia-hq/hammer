@@ -12,6 +12,9 @@ inputs:
   api-key:
     description: API key for the model provider.
     required: true
+  pricing:
+    description: JSON mapping provider/model-id to input and output USD prices per million tokens.
+    required: false
   base-url:
     description: Base URL for the openai-compatible provider.
     required: false
@@ -64,11 +67,9 @@ inputs:
   verify:
     description: Run the verification pass on findings.
     required: false
-    default: "true"
   verify_threshold:
     description: Minimum verification score (0-10) to keep a finding.
     required: false
-    default: "6"
   fail_on_error:
     description: Fail the job if Hammer itself errors.
     required: false

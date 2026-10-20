@@ -126,6 +126,11 @@ export function summarize(scored: ScoredCase[], cases: EvalCase[]): EvalTotals {
   }
   totals.recallHigh = totals.expectedHigh === 0 ? 1 : totals.matchedHigh / totals.expectedHigh;
   totals.precision = totals.findings === 0 ? 1 : totals.truePositives / totals.findings;
-  totals.falsePositivesPerCleanCase = cleanCount === 0 ? 0 : totals.falsePositives / cleanCount;
+  totals.falsePositivesPerCleanCase =
+    cleanCount === 0
+      ? 0
+      : scored
+          .filter((score) => score.kind === "clean")
+          .reduce((sum, score) => sum + score.falsePositives, 0) / cleanCount;
   return totals;
 }

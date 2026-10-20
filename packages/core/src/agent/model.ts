@@ -64,7 +64,7 @@ export function parseModelRefWithBase(raw: string, baseUrl?: string): ParseModel
       ],
     };
   }
-  if (modelId === "" || modelId.includes("/")) {
+  if (modelId === "" || (provider !== "openai-compatible" && modelId.includes("/"))) {
     return {
       ok: false,
       issues: [

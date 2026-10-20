@@ -10,6 +10,15 @@ on:
         required: false
         default: false
         type: boolean
+      sandbox_repository:
+        description: Sandbox owner/repo containing a same-repository test PR.
+        type: string
+      sandbox_pr:
+        description: Sandbox PR number.
+        type: string
+      model:
+        description: Reviewer provider/model-id.
+        type: string
 
 permissions:
   contents: read
@@ -44,6 +53,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: node packages/action/scripts/smoke-bundle.mjs
+      - run: node packages/action/scripts/smoke-review.mjs
       - run: pnpm test
       - run: pnpm --filter @anvia/hammer-eval eval
 
@@ -62,15 +72,27 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: node packages/action/scripts/smoke-bundle.mjs
+      - run: node packages/action/scripts/smoke-review.mjs
       - run: pnpm test
       - run: pnpm --filter @anvia/hammer-eval eval
 
   e2e-sandbox:
-    name: live end-to-end on sandbox repo (disabled)
-    # TODO: implement the real release end-to-end run against a sandbox repo:
-    # install the built action on a fixture PR and assert a review is posted.
-    # Needs a sandbox repo plus model and GitHub secrets; enable via the run_e2e input.
+    name: live end-to-end on sandbox repo
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_e2e }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - run: echo "sandbox end-to-end not implemented yet (PRD M2 exit); enable with run_e2e once wired."
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node packages/action/scripts/sandbox.mjs
+        env:
+          HAMMER_SANDBOX_REPOSITORY: ${{ inputs.sandbox_repository }}
+          HAMMER_SANDBOX_PR: ${{ inputs.sandbox_pr }}
+          HAMMER_SANDBOX_MODEL: ${{ inputs.model }}
+          HAMMER_SANDBOX_TOKEN: ${{ secrets.HAMMER_SANDBOX_TOKEN }}
+          HAMMER_API_KEY: ${{ secrets.HAMMER_API_KEY }}

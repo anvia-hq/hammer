@@ -69,8 +69,16 @@ export function fetchArgs(
   return args;
 }
 
-export function checkoutArgs(): string[] {
-  return ["checkout", "FETCH_HEAD"];
+export function checkoutArgs(headSha = "FETCH_HEAD"): string[] {
+  return [
+    "-c",
+    `core.hooksPath=${HOOKS_PATH}`,
+    "-c",
+    "submodule.recurse=false",
+    "checkout",
+    "--detach",
+    headSha,
+  ];
 }
 
 export function checkoutSteps(options: CheckoutPlanOptions): {
@@ -84,7 +92,7 @@ export function checkoutSteps(options: CheckoutPlanOptions): {
     init: { file: "git", args: initArgs(options.directory) },
     remote: { file: "git", args: remoteArgs(options.repositoryUrl) },
     fetch: { file: "git", args: fetchArgs(options) },
-    checkout: { file: "git", args: checkoutArgs() },
+    checkout: { file: "git", args: checkoutArgs(options.headSha) },
     env: { ...CHECKOUT_ENV },
   };
 }
@@ -120,9 +128,14 @@ export async function runCheckoutPlan(
   const plan = checkoutSteps(options);
   assertReadOnlySteps([plan.init, plan.remote, plan.fetch, plan.checkout]);
   const env = { ...plan.env };
-  await exec(plan.init.file, plan.init.args, { env });
-  await exec(plan.remote.file, plan.remote.args, { cwd: options.directory, env });
-  await exec(plan.fetch.file, plan.fetch.args, { cwd: options.directory, env });
-  await exec(plan.checkout.file, plan.checkout.args, { cwd: options.directory, env });
+  for (const [index, step] of [plan.init, plan.remote, plan.fetch, plan.checkout].entries()) {
+    const result = await exec(step.file, step.args, {
+      ...(index === 0 ? {} : { cwd: options.directory }),
+      env,
+    });
+    if (result.exitCode !== 0) {
+      throw new Error(`Read-only checkout failed at step ${index + 1} (exit ${result.exitCode}).`);
+    }
+  }
   return { directory: options.directory, headSha: options.headSha, steps: 4 };
 }

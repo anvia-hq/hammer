@@ -143,3 +143,25 @@ describe("upsertSummaryComment", () => {
     expect(updated).toEqual([3]);
   });
 });
+
+it("filters secrets and hostile output before both summary create and update", async () => {
+  for (const exists of [false, true]) {
+    let published = "";
+    await upsertSummaryComment(
+      async () => (exists ? [{ id: 1, body: SUMMARY_MARKER }] : []),
+      async (body) => {
+        published = body;
+        return { id: 1 };
+      },
+      async (_id, body) => {
+        published = body;
+      },
+      `${SUMMARY_MARKER}\ncustom-key @attacker <img src=x>\n<!-- hammer:last-sha=abc123 -->`,
+      { sanitizeOptions: { secrets: ["custom-key"] } },
+    );
+    expect(published).not.toContain("custom-key");
+    expect(published).not.toContain("@attacker");
+    expect(published).not.toContain("<img");
+    expect(published).toContain("<!-- hammer:last-sha=abc123 -->");
+  }
+});

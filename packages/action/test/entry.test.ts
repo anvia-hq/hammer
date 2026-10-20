@@ -1,19 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../src/run", () => ({ runAction: vi.fn(async () => {}) }));
+vi.mock("../src/runtime", () => ({ runtime: {} }));
 
 describe("action entries", () => {
-  beforeEach(() => {
-    vi.spyOn(console, "log").mockImplementation(() => {});
+  it("starts the main run", async () => {
+    const { runAction } = await import("../src/run");
+    await import("../src/index");
+    expect(runAction).toHaveBeenCalledOnce();
   });
-
-  it("exposes a main function", async () => {
-    const entry = await import("../src/index");
-
-    expect(entry.main).toBeTypeOf("function");
-  });
-
-  it("exposes a post function", async () => {
-    const entry = await import("../src/post");
-
-    expect(entry.post).toBeTypeOf("function");
+  it("exposes post cleanup", async () => {
+    expect((await import("../src/post")).post).toBeTypeOf("function");
   });
 });

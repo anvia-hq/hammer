@@ -1,4 +1,5 @@
-import { sanitizeForPosting, type SanitizeCommentOptions } from "./sanitize";
+import { formatFingerprintComment, type FindingFingerprints } from "../dedupe";
+import { MAX_COMMENT_CHARS, sanitizeForPosting, type SanitizeCommentOptions } from "./sanitize";
 
 export type ReviewCommentEvent = "COMMENT";
 
@@ -9,6 +10,7 @@ export interface PullReviewInlineInput {
   line: number;
   body: string;
   start_line?: number;
+  fingerprints?: FindingFingerprints;
 }
 
 export interface PostPullReviewInput {
@@ -177,9 +179,14 @@ export async function postPullReview(
     repo: deps.sanitizeOptions?.repo ?? input.repo,
   };
   const summaryBody = sanitizeForPosting(input.body, sanitizeOptions);
-  const comments = input.inline.map((entry) =>
-    buildApiComment(entry, sanitizeForPosting(entry.body, sanitizeOptions)),
-  );
+  const comments = input.inline.map((entry) => {
+    const marker = entry.fingerprints ? `\n${formatFingerprintComment(entry.fingerprints)}` : "";
+    const body = sanitizeForPosting(entry.body, sanitizeOptions).slice(
+      0,
+      MAX_COMMENT_CHARS - marker.length,
+    );
+    return buildApiComment(entry, `${body}${marker}`);
+  });
   const movedToSummary: MovedToSummaryNote[] = [];
   const sleep = deps.sleep ?? defaultSleep;
   let genericRetries = 0;

@@ -232,7 +232,7 @@ async function decideComment(
     return skip("not_a_command", "comment does not start with /hammer");
   }
   const word = commandWord(command);
-  if (word !== "" && word.toLowerCase() !== "review") {
+  if (word !== "" && word.toLowerCase() !== "review" && word.toLowerCase() !== "help") {
     return skip(
       "unsupported_command",
       `command "/hammer ${word}" is not supported; only "/hammer review" runs a review`,

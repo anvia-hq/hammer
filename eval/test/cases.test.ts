@@ -37,12 +37,12 @@ describe("case loader", () => {
     expect(() => loadCase(root, "case-01")).toThrow(/patch file/);
   });
 
-  it("loads the 30 shipped cases with 20/6/4 composition", () => {
+  it("loads the 31 shipped cases with 20/6/5 composition", () => {
     const cases = loadCases(CASES_ROOT);
-    expect(cases).toHaveLength(30);
+    expect(cases).toHaveLength(31);
     expect(cases.filter((c) => c.kind === "seeded")).toHaveLength(20);
     expect(cases.filter((c) => c.kind === "clean")).toHaveLength(6);
-    expect(cases.filter((c) => c.kind === "adversarial")).toHaveLength(4);
+    expect(cases.filter((c) => c.kind === "adversarial")).toHaveLength(5);
     for (const c of cases) {
       for (const file of c.files) {
         expect(c.patches.get(file.path)).toBeTypeOf("string");
