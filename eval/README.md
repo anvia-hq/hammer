@@ -40,6 +40,8 @@ cases, so the harness itself is checked deterministically. Real model evaluation
 pnpm eval --model anthropic/claude-sonnet-4-5 --judge-model gemini/gemini-2.5-flash
 ```
 
+Use `--no-native-json-schema` when an OpenAI-compatible endpoint does not support native JSON-schema output. Findings still pass local Zod validation and one repair attempt.
+
 Use `--base-url` for an OpenAI-compatible reviewer, `--judge-base-url` for an
 OpenAI-compatible judge, `--no-verify` for a verification-off comparison, and
 `--reports-dir` to preserve each comparison in its own directory. The judge

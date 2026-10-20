@@ -7,10 +7,22 @@ on:
         description: Reviewer provider/model-id.
         required: true
         type: string
+      base_url:
+        description: Reviewer OpenAI-compatible base URL.
+        type: string
+        required: false
+      judge_base_url:
+        description: Judge OpenAI-compatible base URL.
+        type: string
+        required: false
       judge_model:
         description: Independent judge provider/model-id.
         required: true
         type: string
+      native_json_schema:
+        description: Use native JSON schema for compatible endpoints.
+        type: boolean
+        default: true
       verify:
         description: Enable the verification pass.
         type: boolean
@@ -32,12 +44,18 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: |
           args=(--model "$REVIEW_MODEL" --judge-model "$JUDGE_MODEL")
+          if [ -n "$REVIEW_BASE_URL" ]; then args+=(--base-url "$REVIEW_BASE_URL"); fi
+          if [ -n "$JUDGE_BASE_URL" ]; then args+=(--judge-base-url "$JUDGE_BASE_URL"); fi
+          if [ "$NATIVE_JSON_SCHEMA" = "false" ]; then args+=(--no-native-json-schema); fi
           if [ "$VERIFY" = "false" ]; then args+=(--no-verify); fi
           pnpm eval "${args[@]}"
         env:
           REVIEW_MODEL: ${{ inputs.model }}
+          REVIEW_BASE_URL: ${{ inputs.base_url }}
+          JUDGE_BASE_URL: ${{ inputs.judge_base_url }}
           JUDGE_MODEL: ${{ inputs.judge_model }}
           VERIFY: ${{ inputs.verify }}
+          NATIVE_JSON_SCHEMA: ${{ inputs.native_json_schema }}
           HAMMER_API_KEY: ${{ secrets.HAMMER_API_KEY }}
           HAMMER_JUDGE_API_KEY: ${{ secrets.HAMMER_JUDGE_API_KEY }}
       - if: always()

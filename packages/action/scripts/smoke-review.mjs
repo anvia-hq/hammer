@@ -66,6 +66,8 @@ const server = createServer(async (request, response) => {
       response.writeHead(200, { "content-type": "application/gzip" });
       return response.end(archive);
     }
+    if (path === "/v1/chat/completions" && body.response_format)
+      return json({ error: { message: "Native JSON schema unsupported" } }, 400);
     if (path === "/v1/chat/completions")
       return json({
         id: "completion-1",
@@ -140,6 +142,7 @@ const env = {
   RUNNER_TEMP: directory,
   INPUT_MODEL: "openai-compatible/test-model",
   "INPUT_BASE-URL": `${origin}/v1`,
+  "INPUT_NATIVE-JSON-SCHEMA": "false",
   "INPUT_API-KEY": "bundle-test-model-key",
   "INPUT_GITHUB-TOKEN": "bundle-test-github-token",
   INPUT_VERIFY: "false",

@@ -27,6 +27,10 @@ Install dependencies and build, then set these environment variables through you
 
 Run `node packages/action/scripts/sandbox.mjs`. Keys are read from the environment and masked by the Action. Do not put keys on the command line or commit them.
 
+## Custom OpenAI-compatible endpoints
+
+Use `model: openai-compatible/<model-id>` with the `base-url` input. If the gateway does not support native JSON-schema output, set `native-json-schema: "false"`. This omits the provider-specific schema parameter while preserving local Zod validation, one repair attempt, finding verification, and output filtering. Native schema behavior stays enabled by default.
+
 ## Current limits
 
 The tracing inputs are rejected explicitly until the observer constructors and exporters are connected. Unknown model prices produce a warning and token-only reporting, as specified in PRD §8.3. The `pricing` input accepts a JSON mapping such as `{"openai-compatible/local":{"input":1,"output":4}}`, with USD prices per million tokens. Bundled prices cover Haiku 5.5 (including its tier above 100k input tokens), Sonnet 4.5 and Gemini 2.5 Flash ([Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing), [Google pricing](https://ai.google.dev/gemini-api/docs/pricing)); they use standard uncached rates and therefore estimate rather than reproduce provider invoices.

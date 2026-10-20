@@ -273,7 +273,12 @@ export async function runAction(
       },
       modelRef: inputs.model,
       ...(inputs["base-url"] ? { baseUrl: inputs["base-url"] } : {}),
-      model: dependencies.model ?? createCompletionModel(ref.value, { apiKey: inputs["api-key"] }),
+      model:
+        dependencies.model ??
+        createCompletionModel(ref.value, {
+          apiKey: inputs["api-key"],
+          nativeJsonSchema: inputs["native-json-schema"],
+        }),
       priorFingerprints: parsePriorFingerprints(prior.map((comment) => comment.body ?? "")),
       prior: prior.map((comment) => ({
         path: comment.path,

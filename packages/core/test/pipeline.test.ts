@@ -74,6 +74,16 @@ describe("review pipeline", () => {
     expect(result.usage.tokens).toBe(30);
     expect(result.findings).toHaveLength(1);
   });
+  it("validates and repairs JSON even when native schema output is disabled", async () => {
+    const request = input([{ nope: true }, batch]);
+    const result = await runReviewPipeline(request);
+    expect(result.findings).toHaveLength(1);
+    expect(result.partial).toBe(false);
+    expect(request.model.completion).toHaveBeenCalledTimes(2);
+    for (const [call] of vi.mocked(request.model.completion).mock.calls) {
+      expect(call.outputSchema).toBeUndefined();
+    }
+  });
   it("accounts for invalid responses even when their batch fails", async () => {
     const request = input([{ nope: true }, { nope: true }], true);
     const result = await runReviewPipeline(request);

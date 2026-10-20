@@ -12,6 +12,7 @@ const { values } = parseArgs({
     "judge-model": { type: "string" },
     "judge-base-url": { type: "string" },
     "no-verify": { type: "boolean" },
+    "no-native-json-schema": { type: "boolean" },
     "reports-dir": { type: "string" },
   },
 });
@@ -24,7 +25,10 @@ function model(ref: string, key: string | undefined, baseUrl?: string) {
     );
   const parsed = parseModelRefWithBase(ref, baseUrl);
   if (!parsed.ok) throw new Error(parsed.issues.map((issue) => issue.message).join("; "));
-  return createCompletionModel(parsed.value, { apiKey: key });
+  return createCompletionModel(parsed.value, {
+    apiKey: key,
+    nativeJsonSchema: !values["no-native-json-schema"],
+  });
 }
 
 try {

@@ -17,6 +17,7 @@ const schema = z.object({
   "api-key": z.string(),
   "github-token": z.string(),
   "base-url": z.string(),
+  "native-json-schema": optional(bool),
   "config-path": z.string().default(DEFAULT_CONFIG_PATH),
   "lens-endpoint": z.string(),
   "otel-endpoint": z.string(),
