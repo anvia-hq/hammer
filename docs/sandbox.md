@@ -1,6 +1,6 @@
 # Sandbox review
 
-The Action run flow is implemented on the source branch. Live GitHub/model acceptance remains pending until a sandbox run succeeds. Use a private repository for initial testing; public repositories work too.
+The Action run flow is implemented on the source branch. The live sandbox is [aven-harness PR #3](https://github.com/anvia-hq/aven-harness/pull/3), using `anthropic/claude-haiku-5-5`. Both repositories are private, and Hammer is available to repositories in the `anvia-hq` organization. The sandbox workflow pins the generated Action bundle on `release/sandbox-haiku-5-5`; generated bundles remain off the source branch.
 
 ## Local acceptance without credentials
 
@@ -33,6 +33,14 @@ The tracing inputs are rejected explicitly until the observer constructors and e
 
 Budget checks happen before each model request and after each response, including repair and verification requests. Already-running requests can exceed a threshold before their usage is returned; this is not a provider-side billing limit. Each provider request has a 120-second timeout.
 
-Runner acceptance, the full 70-case evaluation corpus, verification's precision/cost benefit, and launch gates remain outstanding. Local tests use injected GitHub APIs and model adapters and do not prove live provider compatibility.
+Live acceptance currently covers a same-repository Haiku 5.5 review on GitHub-hosted Linux x64. Other provider/runner combinations, maintainer-triggered fork review, the full 70-case evaluation corpus, verification's precision/cost benefit, nightly real-key checks, and launch gates remain outstanding. Local tests use injected GitHub APIs and model adapters and do not prove those live paths.
 
-The selected live sandbox target is `anvia-hq/aven-harness`, using `anthropic/claude-haiku-5-5`. Its `HAMMER_API_KEY` Actions secret is present. The prepared fixture and workflow remain local until Git publication is authorized under that repository's AGENTS.md. Both repositories are private; using Hammer as an Action there also requires organization access for the private Action.
+The sandbox fixture is intentionally defective and must not be merged. Its test establishes the percentage contract: a 10% discount on a 1,000-cent order must return 900 cents; the fixture returns −9,000. The Action reads the repository but never executes this test. The initial run returned no findings. A diagnostic run with an explicit test contract, verification disabled and low-severity findings enabled identified the seeded defect. This is acceptance of the plumbing, not an unbiased model-quality evaluation: the PR description discloses the defect.
+
+## Live evidence (2026-10-20)
+
+[Verified full review](https://github.com/anvia-hq/aven-harness/actions/runs/39356491762/attempts/1): Haiku 5.5 retained the high-severity percentage defect at `scripts/hammer-sandbox/discount.ts:14`, completed verification with no partial result, and suppressed the existing inline duplicate. Usage was 22,573 tokens and an estimated $0.0029889. The post step passed.
+
+The original diagnostic COMMENT review is [anchored to the defect](https://github.com/anvia-hq/aven-harness/pull/3#discussion_r4320718729). The full verified run did not create another review. The sticky summary remained comment `6281509708`.
+
+[Same-head rerun](https://github.com/anvia-hq/aven-harness/actions/runs/39356491762/attempts/2) also passed with verification complete: one finding, one duplicate suppressed, 28,771 tokens, estimated $0.0036707, and a successful post step. Review and inline-comment counts did not increase; the same single sticky summary was updated.

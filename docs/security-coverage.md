@@ -22,5 +22,7 @@ Action boundary coverage lives in `packages/action/test/run.test.ts`,
 reads, config/guidance refs are pinned to the base SHA, stale results are
 discarded, spoofed sticky markers are ignored, mutations are allowlisted,
 archive traversal and links are rejected, and post cleanup stays under
-RUNNER_TEMP. Live acceptance remains pending; unit coverage does not certify
-provider behavior or runner network configuration.
+RUNNER_TEMP. A same-repository Haiku 5.5 review passed on GitHub-hosted
+Linux x64; see [sandbox evidence](sandbox.md). Fork commands, the complete
+adversarial corpus, other live providers and runner network configurations
+still need live acceptance.
