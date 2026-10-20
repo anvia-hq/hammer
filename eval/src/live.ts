@@ -189,6 +189,9 @@ export async function runLiveEval(options: LiveEvalOptions) {
     const sorted = [...values].sort((left, right) => left - right);
     return sorted.length ? sorted[Math.max(0, Math.ceil(sorted.length * fraction) - 1)]! : null;
   };
+  const pricedCosts = pricing
+    ? measurements.flatMap((entry) => (entry.costUsd === null ? [] : [entry.costUsd]))
+    : [];
   const metrics = {
     medianComments: percentile(
       scored.map((entry) => entry.findingsCount),
@@ -202,11 +205,8 @@ export async function runLiveEval(options: LiveEvalOptions) {
       measurements.map((entry) => entry.latencyMs),
       0.95,
     ),
-    medianReviewCostUsd: percentile(
-      measurements.flatMap((entry) => (entry.costUsd === null ? [] : [entry.costUsd])),
-      0.5,
-    ),
-    pricedCases: measurements.filter((entry) => entry.costUsd !== null).length,
+    medianReviewCostUsd: percentile(pricedCosts, 0.5),
+    pricedCases: pricedCosts.length,
     reviewerTokens: measurements.reduce((sum, entry) => sum + entry.tokens, 0),
     judgeTokens: judgments.reduce((sum, entry) => sum + entry.tokens, 0),
   };

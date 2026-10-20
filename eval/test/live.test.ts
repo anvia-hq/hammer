@@ -56,6 +56,23 @@ describe("live-model evaluation", () => {
       }),
     );
     await writeFile(join(single, "changes.patch"), '@@ -0,0 +1 @@\n+export const version = "1";');
+    const ignored = join(cases, "clean-02");
+    await mkdir(ignored);
+    await writeFile(
+      join(ignored, "case.json"),
+      JSON.stringify({
+        id: "clean-02",
+        kind: "clean",
+        title: "Generated bundle",
+        prBody: "",
+        expected: [],
+        files: [{ path: "dist/bundle.js", status: "added", patchFile: "changes.patch" }],
+      }),
+    );
+    await writeFile(
+      join(ignored, "changes.patch"),
+      "@@ -0,0 +1 @@\n+export const generated = true;",
+    );
     const model = fakeModel(
       JSON.stringify({ summary: "Documents version", findings: [], generalNotes: [] }),
     );
@@ -66,6 +83,9 @@ describe("live-model evaluation", () => {
       model,
     });
     expect(model.completion).toHaveBeenCalled();
+    expect(result.report.measurements.some((entry) => entry.costUsd === 0)).toBe(true);
+    expect(result.report.metrics.medianReviewCostUsd).toBeNull();
+    expect(result.report.metrics.pricedCases).toBe(0);
     const candidate = {
       path: "src/a.ts",
       line: 1,
