@@ -1,8 +1,8 @@
 {
   "id": "seeded-16",
   "kind": "seeded",
-  "title": "Seeded correctness defect in src/util/clone.ts",
-  "prBody": "Synthetic seeded defect for offline eval: correctness issue in src/util/clone.ts.",
+  "title": "Implement portable cloning",
+  "prBody": "This public clone helper accepts structured-cloneable objects, including Date values and own properties whose value is undefined, and must preserve those values.",
   "files": [
     {
       "path": "src/util/clone.ts",
@@ -13,8 +13,8 @@
   "expected": [
     {
       "path": "src/util/clone.ts",
-      "startLine": 160,
-      "endLine": 162,
+      "startLine": 2,
+      "endLine": 2,
       "category": "correctness",
       "severity": "medium"
     }

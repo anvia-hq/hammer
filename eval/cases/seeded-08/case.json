@@ -1,8 +1,8 @@
 {
   "id": "seeded-08",
   "kind": "seeded",
-  "title": "Seeded performance defect in src/cache/lookup.ts",
-  "prBody": "Synthetic seeded defect for offline eval: performance issue in src/cache/lookup.ts.",
+  "title": "Refactor cache insertion",
+  "prBody": "Cache entries are addressed by the caller-provided key. Inserting a different key must leave earlier entries retrievable.",
   "files": [
     {
       "path": "src/cache/lookup.ts",
@@ -13,9 +13,9 @@
   "expected": [
     {
       "path": "src/cache/lookup.ts",
-      "startLine": 80,
-      "endLine": 86,
-      "category": "performance",
+      "startLine": 4,
+      "endLine": 4,
+      "category": "correctness",
       "severity": "medium"
     }
   ]

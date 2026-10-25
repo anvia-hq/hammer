@@ -1,7 +1,15 @@
-import { CORE_PACKAGE_NAME } from "@anvia/hammer-core";
+import { EnvHttpProxyAgent, setGlobalDispatcher } from "undici";
+import { runAction } from "./run";
+import { runtime } from "./runtime";
 
-export function main(): void {
-  console.log(`[hammer] loaded ${CORE_PACKAGE_NAME}; the review run flow lands in M0`);
+export async function main(): Promise<void> {
+  const dispatcher = new EnvHttpProxyAgent();
+  setGlobalDispatcher(dispatcher);
+  try {
+    await runAction(runtime, process.env);
+  } finally {
+    await dispatcher.close();
+  }
 }
 
-main();
+await main();

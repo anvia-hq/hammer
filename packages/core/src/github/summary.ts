@@ -1,3 +1,6 @@
+import type { Finding } from "../agent/schema";
+import { MAX_COMMENT_CHARS, sanitizeForPosting, type SanitizeCommentOptions } from "./sanitize";
+
 export const SUMMARY_MARKER = "<!-- hammer:summary -->";
 
 const ZERO_WIDTH_JOINER = "‍";
@@ -18,6 +21,16 @@ export interface RenderSummaryOptions {
   skipped?: SkippedSummaryFile[];
   notReviewed?: SkippedSummaryFile[];
   headSha?: string | null | undefined;
+  findings?: Finding[];
+  summary?: string;
+  generalNotes?: string[];
+  model?: string;
+  tokens?: number;
+  costUsd?: number | null;
+  partial?: boolean;
+  unverified?: boolean;
+  error?: string;
+  runUrl?: string;
 }
 
 export function sanitizeSummaryText(value: string): string {
@@ -43,6 +56,49 @@ function describeFile(file: SummaryScopeFile): string {
 
 export function renderSummaryBody(options: RenderSummaryOptions): string {
   const lines: string[] = [SUMMARY_MARKER, "### Hammer Review", ""];
+  if (options.findings !== undefined) {
+    const high = options.findings.filter((finding) => finding.severity === "high").length;
+    lines.push(
+      `${options.findings.length} findings (${high} high)${options.partial ? " · partial" : ""}`,
+      "",
+    );
+    if (high > 0)
+      lines.push(
+        "> [!CAUTION]",
+        `> ${high} high-severity issue(s) should be fixed before merge.`,
+        "",
+      );
+    if (options.findings.length === 0 && !options.error)
+      lines.push(
+        options.partial ? "No issues found in the completed portion." : "No issues found.",
+        "",
+      );
+    if (options.summary) lines.push(`**What this PR does:** ${options.summary}`, "");
+    if (options.findings.length > 0) {
+      lines.push("| Severity | File | Finding |", "| --- | --- | --- |");
+      for (const finding of options.findings) {
+        const cell = (value: string): string => value.replace(/\|/g, "\\|").replace(/[\r\n]/g, " ");
+        lines.push(
+          `| ${finding.severity} | ${cell(finding.path)}:${finding.line} | ${cell(finding.title)} |`,
+        );
+      }
+      lines.push("");
+    }
+  }
+  if (options.error)
+    lines.push(
+      `Review error: ${options.error}`,
+      options.runUrl ? `Run: ${options.runUrl}` : "",
+      "",
+    );
+  if (options.unverified) lines.push("Verification: unverified.", "");
+  if (options.generalNotes?.length)
+    lines.push("General notes:", "", ...options.generalNotes.map((note) => `- ${note}`), "");
+  if (options.model)
+    lines.push(
+      `${options.model} · ${options.tokens ?? 0} tokens · ${options.costUsd == null ? "cost unavailable" : `$${options.costUsd.toFixed(4)}`}`,
+      "",
+    );
   const files = options.files;
   lines.push(`Files in scope (${files.length}):`);
   if (files.length === 0) {
@@ -84,6 +140,7 @@ export type UpdateComment = (commentId: number, body: string) => Promise<void>;
 
 export interface UpsertSummaryOptions {
   perPage?: number;
+  sanitizeOptions?: SanitizeCommentOptions;
 }
 
 export interface UpsertSummaryResult {
@@ -98,6 +155,12 @@ export async function upsertSummaryComment(
   body: string,
   options: UpsertSummaryOptions = {},
 ): Promise<UpsertSummaryResult> {
+  const sha = /<!--\s*hammer:last-sha=([0-9a-f]{4,64})\s*-->\s*$/i.exec(body)?.[1];
+  const metadata = `${SUMMARY_MARKER}\n`;
+  const state = sha ? `\n<!-- hammer:last-sha=${sha} -->` : "";
+  body = `${metadata}${sanitizeForPosting(body, options.sanitizeOptions)
+    .replace(/^\n/, "")
+    .slice(0, MAX_COMMENT_CHARS - metadata.length - state.length)}${state}`;
   const perPage = Math.max(1, Math.floor(options.perPage ?? 100));
   let page = 1;
   for (;;) {

@@ -77,7 +77,11 @@ export function parsePatch(patch: string): PatchHunk[] {
       newLine += 1;
       continue;
     }
-    if (line === "") {
+    if (
+      line === "" &&
+      oldLine < current.oldStart + current.oldLines &&
+      newLine < current.newStart + current.newLines
+    ) {
       current.lines.push({ kind: "context", text: "", oldLine, newLine });
       oldLine += 1;
       newLine += 1;

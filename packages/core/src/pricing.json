@@ -1,0 +1,23 @@
+{
+  "anthropic/claude-sonnet-4-5": {
+    "input": 3,
+    "output": 15
+  },
+  "anthropic/claude-sonnet-4-5-20250929": {
+    "input": 3,
+    "output": 15
+  },
+  "gemini/gemini-2.5-flash": {
+    "input": 0.3,
+    "output": 2.5
+  },
+  "anthropic/claude-haiku-5-5": {
+    "input": 0.1,
+    "output": 0.5,
+    "long_context": {
+      "above_tokens": 100000,
+      "input": 0.5,
+      "output": 2.5
+    }
+  }
+}

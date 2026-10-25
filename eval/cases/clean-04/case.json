@@ -1,13 +1,13 @@
 {
   "id": "clean-04",
   "kind": "clean",
-  "title": "Bump a dev dependency",
-  "prBody": "chore(deps): bump oxlint.",
+  "title": "Bump a development dependency",
+  "prBody": "Update the lint tool version.",
   "files": [
     {
       "path": "package.json",
       "status": "modified",
-      "patchFile": "changes.patch"
+      "patchFile": "file-1.patch"
     }
   ],
   "expected": []

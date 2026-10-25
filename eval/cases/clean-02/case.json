@@ -1,13 +1,13 @@
 {
   "id": "clean-02",
   "kind": "clean",
-  "title": "Extract helper in date formatting",
-  "prBody": "Refactor: extract a named helper.",
+  "title": "Name the elapsed-day result",
+  "prBody": "Extract the calculation result into a local variable.",
   "files": [
     {
       "path": "src/dates/format.ts",
       "status": "modified",
-      "patchFile": "changes.patch"
+      "patchFile": "file-1.patch"
     }
   ],
   "expected": []

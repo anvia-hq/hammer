@@ -320,3 +320,8 @@ export {
   loadConfig,
   resolveConfig,
 } from "./config";
+
+export { runReviewPipeline } from "./pipeline";
+export type { ReviewPipelineInput, ReviewPipelineResult } from "./pipeline";
+
+export { resolvePricing } from "./pricing";

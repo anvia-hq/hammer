@@ -11,8 +11,8 @@ describe("offline oracle run", () => {
   it("passes all cases with 100% precision and full high-severity recall", async () => {
     const reportsDir = mkdtempSync(join(tmpdir(), "hammer-eval-reports-"));
     const { totals, scored } = await runEval(CASES_ROOT, oracleReviewer, { reportsDir });
-    expect(scored).toHaveLength(30);
-    expect(totals.passed).toBe(30);
+    expect(scored).toHaveLength(31);
+    expect(totals.passed).toBe(31);
     expect(totals.precision).toBe(1);
     expect(totals.recallHigh).toBe(1);
     expect(totals.falsePositivesPerCleanCase).toBe(0);

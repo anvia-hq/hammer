@@ -128,18 +128,17 @@ describe("issue_comment triggers", () => {
     }
   });
 
-  it("skips /hammer help with unsupported_command", async () => {
+  it("authorizes /hammer help", async () => {
     const decision = await decideEvent({
       eventName: "issue_comment",
       payload: issueCommentEvent({ body: "/hammer help" }),
       getPermission: allow("write"),
     });
 
-    expect(decision.run).toBe(false);
-    if (!decision.run) {
-      expect(decision.reason).toBe("unsupported_command");
-      expect(decision.message.length).toBeGreaterThan(0);
-      expect(decision.log).toMatch(/^\[hammer\] skip: /);
+    expect(decision.run).toBe(true);
+    if (decision.run && decision.kind === "comment") {
+      expect(decision.command).toBe("help");
+      expect(decision.log).toMatch(/^\[hammer\] trigger: /);
     }
   });
 

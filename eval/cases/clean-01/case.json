@@ -1,13 +1,13 @@
 {
   "id": "clean-01",
   "kind": "clean",
-  "title": "Rename locals in webhook client",
-  "prBody": "Pure refactor: rename locals, no behaviour change.",
+  "title": "Rename locals in the webhook client",
+  "prBody": "Rename a local variable without changing the request or response.",
   "files": [
     {
       "path": "src/webhook/client.ts",
       "status": "modified",
-      "patchFile": "changes.patch"
+      "patchFile": "file-1.patch"
     }
   ],
   "expected": []

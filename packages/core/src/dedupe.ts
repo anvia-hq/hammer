@@ -62,7 +62,9 @@ export function parsePriorFingerprints(commentBodies: string[]): Set<string> {
 
 export function isDuplicate(finding: DedupeFinding, priorSet: Set<string>): boolean {
   const fp = fingerprints(finding.path, finding.body, finding.suggestion);
-  return priorSet.has(fp.bodyFp) || priorSet.has(fp.suggestionFp);
+  return (
+    priorSet.has(fp.bodyFp) || (finding.suggestion !== undefined && priorSet.has(fp.suggestionFp))
+  );
 }
 
 export function filterDuplicates<T extends DedupeFinding>(

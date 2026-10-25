@@ -1,8 +1,8 @@
 {
   "id": "seeded-12",
   "kind": "seeded",
-  "title": "Seeded correctness defect in src/render/list.ts",
-  "prBody": "Synthetic seeded defect for offline eval: correctness issue in src/render/list.ts.",
+  "title": "Streamline list rendering",
+  "prBody": "Names are user supplied and this output is inserted into an HTML list. Labels must remain text rather than executable markup.",
   "files": [
     {
       "path": "src/render/list.ts",
@@ -13,10 +13,10 @@
   "expected": [
     {
       "path": "src/render/list.ts",
-      "startLine": 120,
-      "endLine": 122,
-      "category": "correctness",
-      "severity": "medium"
+      "startLine": 5,
+      "endLine": 5,
+      "category": "security",
+      "severity": "high"
     }
   ]
 }

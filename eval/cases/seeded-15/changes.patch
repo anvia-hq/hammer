@@ -1,5 +1,7 @@
-@@ -150,3 +150,4 @@
- const strings: Record<string, string> = {};
- export function t(key: string) {
-   return strings[key] as string;
-+}
+@@ -1,5 +1,5 @@
+ const strings: Record<string, string> = {greeting: "Hello"};
+ export function t(key: string): string {
+-  return strings[key] ?? key;
++  return strings[key] as string;
+ }
+ export function shout(key: string) { return t(key).toUpperCase(); }

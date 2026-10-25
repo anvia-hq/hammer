@@ -133,3 +133,13 @@ describe("summarize", () => {
     expect(totals.passed).toBe(2);
   });
 });
+
+it("does not attribute seeded-case false positives to clean PRs", () => {
+  const cases = [evalCase(), evalCase({ id: "clean-01", kind: "clean", expected: [] })];
+  const totals = summarize(
+    [scoreCase(cases[0]!, [finding({ path: "wrong.ts" })]), scoreCase(cases[1]!, [])],
+    cases,
+  );
+  expect(totals.falsePositives).toBe(1);
+  expect(totals.falsePositivesPerCleanCase).toBe(0);
+});

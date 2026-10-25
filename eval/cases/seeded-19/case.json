@@ -1,8 +1,8 @@
 {
   "id": "seeded-19",
   "kind": "seeded",
-  "title": "Seeded maintainability defect in src/legacy/parse.ts",
-  "prBody": "Synthetic seeded defect for offline eval: maintainability issue in src/legacy/parse.ts.",
+  "title": "Normalize CSV row values",
+  "prBody": "CSV column zero is the customer name and column one is the email address. Field positions must be preserved regardless of lexical order.",
   "files": [
     {
       "path": "src/legacy/parse.ts",
@@ -13,10 +13,10 @@
   "expected": [
     {
       "path": "src/legacy/parse.ts",
-      "startLine": 190,
-      "endLine": 194,
-      "category": "maintainability",
-      "severity": "low"
+      "startLine": 2,
+      "endLine": 2,
+      "category": "correctness",
+      "severity": "medium"
     }
   ]
 }

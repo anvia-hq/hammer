@@ -17,14 +17,18 @@ function tsFiles(dir: URL): string[] {
 }
 
 describe("S9 no telemetry", () => {
-  it("core and action src make no fetch or http calls to other hosts", () => {
+  it("network imports stay at the explicit transport boundaries", () => {
     const bad: string[] = [];
     for (const file of [...tsFiles(CORE_SRC), ...tsFiles(ACTION_SRC)]) {
       const text = readFileSync(file, "utf8");
       const lines = text.split("\n");
       lines.forEach((line, i) => {
         if (/\bfetch\s*\(/.test(line)) bad.push(`${file}:${i + 1}: ${line.trim()}`);
-        if (/(node:https?|axios|XMLHttpRequest|undici)/.test(line)) bad.push(`${file}:${i + 1}`);
+        if (
+          /(node:https?|axios|XMLHttpRequest|undici)/.test(line) &&
+          !["github.ts", "index.ts"].some((name) => file === path.join(ACTION_SRC.pathname, name))
+        )
+          bad.push(`${file}:${i + 1}`);
       });
     }
     expect(bad).toEqual([]);

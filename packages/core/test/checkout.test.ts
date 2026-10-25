@@ -55,7 +55,15 @@ describe("checkout argument builders", () => {
   });
 
   it("checks out FETCH_HEAD read-only", () => {
-    expect(checkoutArgs()).toEqual(["checkout", "FETCH_HEAD"]);
+    expect(checkoutArgs()).toEqual([
+      "-c",
+      "core.hooksPath=/dev/null",
+      "-c",
+      "submodule.recurse=false",
+      "checkout",
+      "--detach",
+      "FETCH_HEAD",
+    ]);
   });
 
   it("passes the token only via -c http.extraheader", () => {
@@ -113,8 +121,15 @@ describe("runCheckoutPlan", () => {
     });
     const result = await runCheckoutPlan(OPTIONS, exec);
     expect(result).toEqual({ directory: "/tmp/hammer-head", headSha: "abc123", steps: 4 });
-    expect(calls.map((call) => call.args[0])).toEqual(["init", "remote", "-c", "checkout"]);
+    expect(calls.map((call) => call.args[0])).toEqual(["init", "remote", "-c", "-c"]);
     expect(calls[2]!.args).toContain("fetch");
     expect(exec).toHaveBeenCalledTimes(4);
+    expect(calls[3]!.args.at(-1)).toBe(OPTIONS.headSha);
   });
+});
+
+it("stops checkout after a failed command without exposing credentials", async () => {
+  const exec: ExecFn = vi.fn(async () => ({ stdout: "", stderr: "secret token", exitCode: 1 }));
+  await expect(runCheckoutPlan(OPTIONS, exec)).rejects.toThrow("step 1");
+  expect(exec).toHaveBeenCalledTimes(1);
 });

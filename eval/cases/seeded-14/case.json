@@ -1,8 +1,8 @@
 {
   "id": "seeded-14",
   "kind": "seeded",
-  "title": "Seeded correctness defect in src/flags/eval.ts",
-  "prBody": "Synthetic seeded defect for offline eval: correctness issue in src/flags/eval.ts.",
+  "title": "Simplify feature-flag defaults",
+  "prBody": "A flag absent from a customer configuration is disabled. Existing configurations routinely omit newly introduced flags.",
   "files": [
     {
       "path": "src/flags/eval.ts",
@@ -13,8 +13,8 @@
   "expected": [
     {
       "path": "src/flags/eval.ts",
-      "startLine": 140,
-      "endLine": 143,
+      "startLine": 3,
+      "endLine": 3,
       "category": "correctness",
       "severity": "high"
     }

@@ -147,3 +147,9 @@ describe("buildPriorFindingsContext", () => {
     expect(untruncated.length).toBeGreaterThan(8000);
   });
 });
+
+it("keeps unrelated findings on the same file when neither has a suggestion", () => {
+  const previous = fingerprints("src/a.ts", "first issue");
+  const prior = parsePriorFingerprints([formatFingerprintComment(previous)]);
+  expect(isDuplicate({ path: "src/a.ts", body: "different issue" }, prior)).toBe(false);
+});

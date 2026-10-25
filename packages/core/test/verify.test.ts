@@ -163,3 +163,12 @@ describe("verifyCostOk", () => {
     expect(verifyCostOk(1000, 301)).toBe(false);
   });
 });
+
+it("marks omitted verification scores as unverified", async () => {
+  const result = await applyVerification({
+    findings: [finding()],
+    runVerifier: async () => ({ scores: [] }),
+  });
+  expect(result.status).toBe("unverified");
+  expect(result.findings).toHaveLength(1);
+});

@@ -1,3 +1,5 @@
+import { createRedactor } from "@anvia/core/redaction";
+
 export const REDACTED = "[redacted]";
 
 export const MAX_COMMENT_CHARS = 4000;
@@ -8,6 +10,7 @@ const MENTION_BREAK = "⁠";
 export interface SanitizeCommentOptions {
   owner?: string | undefined;
   repo?: string | undefined;
+  secrets?: readonly string[];
 }
 
 const PEM_BLOCK =
@@ -19,21 +22,27 @@ const AWS_ACCESS_KEY = /\bAKIA[0-9A-Z]{16}\b/g;
 const GITHUB_TOKEN = /\b(?:ghp_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,})\b/g;
 const HIGH_ENTROPY_RUN = /(?<![A-Za-z0-9+/=_-])[A-Za-z0-9+/=_-]{32,}(?![A-Za-z0-9+/=_-])/g;
 
+const redactor = createRedactor({
+  replacement: REDACTED,
+  patterns: [
+    PEM_BLOCK,
+    JWT_LIKE,
+    ANTHROPIC_KEY,
+    OPENAI_KEY,
+    AWS_ACCESS_KEY,
+    GITHUB_TOKEN,
+    HIGH_ENTROPY_RUN,
+  ].map((regex, index) => ({ name: `hammer-secret-${index}`, regex })),
+});
+
 export function redactSecrets(text: string): string {
-  return text
-    .replace(PEM_BLOCK, REDACTED)
-    .replace(JWT_LIKE, REDACTED)
-    .replace(ANTHROPIC_KEY, REDACTED)
-    .replace(OPENAI_KEY, REDACTED)
-    .replace(AWS_ACCESS_KEY, REDACTED)
-    .replace(GITHUB_TOKEN, REDACTED)
-    .replace(HIGH_ENTROPY_RUN, REDACTED);
+  return redactor.redactString(text);
 }
 
 const MARKDOWN_IMAGE = /!\[[^\]]*\]\([^()]*\)/g;
 const MARKDOWN_LINK = /\[([^\]]*)\]\(([^()\s]+)(?:\s+"[^"]*")?\)/g;
 const HTML_TAG = /<[^<>]*>/g;
-const MENTION = /(^|\s)@(?=\w)/g;
+const MENTION = /(?<![\w@])@(?=\w)/g;
 
 function allowedLinkPrefix(options: SanitizeCommentOptions): string {
   const owner = options.owner ?? "";
@@ -56,7 +65,7 @@ export function sanitizeComment(text: string, options: SanitizeCommentOptions = 
   const withoutImages = text.replace(MARKDOWN_IMAGE, "");
   const withoutForeignLinks = flattenDisallowedLinks(withoutImages, allowedLinkPrefix(options));
   const withoutHtml = withoutForeignLinks.replace(HTML_TAG, "");
-  const withoutPings = withoutHtml.replace(MENTION, `$1@${MENTION_BREAK}`);
+  const withoutPings = withoutHtml.replace(MENTION, `@${MENTION_BREAK}`);
   if (withoutPings.length > MAX_COMMENT_CHARS) {
     return `${withoutPings.slice(0, MAX_COMMENT_CHARS - 1)}${ELLIPSIS}`;
   }
@@ -64,5 +73,6 @@ export function sanitizeComment(text: string, options: SanitizeCommentOptions = 
 }
 
 export function sanitizeForPosting(text: string, options: SanitizeCommentOptions = {}): string {
+  for (const secret of options.secrets ?? []) if (secret) text = text.split(secret).join(REDACTED);
   return sanitizeComment(redactSecrets(text), options);
 }

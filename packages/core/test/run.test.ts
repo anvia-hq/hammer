@@ -156,6 +156,19 @@ describe("provider factory", () => {
     expect(routedCompatible.provider).toBe("openai");
   });
 
+  it("can disable native JSON schema for a compatible endpoint without affecting the default", () => {
+    const ref = {
+      provider: "openai-compatible" as const,
+      modelId: "custom",
+      baseUrl: "https://llm.example.com/v1",
+    };
+    const fallback = createCompletionModel(ref, { apiKey: "test-key", nativeJsonSchema: false });
+    const native = createCompletionModel(ref, { apiKey: "test-key" });
+    expect(fallback.capabilities.outputSchema).toBe(false);
+    expect(native.capabilities.outputSchema).toBe(true);
+    expect(fallback.capabilities.tools).toBe(true);
+  });
+
   it("throws when the openai-compatible base URL is missing", () => {
     expect(() => createOpenAICompatibleModel("my-model", { apiKey: "test-key" })).toThrowError(
       /base-url/i,

@@ -1,5 +1,7 @@
-@@ -90,2 +90,4 @@
- export async function drain(queue: Queue) {
-   const job = await queue.next();
+@@ -1,4 +1,4 @@
+ export async function drain(job: {run(): Promise<void>; ack(): void}) {
+-  await job.run();
+-  job.ack();
++  job.ack();
 +  await job.run();
-+  await queue.ack(job.id);
+ }

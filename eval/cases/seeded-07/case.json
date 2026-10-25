@@ -1,8 +1,8 @@
 {
   "id": "seeded-07",
   "kind": "seeded",
-  "title": "Seeded performance defect in src/api/paginate.ts",
-  "prBody": "Synthetic seeded defect for offline eval: performance issue in src/api/paginate.ts.",
+  "title": "Simplify pagination state",
+  "prBody": "The API returns nextPage=null on the final page even when that page contains rows. Requests beyond the final page are rejected.",
   "files": [
     {
       "path": "src/api/paginate.ts",
@@ -13,9 +13,9 @@
   "expected": [
     {
       "path": "src/api/paginate.ts",
-      "startLine": 70,
-      "endLine": 79,
-      "category": "performance",
+      "startLine": 8,
+      "endLine": 8,
+      "category": "correctness",
       "severity": "medium"
     }
   ]

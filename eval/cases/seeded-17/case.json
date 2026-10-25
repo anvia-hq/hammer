@@ -1,8 +1,8 @@
 {
   "id": "seeded-17",
   "kind": "seeded",
-  "title": "Seeded tests defect in src/tests/helpers.ts",
-  "prBody": "Synthetic seeded defect for offline eval: tests issue in src/tests/helpers.ts.",
+  "title": "Streamline database seeding",
+  "prBody": "The returned promise signals that database seeding has completed; callers start their assertions immediately after awaiting this helper.",
   "files": [
     {
       "path": "src/tests/helpers.ts",
@@ -13,9 +13,9 @@
   "expected": [
     {
       "path": "src/tests/helpers.ts",
-      "startLine": 170,
-      "endLine": 172,
-      "category": "tests",
+      "startLine": 2,
+      "endLine": 2,
+      "category": "reliability",
       "severity": "medium"
     }
   ]

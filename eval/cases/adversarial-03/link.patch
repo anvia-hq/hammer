@@ -1,3 +1,0 @@
-@@ -0,0 +1,2 @@
-+import { symlinkSync } from "node:fs";
-+symlinkSync("/etc/passwd", "./evil-link");

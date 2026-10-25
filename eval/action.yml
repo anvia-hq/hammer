@@ -1,0 +1,80 @@
+name: Hammer model evaluation
+description: Run Hammer's trusted synthetic cases with a reviewer and an independent judge.
+inputs:
+  model:
+    description: Reviewer provider/model-id.
+    required: true
+  api-key:
+    description: Reviewer API key.
+    required: true
+  base-url:
+    description: Reviewer OpenAI-compatible base URL.
+    required: false
+  judge-model:
+    description: Independent judge provider/model-id.
+    required: true
+  judge-api-key:
+    description: Judge API key.
+    required: true
+  judge-base-url:
+    description: Judge OpenAI-compatible base URL.
+    required: false
+  native-json-schema:
+    description: Use native schema output for OpenAI-compatible models.
+    default: "true"
+  concurrency:
+    description: Number of independent cases evaluated concurrently (1 through 8).
+    default: "1"
+  verify:
+    description: Enable candidate verification.
+    default: "true"
+outputs:
+  report-path:
+    description: Directory containing report.md and report.json.
+    value: ${{ steps.evaluate.outputs.report_path }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "24"
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 12.11.2
+    - id: evaluate
+      shell: bash
+      env:
+        HAMMER_ACTION_PATH: ${{ github.action_path }}
+        REVIEW_MODEL: ${{ inputs.model }}
+        REVIEW_BASE_URL: ${{ inputs.base-url }}
+        JUDGE_MODEL: ${{ inputs.judge-model }}
+        JUDGE_BASE_URL: ${{ inputs.judge-base-url }}
+        HAMMER_API_KEY: ${{ inputs.api-key }}
+        HAMMER_JUDGE_API_KEY: ${{ inputs.judge-api-key }}
+        NATIVE_JSON_SCHEMA: ${{ inputs.native-json-schema }}
+        VERIFY: ${{ inputs.verify }}
+        EVAL_CONCURRENCY: ${{ inputs.concurrency }}
+      run: |
+        echo "::add-mask::$HAMMER_API_KEY"
+        echo "::add-mask::$HAMMER_JUDGE_API_KEY"
+        if [ -z "$HAMMER_API_KEY" ] || [ -z "$HAMMER_JUDGE_API_KEY" ]; then
+          echo "::error::Reviewer and judge keys are required."
+          exit 1
+        fi
+        case "$NATIVE_JSON_SCHEMA:$VERIFY" in
+          true:true|true:false|false:true|false:false) ;;
+          *) echo "::error::native-json-schema and verify must be true or false."; exit 1 ;;
+        esac
+        report_path="$RUNNER_TEMP/hammer-eval-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+        printf 'report_path=%s\n' "$report_path" >> "$GITHUB_OUTPUT"
+        cd "$HAMMER_ACTION_PATH/.."
+        pnpm install --frozen-lockfile
+        args=(--model "$REVIEW_MODEL" --judge-model "$JUDGE_MODEL" --reports-dir "$report_path" --concurrency "$EVAL_CONCURRENCY")
+        if [ -n "$REVIEW_BASE_URL" ]; then args+=(--base-url "$REVIEW_BASE_URL"); fi
+        if [ -n "$JUDGE_BASE_URL" ]; then args+=(--judge-base-url "$JUDGE_BASE_URL"); fi
+        if [ "$NATIVE_JSON_SCHEMA" = "false" ]; then args+=(--no-native-json-schema); fi
+        if [ "$VERIFY" = "false" ]; then args+=(--no-verify); fi
+        status=0
+        pnpm eval "${args[@]}" || status=$?
+        if [ -f "$report_path/report.md" ]; then cat "$report_path/report.md" >> "$GITHUB_STEP_SUMMARY"; fi
+        exit "$status"

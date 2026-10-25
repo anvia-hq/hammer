@@ -102,6 +102,14 @@ function fileEntry(overrides: Partial<PullFileEntry> = {}): PullFileEntry {
 }
 
 describe("parsePatch", () => {
+  it.each([
+    ["@@ -1,1 +1,1 @@\n-old\n+new\n", [1]],
+    ["@@ -0,0 +1,1 @@\n+new\n", [1]],
+    ["@@ -1,1 +0,0 @@\n-old\n", []],
+    ["@@ -1,2 +1,2 @@\n same\n \n", [1, 2]],
+  ])("does not invent an anchor from a terminal patch newline", (patch, lines) => {
+    expect([...commentableLines(parsePatch(patch))]).toEqual(lines);
+  });
   it("parses a modify patch with RIGHT-side line numbers", () => {
     const hunks = parsePatch(MODIFY_PATCH);
     expect(hunks).toHaveLength(1);

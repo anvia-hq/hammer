@@ -1,12 +1,19 @@
-import { Agent, createTool } from "@anvia/core";
+import { Agent, AgentStructuredOutputError } from "@anvia/core/agent";
+import { createTool } from "@anvia/core/tool";
 import type { AnyTool } from "@anvia/core/tool";
 import type { CompletionModel } from "@anvia/core/completion";
 import { z } from "zod";
 
 import type { PullFileEntry } from "../github/files";
 import { parseModelRefWithBase } from "./model";
-import { buildReviewPrompt, type BuildReviewPromptInput } from "./prompt";
-import { buildRepairPrompt, runWithRepair, validateBatchOutput, type ReviewBatch } from "./schema";
+import { buildReviewPrompt, REVIEW_INSTRUCTIONS, type BuildReviewPromptInput } from "./prompt";
+import {
+  buildRepairPrompt,
+  runWithRepair,
+  validateBatchOutput,
+  type ReviewBatch,
+  ReviewBatchSchema,
+} from "./schema";
 import {
   getFileDiff,
   getPrDiscussion,
@@ -202,10 +209,26 @@ export async function runSinglePassReview(
   if (options.model === undefined) {
     return failure("generate_failed", "No model adapter provided for the single-pass run.");
   }
-  const agent = new Agent<string>({
+  const agent = new Agent<string | ReviewBatch>({
     id: "hammer-pr-reviewer",
     model: options.model,
-    instructions: reviewed.prompt,
+    instructions: REVIEW_INSTRUCTIONS,
+    ...(options.model.capabilities.outputSchema ? { outputSchema: ReviewBatchSchema } : {}),
+    retries: {
+      maxAttempts: 3,
+      shouldRetry: ({ error, attempt }) => {
+        if (error instanceof AgentStructuredOutputError) return attempt < 2;
+        if (typeof error !== "object" || error === null) return false;
+        const status =
+          "status" in error
+            ? Number(error.status)
+            : "statusCode" in error
+              ? Number(error.statusCode)
+              : 0;
+        return status === 429 || status >= 500;
+      },
+    },
+    maxTokens: 8192,
     tools: buildReviewerTools({
       checkoutRoot: options.checkoutRoot ?? "",
       files: options.files ?? [],
@@ -218,7 +241,11 @@ export async function runSinglePassReview(
     outcome = await agent.generate({ prompt: reviewed.prompt });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return failure("generate_failed", message, "(generate)");
+    return failure(
+      error instanceof AgentStructuredOutputError ? "schema_violation" : "generate_failed",
+      message,
+      "(generate)",
+    );
   }
   if (outcome.type !== "response") {
     return failure(
@@ -238,7 +265,11 @@ export async function runSinglePassReview(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return failure("generate_failed", message, "(generate)");
+    return failure(
+      error instanceof AgentStructuredOutputError ? "schema_violation" : "generate_failed",
+      message,
+      "(generate)",
+    );
   }
   if (repairedOutcome.type !== "response") {
     return failure(

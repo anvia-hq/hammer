@@ -11,10 +11,18 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anvia/hammer-core": "workspace:*"
+    "@actions/core": "^3.0.1",
+    "@anvia/hammer-core": "workspace:*",
+    "@octokit/plugin-retry": "^8.1.1",
+    "@octokit/plugin-throttling": "^11.0.5",
+    "@octokit/rest": "^22.0.1",
+    "tar-stream": "^3.2.2",
+    "undici": "^8.12.2",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.9.1",
+    "@types/tar-stream": "^3.1.5",
     "tsup": "^8.5.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"

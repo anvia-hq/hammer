@@ -1,8 +1,8 @@
 {
   "id": "seeded-13",
   "kind": "seeded",
-  "title": "Seeded correctness defect in src/dates/format.ts",
-  "prBody": "Synthetic seeded defect for offline eval: correctness issue in src/dates/format.ts.",
+  "title": "Simplify elapsed-day conversion",
+  "prBody": "For valid timestamps b>=a, this helper returns the number of complete 24-hour periods elapsed; it is not a calendar-day calculation.",
   "files": [
     {
       "path": "src/dates/format.ts",
@@ -13,8 +13,8 @@
   "expected": [
     {
       "path": "src/dates/format.ts",
-      "startLine": 130,
-      "endLine": 133,
+      "startLine": 2,
+      "endLine": 2,
       "category": "correctness",
       "severity": "medium"
     }

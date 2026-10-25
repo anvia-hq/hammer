@@ -1,8 +1,8 @@
 {
   "id": "seeded-11",
   "kind": "seeded",
-  "title": "Seeded reliability defect in src/net/retry.ts",
-  "prBody": "Synthetic seeded defect for offline eval: reliability issue in src/net/retry.ts.",
+  "title": "Adjust the response retry boundary",
+  "prBody": "Responses with status 500 through 599 are retried up to three total attempts. The response from a successful retry must be returned.",
   "files": [
     {
       "path": "src/net/retry.ts",
@@ -13,8 +13,8 @@
   "expected": [
     {
       "path": "src/net/retry.ts",
-      "startLine": 110,
-      "endLine": 119,
+      "startLine": 4,
+      "endLine": 4,
       "category": "reliability",
       "severity": "medium"
     }

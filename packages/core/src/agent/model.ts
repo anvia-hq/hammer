@@ -64,7 +64,7 @@ export function parseModelRefWithBase(raw: string, baseUrl?: string): ParseModel
       ],
     };
   }
-  if (modelId === "" || modelId.includes("/")) {
+  if (modelId === "" || (provider !== "openai-compatible" && modelId.includes("/"))) {
     return {
       ok: false,
       issues: [
@@ -99,6 +99,7 @@ function isSupportedProvider(provider: string): provider is SupportedModelProvid
 
 export interface ModelClientOptions {
   apiKey: string;
+  nativeJsonSchema?: boolean | undefined;
   baseUrl?: string | undefined;
 }
 
@@ -131,7 +132,9 @@ export function createOpenAICompatibleModel(
     );
   }
   const client = new OpenAIClient({ apiKey: options.apiKey, baseUrl });
-  return client.completionModel({ modelId }) as unknown as CompletionModel;
+  const model = client.completionModel({ modelId });
+  if (options.nativeJsonSchema === false) model.capabilities.outputSchema = false;
+  return model as unknown as CompletionModel;
 }
 
 export function createCompletionModel(
@@ -146,7 +149,7 @@ export function createCompletionModel(
       return createOpenAICompatibleModel(ref.modelId, { apiKey: options.apiKey });
     }
     return createOpenAICompatibleModel(ref.modelId, {
-      apiKey: options.apiKey,
+      ...options,
       baseUrl,
     });
   }

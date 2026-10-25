@@ -2,7 +2,7 @@
 
 Read-only AI pull request review that runs in your GitHub Actions, on any runner, with your own model key. Built on [Anvia](https://www.anvia.dev).
 
-Status: pre-release scaffold. See [docs/PRD.md](docs/PRD.md).
+Status: pre-release. The review flow has passed live Haiku 5.5 and OpenAI-compatible Muse sandbox reviews with verification and duplicate suppression on GitHub-hosted Linux x64. An initial 31-case synthetic Muse-reviewer/Haiku-judge evaluation passed the automated metric gate. Human review, the full corpus and wider runner acceptance remain open. See [sandbox setup](docs/sandbox.md) and [the PRD](docs/PRD.md).
 
 ## Workspace
 

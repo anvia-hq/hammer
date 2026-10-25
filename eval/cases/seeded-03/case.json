@@ -1,8 +1,8 @@
 {
   "id": "seeded-03",
   "kind": "seeded",
-  "title": "Seeded security defect in src/auth/session.ts",
-  "prBody": "Synthetic seeded defect for offline eval: security issue in src/auth/session.ts.",
+  "title": "Streamline session claim extraction",
+  "prBody": "The signature callback is authoritative. Claims from a token whose signature check returns false must never be accepted.",
   "files": [
     {
       "path": "src/auth/session.ts",
@@ -13,8 +13,8 @@
   "expected": [
     {
       "path": "src/auth/session.ts",
-      "startLine": 30,
-      "endLine": 33,
+      "startLine": 2,
+      "endLine": 2,
       "category": "security",
       "severity": "high"
     }

@@ -1,7 +1,0 @@
-@@ -30,7 +30,8 @@
- export function daysBetween(a: Date, b: Date) {
-   const ms = b.getTime() - a.getTime();
--  return Math.floor(ms / 1000 / 60 / 60 / 24);
-+  const days = Math.floor(ms / 1000 / 60 / 60 / 24);
-+  return days;
- }
