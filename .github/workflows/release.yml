@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Branch or ref to release.
+        required: true
+        default: main
+      bump:
+        description: Semver bump for the new v1.x.y tag.
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source }}
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Publish release/v1 and tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          source_sha=$(git rev-parse HEAD)
+
+          git fetch origin release/v1
+          git checkout -B release/v1 "$source_sha"
+          git add -f packages/action/dist
+          git commit --allow-empty -m "release: bundle ${GITHUB_REF_NAME} @ ${source_sha:0:7}"
+          git push --force-with-lease origin release/v1
+
+          latest=$(git tag -l 'v1.*.*' --sort=-v:refname | head -1)
+          latest=${latest:-v1.0.0}
+          IFS=. read -r _ major patch <<<"${latest#v}"
+          if [ "${{ inputs.bump }}" = "minor" ]; then
+            major=$((major + 1)); patch=0
+          else
+            patch=$((patch + 1))
+          fi
+          new_tag="v1.${major}.${patch}"
+
+          git tag -a "$new_tag" -m "Hammer $new_tag"
+          git tag -f v1
+          git push origin "$new_tag"
+          git push -f origin v1
+
+          gh release create "$new_tag" --latest --generate-notes ||
+            gh release edit "$new_tag" --latest
+
+          echo "released $new_tag from ${source_sha:0:7}; v1 moved"

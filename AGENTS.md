@@ -39,5 +39,5 @@ pnpm build
 - Check `docs/decision/` before choosing a library, package layout or GitHub trigger.
 - A workspace package must not share a name with a published npm package. See [0001](docs/decision/0001-pnpm-workspaces.md).
 - TypeScript strict, ESM, ES2022, `moduleResolution: "Bundler"`. Run `pnpm check` before reporting work as done.
-- `dist/` is committed only on release branches; never edit it by hand.
+- `dist/` is committed only on release branches; never edit it by hand. Releases are published by the manual `Release` workflow (`workflow_dispatch`, inputs: source ref + patch/minor bump). It gates on check/typecheck/test, bundles `dist/` onto `release/v1`, tags `v1.x.y`, moves `v1`, and creates the GitHub release.
 - Never commit secrets, API keys or trace payloads.
