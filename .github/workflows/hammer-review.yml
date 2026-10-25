@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: anvia-hq/hammer@release/v1
+      - uses: anvia-hq/hammer@v1
         with:
           model: openai-compatible/muse-spark-1.3-contributor
           base-url: ${{ vars.MUSE_BASE_URL }}
