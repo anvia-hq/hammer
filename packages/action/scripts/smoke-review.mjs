@@ -68,6 +68,32 @@ const server = createServer(async (request, response) => {
     }
     if (path === "/v1/chat/completions" && body.response_format)
       return json({ error: { message: "Native JSON schema unsupported" } }, 400);
+    const review = JSON.stringify({
+      summary: "Updates lookup",
+      findings: [
+        {
+          path: "src/a.ts",
+          line: 2,
+          severity: "high",
+          category: "correctness",
+          title: "Null dereference",
+          body: "Null user crashes. Guard before accessing name.",
+          confidence: 0.95,
+        },
+      ],
+      generalNotes: [],
+    });
+    if (path === "/v1/chat/completions" && body.stream) {
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      const chunk = (choices, usage) =>
+        `data: ${JSON.stringify({ id: "completion-1", object: "chat.completion.chunk", created: 1, model: "test-model", choices, ...(usage ? { usage } : {}) })}\n\n`;
+      response.write(
+        chunk([{ index: 0, delta: { role: "assistant", content: review }, finish_reason: null }]),
+      );
+      response.write(chunk([{ index: 0, delta: {}, finish_reason: "stop" }]));
+      response.write(chunk([], { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 }));
+      return response.end("data: [DONE]\n\n");
+    }
     if (path === "/v1/chat/completions")
       return json({
         id: "completion-1",

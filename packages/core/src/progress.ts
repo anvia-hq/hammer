@@ -1,3 +1,5 @@
+import { redactSecrets } from "./github/sanitize";
+
 export type ReviewEvent =
   | {
       type: "plan";
@@ -8,6 +10,7 @@ export type ReviewEvent =
   | { type: "batch_start"; batch: string; files: number }
   | { type: "tool"; batch: string; name: string; detail: string }
   | { type: "turn"; tokens: number; costUsd: number | null }
+  | { type: "text"; batch: string; kind: "text" | "reasoning"; text: string }
   | { type: "batch_end"; batch: string; ok: boolean; findings: number; error?: string }
   | { type: "verify_start"; findings: number }
   | { type: "verify_end"; kept: number; dropped: number }
@@ -16,15 +19,16 @@ export type ReviewEvent =
 export type ReviewEventSink = (event: ReviewEvent) => void;
 
 const MAX_DETAIL_CHARS = 160;
+const MAX_TEXT_CHARS = 400;
 
-function oneLine(value: string): string {
+function oneLine(value: string, limit = MAX_DETAIL_CHARS): string {
   const flat = Array.from(value, (char) => {
     const code = char.charCodeAt(0);
     return code < 0x20 || code === 0x7f ? " " : char;
   })
     .join("")
     .trim();
-  return flat.length > MAX_DETAIL_CHARS ? `${flat.slice(0, MAX_DETAIL_CHARS)}…` : flat;
+  return flat.length > limit ? `${flat.slice(0, limit)}…` : flat;
 }
 
 function plural(count: number, word: string): string {
@@ -43,6 +47,10 @@ export function formatReviewEvent(event: ReviewEvent): string {
     case "tool": {
       const detail = oneLine(event.detail);
       return `[hammer] batch ${oneLine(event.batch)}: ${oneLine(event.name)}${detail ? ` ${detail}` : ""}`;
+    }
+    case "text": {
+      const label = event.kind === "reasoning" ? "thinking" : "says";
+      return `[hammer] batch ${oneLine(event.batch)} ${label}: ${oneLine(redactSecrets(event.text), MAX_TEXT_CHARS)}`;
     }
     case "turn": {
       const cost = event.costUsd === null ? "" : `, $${event.costUsd.toFixed(4)}`;

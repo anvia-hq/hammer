@@ -70,13 +70,13 @@ describe("createBudget cost", () => {
 });
 
 describe("maxTurns", () => {
-  it("defaults to 12 and clamps 0 or negative to 1", () => {
-    expect(clampTurns()).toBe(12);
-    expect(clampTurns(undefined)).toBe(12);
+  it("defaults to 100 and clamps 0 or negative to 1", () => {
+    expect(clampTurns()).toBe(100);
+    expect(clampTurns(undefined)).toBe(100);
     expect(clampTurns(0)).toBe(1);
     expect(clampTurns(-3)).toBe(1);
     expect(clampTurns(12)).toBe(12);
-    expect(createBudget({}).maxTurns).toBe(12);
+    expect(createBudget({}).maxTurns).toBe(100);
     expect(createBudget({ maxTurns: 0 }).maxTurns).toBe(1);
   });
 });

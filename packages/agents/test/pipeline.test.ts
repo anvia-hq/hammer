@@ -143,3 +143,79 @@ it("keeps reviewing when the event sink throws", async () => {
   const result = await runReviewPipeline(request);
   expect(result.findings).toHaveLength(1);
 });
+
+it("streams model commentary but not the final JSON, and still accounts usage", async () => {
+  const request = input([]);
+  const usage = {
+    inputTokens: 10,
+    outputTokens: 5,
+    totalTokens: 15,
+    cachedInputTokens: 0,
+    cacheCreationInputTokens: 0,
+  };
+  let turn = 0;
+  const streaming = {
+    ...request.model,
+    capabilities: { ...request.model.capabilities, streaming: true },
+    streamCompletion: async function* () {
+      turn += 1;
+      if (turn === 1) {
+        yield { type: "text_delta" as const, delta: "Checking the diff.\n" };
+        const call = {
+          type: "tool-call" as const,
+          toolCallId: "c1",
+          toolName: "get_file_diff",
+          input: { path: "a.ts" },
+        };
+        yield { type: "tool_call" as const, toolCall: call };
+        yield {
+          type: "final" as const,
+          response: {
+            choice: [{ type: "text" as const, text: "Checking the diff.\n" }, call],
+            usage,
+            finishReason: "tool-calls" as const,
+            rawResponse: {},
+          },
+        };
+        return;
+      }
+      const text = JSON.stringify(batch);
+      yield { type: "text_delta" as const, delta: text };
+      yield {
+        type: "final" as const,
+        response: {
+          choice: [{ type: "text" as const, text }],
+          usage,
+          finishReason: "stop" as const,
+          rawResponse: {},
+        },
+      };
+    },
+  };
+  request.model = streaming as unknown as typeof request.model;
+  const events: Array<{ type: string; text?: string }> = [];
+  request.onEvent = (event) => events.push(event);
+  const result = await runReviewPipeline(request);
+  expect(result.findings).toHaveLength(1);
+  expect(result.usage.tokens).toBe(30);
+  const texts = events.filter((event) => event.type === "text").map((event) => event.text);
+  expect(texts).toEqual(["Checking the diff."]);
+  expect(events.filter((event) => event.type === "turn")).toHaveLength(2);
+});
+
+it("falls back to a non-streaming run when the stream fails before any output", async () => {
+  const request = input([batch]);
+  const failing = {
+    ...request.model,
+    capabilities: { ...request.model.capabilities, streaming: true },
+    streamCompletion: () => ({
+      [Symbol.asyncIterator]: () => ({
+        next: () => Promise.reject(new Error("stream unsupported")),
+      }),
+    }),
+  };
+  request.model = failing as unknown as typeof request.model;
+  const result = await runReviewPipeline(request);
+  expect(result.findings).toHaveLength(1);
+  expect(result.failedBatches).toEqual([]);
+});

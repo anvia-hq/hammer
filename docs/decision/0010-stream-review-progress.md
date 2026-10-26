@@ -17,4 +17,11 @@ A review can run for minutes and the job log was silent until the final comment.
 ## Consequences
 
 - Core stays free of the Actions runtime; `eval` can pass its own sink.
-- Model text and reasoning are not streamed, only actions and totals.
+- Model commentary and reasoning are streamed too, as one-line `says` / `thinking` events (see below). The final JSON answer is never streamed.
+
+## Addendum: streaming model text
+
+- The reviewer runs through `agent.stream()` when the model supports `streamCompletion`, and `agent.generate()` otherwise. The budget wrapper in [pipeline.ts](../../packages/agents/src/pipeline.ts) wraps `streamCompletion` as well as `completion`, so the timeout and token and cost accounting are the same on both paths.
+- [stream.ts](../../packages/agents/src/stream.ts) turns deltas into lines. A turn whose text opens with `{` or a code fence is the structured answer and is dropped. Other text is emitted a line at a time, and the unfinished tail only when the turn went on to call a tool. Reasoning is emitted as it arrives.
+- Text lines pass `redactSecrets`, are flattened to one `[hammer]`-prefixed line and truncated, like every other event. They are never added to the progress comment.
+- If a gateway cannot stream and fails before any output, the batch is retried once without streaming.

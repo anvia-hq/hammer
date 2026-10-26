@@ -1,4 +1,4 @@
-import type { CompletionModel } from "@anvia/core/completion";
+import type { CompletionModel, StreamingCompletionModel } from "@anvia/core/completion";
 import { Agent } from "@anvia/core/agent";
 import {
   buildPriorFindingsContext,
@@ -50,29 +50,47 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     maxCostUsd: input.config.max_cost_usd,
     ...(input.pricing ? { pricing: input.pricing } : {}),
   });
+  const guarded = <T extends { abortSignal?: AbortSignal | undefined }>(options: T | undefined) => {
+    if (!budget.canStartBatch().ok) throw new Error("Review budget reached.");
+    const timeout = AbortSignal.timeout(120_000);
+    return {
+      ...options,
+      abortSignal: options?.abortSignal ? AbortSignal.any([timeout, options.abortSignal]) : timeout,
+    };
+  };
+  const record = (usage: { inputTokens: number; outputTokens: number }): void => {
+    budget.recordUsage({
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      totalTokens: usage.inputTokens + usage.outputTokens,
+      model: input.modelRef,
+    });
+    const { tokens, costUsd } = budget.summary();
+    emit({ type: "turn", tokens, costUsd });
+  };
+  const upstream = input.model as Partial<StreamingCompletionModel>;
   const model: CompletionModel = {
     provider: input.model.provider,
     modelId: input.model.modelId,
     capabilities: input.model.capabilities,
     async completion(request, options) {
-      if (!budget.canStartBatch().ok) throw new Error("Review budget reached.");
-      const timeout = AbortSignal.timeout(120_000);
-      const response = await input.model.completion(request, {
-        ...options,
-        abortSignal: options?.abortSignal
-          ? AbortSignal.any([timeout, options.abortSignal])
-          : timeout,
-      });
-      budget.recordUsage({
-        inputTokens: response.usage.inputTokens,
-        outputTokens: response.usage.outputTokens,
-        totalTokens: response.usage.inputTokens + response.usage.outputTokens,
-        model: input.modelRef,
-      });
-      const { tokens, costUsd } = budget.summary();
-      emit({ type: "turn", tokens, costUsd });
+      const response = await input.model.completion(request, guarded(options));
+      record(response.usage);
       return response;
     },
+    ...(upstream.streamCompletion
+      ? {
+          async *streamCompletion(
+            request: Parameters<CompletionModel["completion"]>[0],
+            options?: Parameters<CompletionModel["completion"]>[1],
+          ) {
+            for await (const event of upstream.streamCompletion!(request, guarded(options))) {
+              if (event.type === "final") record(event.response.usage);
+              yield event;
+            }
+          },
+        }
+      : {}),
   };
   const context = input.prior?.length ? buildPriorFindingsContext(input.prior) : "";
   const promptInput = { ...input, priorFindings: context };
@@ -121,6 +139,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
           maxTurns: budget.maxTurns,
           ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
           onToolCall: (name, detail) => emit({ type: "tool", batch: batch.id, name, detail }),
+          onText: (kind, text) => emit({ type: "text", batch: batch.id, kind, text }),
           ...(input.skills ? { skills: input.skills } : {}),
         },
       );
