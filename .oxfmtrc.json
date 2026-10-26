@@ -10,5 +10,13 @@
   "arrowParens": "always",
   "bracketSpacing": true,
   "sortPackageJson": false,
-  "ignorePatterns": ["node_modules", "dist", "**/dist", "coverage", "**/coverage", "bun.lock"]
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "**/dist",
+    "coverage",
+    "**/coverage",
+    "bun.lock",
+    "skills/*/SKILL.md"
+  ]
 }

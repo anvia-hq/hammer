@@ -15,6 +15,7 @@ import {
 } from "@anvia/hammer-core";
 import { parseModelRefWithBase } from "./model";
 import { buildReviewPrompt, REVIEW_INSTRUCTIONS, type BuildReviewPromptInput } from "./prompt";
+import { SKILL_REVIEW_INSTRUCTIONS, type SkillSet } from "./skills";
 import {
   getFileDiff,
   getPrDiscussion,
@@ -69,6 +70,7 @@ export interface SinglePassRunOptions {
   maxTurns?: number;
   reasoningEffort?: string;
   onToolCall?: (name: string, detail: string) => void;
+  skills?: SkillSet;
 }
 
 interface PrDiscussionSource {
@@ -231,7 +233,10 @@ export async function runSinglePassReview(
     agent = new Agent<string | ReviewBatch>({
       id: "hammer-pr-reviewer",
       model: options.model,
-      instructions: REVIEW_INSTRUCTIONS,
+      instructions: options.skills
+        ? `${REVIEW_INSTRUCTIONS}\n${SKILL_REVIEW_INSTRUCTIONS}`
+        : REVIEW_INSTRUCTIONS,
+      ...(options.skills ? { skills: options.skills } : {}),
       ...(options.model.capabilities.outputSchema ? { outputSchema: ReviewBatchSchema } : {}),
       retries: {
         maxAttempts: 3,

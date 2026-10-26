@@ -92,5 +92,7 @@ export {
   VerificationScoreSchema,
   verifyCostOk,
 } from "./verify";
+export { loadReviewSkills, SKILL_REVIEW_INSTRUCTIONS } from "./skills";
+export type { SkillSet } from "./skills";
 export { runReviewPipeline } from "./pipeline";
 export type { ReviewPipelineInput, ReviewPipelineResult } from "./pipeline";
