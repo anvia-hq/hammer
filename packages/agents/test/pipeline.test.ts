@@ -1,11 +1,7 @@
 import type { CompletionModel } from "@anvia/core/completion";
 import { describe, expect, it, vi } from "vitest";
-import {
-  defaultRepoConfig,
-  resolveConfig,
-  runReviewPipeline,
-  type ReviewPipelineInput,
-} from "../src/index";
+import { runReviewPipeline, type ReviewPipelineInput } from "../src/index";
+import { defaultRepoConfig, resolveConfig } from "@anvia/hammer-core";
 
 const finding = {
   path: "a.ts",

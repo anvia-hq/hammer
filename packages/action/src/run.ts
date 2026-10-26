@@ -4,26 +4,28 @@ import { z } from "zod";
 import {
   buildActionOutputs,
   buildReviewPlan,
-  createCompletionModel,
   decideEvent,
   decideExitCode,
   decideSkip,
   extractLastSha,
   fetchPullFiles,
   loadConfig,
-  parseModelRefWithBase,
   parsePriorFingerprints,
-  readFile as readCheckoutFile,
   sanitizeForPosting,
   redactSecrets,
   renderJobSummaryMarkdown,
   resolveConfig,
   resolvePricing,
-  runReviewPipeline,
   SUMMARY_MARKER,
-  type ReviewPipelineInput,
-  type PromptGuidelines,
 } from "@anvia/hammer-core";
+import {
+  createCompletionModel,
+  parseModelRefWithBase,
+  readFile as readCheckoutFile,
+  runReviewPipeline,
+  type PromptGuidelines,
+  type ReviewPipelineInput,
+} from "@anvia/hammer-agents";
 import { checkoutHead } from "./checkout";
 import { GitHub, type GitHubPort, type IssueComment } from "./github";
 import { configOverrides, readInputs, type ActionInputs } from "./inputs";

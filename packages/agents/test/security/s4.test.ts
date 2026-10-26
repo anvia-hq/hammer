@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { readFile, search } from "../../src/agent/tools";
-import { resolveInsideRoot } from "../../src/checkout/path-guard";
+import { readFile, search } from "../../src/tools";
+import { resolveInsideRoot } from "@anvia/hammer-core";
 import { cleanup, symlinkEscapePair } from "../fixtures/adversarial/symlink";
 
 let root = "";

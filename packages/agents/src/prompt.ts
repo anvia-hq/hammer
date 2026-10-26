@@ -1,8 +1,11 @@
-import type { ConfigRule, PathInstruction } from "../config";
-import type { PullFileEntry } from "../github/files";
-import { parsePatch } from "../github/patch";
-import type { PatchHunk } from "../github/patch";
-import { matchesGlob } from "../plan";
+import {
+  matchesGlob,
+  parsePatch,
+  type ConfigRule,
+  type PatchHunk,
+  type PathInstruction,
+  type PullFileEntry,
+} from "@anvia/hammer-core";
 
 export const MAX_GUIDANCE_TOKENS = 8000;
 export const MAX_HUNK_RENDER_LINES = 40;

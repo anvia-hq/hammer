@@ -1,8 +1,8 @@
-import { DEFAULT_SINGLE_PASS_TOKENS } from "./agent/run";
-import type { Finding, ReviewBatch } from "./agent/schema";
+import type { Finding, ReviewBatch } from "./schema";
 import type { Budget } from "./budget";
 import type { PullFileEntry } from "./github/files";
 
+export const DEFAULT_SINGLE_PASS_TOKENS = 60000;
 export const DEFAULT_BATCH_TOKENS = 40000;
 export const DEFAULT_MAX_CONCURRENT = 3;
 

@@ -1,4 +1,4 @@
-import type { Finding } from "./agent/schema";
+import type { Finding } from "./schema";
 import type { Severity } from "./config";
 import type { PullFileEntry } from "./github/files";
 import { commentableLines, parsePatch } from "./github/patch";

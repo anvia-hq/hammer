@@ -4,10 +4,10 @@ import {
   renderSummaryBody,
   upsertSummaryComment,
   type Finding,
-  type ReviewPipelineResult,
   type ReviewPlan,
   type RenderSummaryOptions,
 } from "@anvia/hammer-core";
+import type { ReviewPipelineResult } from "@anvia/hammer-agents";
 import type { GitHubPort, IssueComment } from "./github";
 
 export interface PublishTarget {

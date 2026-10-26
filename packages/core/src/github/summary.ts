@@ -1,4 +1,4 @@
-import type { Finding } from "../agent/schema";
+import type { Finding } from "../schema";
 import { MAX_COMMENT_CHARS, sanitizeForPosting, type SanitizeCommentOptions } from "./sanitize";
 
 export const SUMMARY_MARKER = "<!-- hammer:summary -->";

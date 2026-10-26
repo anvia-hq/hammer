@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { buildReviewerTools } from "../../src/agent/run";
-import { assertReadOnlySteps, checkoutSteps, HOOKS_PATH } from "../../src/checkout/git";
+import { buildReviewerTools } from "../../src/run";
+import { assertReadOnlySteps, checkoutSteps, HOOKS_PATH } from "@anvia/hammer-core";
 
 const OPTIONS = {
   directory: "/tmp/hammer-head",

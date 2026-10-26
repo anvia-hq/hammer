@@ -7,7 +7,7 @@ import {
   ReviewBatchSchema,
   runWithRepair,
   validateBatchOutput,
-} from "../src/agent/schema";
+} from "../src/schema";
 
 function validFinding(overrides: Partial<Finding> = {}): Finding {
   return {

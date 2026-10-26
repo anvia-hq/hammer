@@ -6,8 +6,8 @@ import {
   fingerprints,
   formatFingerprintComment,
   type CreateReviewPayload,
-  type ReviewPipelineInput,
 } from "@anvia/hammer-core";
+import type { ReviewPipelineInput } from "@anvia/hammer-agents";
 import { runAction, type ActionRuntime } from "../src/run";
 import type { GitHubPort, IssueComment, PullRequest } from "../src/github";
 import { cleanup } from "../src/post";

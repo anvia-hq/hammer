@@ -18,7 +18,7 @@ Install these from npm and use their public APIs only:
 | `@anvia/anthropic`, `@anvia/openai`, `@anvia/gemini` | Model clients for the `model` input. `@anvia/openai` also serves `openai-compatible` with `base-url` |
 | `@anvia/lens`, `@anvia/otel`                         | Optional tracing (PRD F20)                                                                           |
 
-`packages/core` owns a model factory that maps `provider/model-id` to these clients. No other module constructs clients.
+`packages/agents` owns a model factory that maps `provider/model-id` to these clients. No other module constructs clients.
 
 Not used in v1: `@anvia/durable` (runs are short and hold no state between jobs), `@anvia/tool-sandbox` and `@anvia/tool-browser` (the reviewer never runs code; see [0004](0004-read-only-reviewer.md)).
 

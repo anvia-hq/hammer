@@ -45,7 +45,8 @@ For OpenAI-compatible gateways without native JSON-schema output, add `base-url`
 | Path              | Package                | Purpose                                                            |
 | ----------------- | ---------------------- | ------------------------------------------------------------------ |
 | `action.yml`      | —                      | Action metadata; runs `packages/action/dist`                       |
-| `packages/core`   | `@anvia/hammer-core`   | Review engine: config, diff planning, agent, validation, rendering |
+| `packages/core`   | `@anvia/hammer-core`   | Review engine: config, diff planning, validation, rendering        |
+| `packages/agents` | `@anvia/hammer-agents` | Reviewer agents: model factory, prompts, read-only tools, pipeline |
 | `packages/action` | `@anvia/hammer-action` | Action entry (inputs, event, outputs), bundled with tsup           |
 | `eval`            | `@anvia/hammer-eval`   | Eval runner and cases (PRD §11)                                    |
 
