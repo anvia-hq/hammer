@@ -1,4 +1,5 @@
 import { AnthropicClient } from "@anvia/anthropic";
+import { AzureOpenAIClient } from "@anvia/azure";
 import type { CompletionModel } from "@anvia/core/completion";
 import { GeminiClient } from "@anvia/gemini";
 import { OpenAIClient } from "@anvia/openai";
@@ -8,6 +9,7 @@ export const SUPPORTED_MODEL_PROVIDERS = [
   "openai",
   "gemini",
   "openai-compatible",
+  "azure",
 ] as const;
 
 export type SupportedModelProvider = (typeof SUPPORTED_MODEL_PROVIDERS)[number];
@@ -75,7 +77,7 @@ export function parseModelRefWithBase(raw: string, baseUrl?: string): ParseModel
       ],
     };
   }
-  if (provider === "openai-compatible") {
+  if (provider === "openai-compatible" || provider === "azure") {
     const normalized = baseUrl?.trim() ?? "";
     if (normalized === "") {
       return {
@@ -83,7 +85,7 @@ export function parseModelRefWithBase(raw: string, baseUrl?: string): ParseModel
         issues: [
           {
             code: "missing_base_url",
-            message: `Model "${raw}" needs the "base-url" action input for the openai-compatible provider.`,
+            message: `Model "${raw}" needs the "base-url" action input for the ${provider} provider.`,
           },
         ],
       };
@@ -137,21 +139,30 @@ export function createOpenAICompatibleModel(
   return model as unknown as CompletionModel;
 }
 
+export function createAzureModel(modelId: string, options: ModelClientOptions): CompletionModel {
+  const baseUrl = options.baseUrl?.trim() ?? "";
+  if (baseUrl === "") {
+    throw new Error('Missing base URL for the azure provider: pass "base-url" as an action input.');
+  }
+  const client = new AzureOpenAIClient({ apiKey: options.apiKey, endpoint: baseUrl });
+  const model = client.completionModel({ modelId });
+  if (options.nativeJsonSchema === false) model.capabilities.outputSchema = false;
+  return model as unknown as CompletionModel;
+}
+
 export function createCompletionModel(
   ref: ParsedModelRef,
   options: ModelClientOptions,
 ): CompletionModel {
   if (ref.provider === "anthropic") return createAnthropicModel(ref.modelId, options);
   if (ref.provider === "gemini") return createGeminiModel(ref.modelId, options);
-  if (ref.provider === "openai-compatible") {
+  if (ref.provider === "openai-compatible" || ref.provider === "azure") {
     const baseUrl = ref.baseUrl ?? options.baseUrl;
-    if (baseUrl === undefined) {
-      return createOpenAICompatibleModel(ref.modelId, { apiKey: options.apiKey });
-    }
-    return createOpenAICompatibleModel(ref.modelId, {
-      ...options,
-      baseUrl,
-    });
+    const withBaseUrl =
+      baseUrl === undefined ? { apiKey: options.apiKey } : { ...options, baseUrl };
+    return ref.provider === "azure"
+      ? createAzureModel(ref.modelId, withBaseUrl)
+      : createOpenAICompatibleModel(ref.modelId, withBaseUrl);
   }
   return createOpenAIModel(ref.modelId, options);
 }

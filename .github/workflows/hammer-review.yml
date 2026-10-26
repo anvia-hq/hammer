@@ -23,7 +23,8 @@ jobs:
     steps:
       - uses: anvia-hq/hammer@v1
         with:
-          model: openai-compatible/muse-spark-1.3-contributor
+          client: openai-compatible
+          model: muse-spark-1.3-contributor
           base-url: ${{ vars.MUSE_BASE_URL }}
           native-json-schema: "false"
           api-key: ${{ secrets.MUSE_API_KEY }}

@@ -6,22 +6,28 @@ branding:
   color: gray-dark
 
 inputs:
+  client:
+    description: Model client (anthropic | openai | gemini | openai-compatible | azure).
+    required: true
   model:
-    description: Model as provider/model-id, e.g. anthropic/claude-sonnet-5-5.
+    description: Model id for the chosen client, e.g. claude-sonnet-5-5.
     required: true
   api-key:
-    description: API key for the model provider.
+    description: API key for the model client.
     required: true
   pricing:
     description: JSON mapping provider/model-id to input and output USD prices per million tokens.
     required: false
   base-url:
-    description: Base URL for the openai-compatible provider.
+    description: Base URL for the openai-compatible client, or endpoint for azure.
     required: false
   native-json-schema:
     description: Set false for OpenAI-compatible endpoints without native JSON-schema output. Local validation and repair remain enabled.
     required: false
     default: "true"
+  reasoning-effort:
+    description: Reasoning effort for clients/models that support it (e.g. low | medium | high). Fails the run if the model doesn't support it.
+    required: false
   github-token:
     description: Token used to read the PR and post the review.
     required: false

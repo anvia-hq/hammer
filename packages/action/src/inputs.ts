@@ -12,12 +12,14 @@ const globs = z.string().transform((value) =>
     .filter(Boolean),
 );
 const schema = z.object({
+  client: z.string(),
   model: z.string(),
   pricing: z.string(),
   "api-key": z.string(),
   "github-token": z.string(),
   "base-url": z.string(),
   "native-json-schema": optional(bool),
+  "reasoning-effort": z.string(),
   "config-path": z.string().default(DEFAULT_CONFIG_PATH),
   "lens-endpoint": z.string(),
   "otel-endpoint": z.string(),

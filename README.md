@@ -34,11 +34,12 @@ jobs:
     steps:
       - uses: anvia-hq/hammer@v1
         with:
-          model: anthropic/claude-sonnet-5-5
+          client: anthropic
+          model: claude-sonnet-5-5
           api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-For OpenAI-compatible gateways without native JSON-schema output, add `base-url` and set `native-json-schema: "false"`. Optional team rules live in `.github/hammer.yml` (see [the PRD](docs/PRD.md)).
+`client` is one of `anthropic`, `openai`, `gemini`, `openai-compatible` or `azure`. For `openai-compatible` gateways and `azure`, also set `base-url` (the gateway URL, or the Azure OpenAI endpoint); for `openai-compatible` endpoints without native JSON-schema output, also set `native-json-schema: "false"`. Models that support it can take a `reasoning-effort` input (e.g. `low` | `medium` | `high`); the run fails with a clear error if the model doesn't support the requested value. Optional team rules live in `.github/hammer.yml` (see [the PRD](docs/PRD.md)).
 
 ## Workspace
 

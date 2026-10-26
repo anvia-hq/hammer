@@ -179,7 +179,8 @@ export async function runAction(
       return;
     }
     if (!inputs["api-key"]) throw new Error("API key missing or rejected.");
-    const ref = parseModelRefWithBase(inputs.model, inputs["base-url"]);
+    const modelRef = `${inputs.client}/${inputs.model}`;
+    const ref = parseModelRefWithBase(modelRef, inputs["base-url"]);
     if (!ref.ok) throw new Error(ref.issues.map((issue) => issue.message).join("; "));
     if (inputs["lens-endpoint"] || inputs["otel-endpoint"])
       throw new Error("Tracing endpoints are not wired yet; omit them for this preview.");
@@ -257,7 +258,7 @@ export async function runAction(
     );
     const instruction =
       decision.kind === "comment" ? decision.command.replace(/^review\s*/i, "") : "";
-    const pricing = resolvePricing(inputs.model, inputs.pricing || undefined);
+    const pricing = resolvePricing(modelRef, inputs.pricing || undefined);
     if (!pricing)
       runtime.warning(
         "No bundled price for this model: reporting tokens only; max_cost_usd is not enforced. Supply the pricing input to enable it.",
@@ -279,8 +280,9 @@ export async function runAction(
           .slice(-20)
           .map((comment) => ({ author: comment.user?.login ?? "unknown", body: comment.body })),
       },
-      modelRef: inputs.model,
+      modelRef,
       ...(inputs["base-url"] ? { baseUrl: inputs["base-url"] } : {}),
+      ...(inputs["reasoning-effort"] ? { reasoningEffort: inputs["reasoning-effort"] } : {}),
       model:
         dependencies.model ??
         createCompletionModel(ref.value, {
@@ -311,7 +313,7 @@ export async function runAction(
       identity,
       plan,
       result,
-      inputs.model,
+      modelRef,
       [inputs["api-key"], inputs["github-token"]],
     );
     const resultPath = join(directory, "result.json");

@@ -43,7 +43,8 @@ async function fixture(overrides: Record<string, string> = {}) {
   };
   await writeFile(eventPath, JSON.stringify(payload));
   const inputs = {
-    model: "openai/gpt-4o",
+    client: "openai",
+    model: "gpt-4o",
     "api-key": "test-model-key",
     "github-token": "test-github-token",
     verify: "false",

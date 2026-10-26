@@ -22,6 +22,7 @@ export type {
 } from "./model";
 export {
   createAnthropicModel,
+  createAzureModel,
   createCompletionModel,
   createGeminiModel,
   createOpenAICompatibleModel,

@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createAnthropicModel,
+  createAzureModel,
   createCompletionModel,
   createGeminiModel,
   createOpenAICompatibleModel,
@@ -105,6 +106,27 @@ describe("parseModelRef", () => {
     }
   });
 
+  it("parses azure with a base URL", () => {
+    expect(
+      parseModelRefWithBase("azure/my-deployment", "https://my-resource.openai.azure.com"),
+    ).toEqual({
+      ok: true,
+      value: {
+        provider: "azure",
+        modelId: "my-deployment",
+        baseUrl: "https://my-resource.openai.azure.com",
+      },
+    });
+  });
+
+  it("rejects azure without a base URL", () => {
+    const result = parseModelRef("azure/my-deployment");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues[0]?.code).toBe("missing_base_url");
+    }
+  });
+
   it("rejects an unknown provider with a coded error", () => {
     const result = parseModelRef("cohere/command-r");
     expect(result.ok).toBe(false);
@@ -173,6 +195,29 @@ describe("provider factory", () => {
 
   it("throws when the openai-compatible base URL is missing", () => {
     expect(() => createOpenAICompatibleModel("my-model", { apiKey: "test-key" })).toThrowError(
+      /base-url/i,
+    );
+  });
+
+  it("builds an azure completion model and routes through createCompletionModel", () => {
+    const azure = createAzureModel("my-deployment", {
+      apiKey: "test-key",
+      baseUrl: "https://my-resource.openai.azure.com",
+    });
+    expect(azure.provider).toBe("azure-openai");
+    const routed = createCompletionModel(
+      {
+        provider: "azure",
+        modelId: "my-deployment",
+        baseUrl: "https://my-resource.openai.azure.com",
+      },
+      { apiKey: "test-key" },
+    );
+    expect(routed.provider).toBe("azure-openai");
+  });
+
+  it("throws when the azure base URL is missing", () => {
+    expect(() => createAzureModel("my-deployment", { apiKey: "test-key" })).toThrowError(
       /base-url/i,
     );
   });
@@ -301,7 +346,11 @@ describe("runSinglePassReview", () => {
 });
 
 describe("runSinglePassReview agent repair", () => {
-  function repairingModel(texts: string[], seen: CompletionRequest[]): CompletionModel {
+  function repairingModel(
+    texts: string[],
+    seen: CompletionRequest[],
+    controls?: CompletionModel["controls"],
+  ): CompletionModel {
     let calls = 0;
     return {
       provider: "test",
@@ -315,6 +364,7 @@ describe("runSinglePassReview agent repair", () => {
         outputSchema: false,
         reasoning: false,
       },
+      ...(controls ? { controls } : {}),
       completion: async (request: CompletionRequest): Promise<CompletionResponse<unknown>> => {
         seen.push(request);
         const text = texts[Math.min(calls++, texts.length - 1)] ?? "";
@@ -363,5 +413,36 @@ describe("runSinglePassReview agent repair", () => {
     });
     expect(result).toMatchObject({ ok: false, error: "schema_violation" });
     expect(seen).toHaveLength(2);
+  });
+
+  it("forwards reasoningEffort as a completion control", async () => {
+    const goodText = JSON.stringify(validBatch());
+    const seen: CompletionRequest[] = [];
+    const result = await runSinglePassReview(baseInput(), {
+      model: repairingModel([goodText], seen, {
+        reasoningEffort: { type: "select", label: "Reasoning effort", options: ["low", "high"] },
+      }),
+      checkoutRoot: "/tmp",
+      reasoningEffort: "high",
+    });
+    expect(result.ok).toBe(true);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.controls).toEqual({ reasoningEffort: "high" });
+  });
+
+  it("fails fast when the model doesn't support the requested reasoning effort", async () => {
+    const seen: CompletionRequest[] = [];
+    const result = await runSinglePassReview(baseInput(), {
+      model: repairingModel([JSON.stringify(validBatch())], seen),
+      checkoutRoot: "/tmp",
+      reasoningEffort: "high",
+    });
+    expect(result).toMatchObject({ ok: false, error: "generate_failed" });
+    if (!result.ok) {
+      expect(result.issues[0]?.message).toContain(
+        'does not support completion control "reasoningEffort"',
+      );
+    }
+    expect(seen).toHaveLength(0);
   });
 });

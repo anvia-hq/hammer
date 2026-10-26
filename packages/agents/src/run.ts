@@ -67,6 +67,7 @@ export interface SinglePassRunOptions {
   generate?: (prompt: string) => unknown | Promise<unknown>;
   model?: CompletionModel;
   maxTurns?: number;
+  reasoningEffort?: string;
 }
 
 interface PrDiscussionSource {
@@ -208,33 +209,42 @@ export async function runSinglePassReview(
   if (options.model === undefined) {
     return failure("generate_failed", "No model adapter provided for the single-pass run.");
   }
-  const agent = new Agent<string | ReviewBatch>({
-    id: "hammer-pr-reviewer",
-    model: options.model,
-    instructions: REVIEW_INSTRUCTIONS,
-    ...(options.model.capabilities.outputSchema ? { outputSchema: ReviewBatchSchema } : {}),
-    retries: {
-      maxAttempts: 3,
-      shouldRetry: ({ error, attempt }) => {
-        if (error instanceof AgentStructuredOutputError) return attempt < 2;
-        if (typeof error !== "object" || error === null) return false;
-        const status =
-          "status" in error
-            ? Number(error.status)
-            : "statusCode" in error
-              ? Number(error.statusCode)
-              : 0;
-        return status === 429 || status >= 500;
+  let agent: Agent<string | ReviewBatch>;
+  try {
+    agent = new Agent<string | ReviewBatch>({
+      id: "hammer-pr-reviewer",
+      model: options.model,
+      instructions: REVIEW_INSTRUCTIONS,
+      ...(options.model.capabilities.outputSchema ? { outputSchema: ReviewBatchSchema } : {}),
+      retries: {
+        maxAttempts: 3,
+        shouldRetry: ({ error, attempt }) => {
+          if (error instanceof AgentStructuredOutputError) return attempt < 2;
+          if (typeof error !== "object" || error === null) return false;
+          const status =
+            "status" in error
+              ? Number(error.status)
+              : "statusCode" in error
+                ? Number(error.statusCode)
+                : 0;
+          return status === 429 || status >= 500;
+        },
       },
-    },
-    maxTokens: 8192,
-    tools: buildReviewerTools({
-      checkoutRoot: options.checkoutRoot ?? "",
-      files: options.files ?? [],
-      discussion: options.discussion,
-    }),
-    maxTurns: options.maxTurns ?? 12,
-  });
+      maxTokens: 8192,
+      tools: buildReviewerTools({
+        checkoutRoot: options.checkoutRoot ?? "",
+        files: options.files ?? [],
+        discussion: options.discussion,
+      }),
+      maxTurns: options.maxTurns ?? 12,
+      ...(options.reasoningEffort
+        ? { controls: { reasoningEffort: options.reasoningEffort } }
+        : {}),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return failure("generate_failed", message, "(model)");
+  }
   let outcome: Awaited<ReturnType<typeof agent.generate>>;
   try {
     outcome = await agent.generate({ prompt: reviewed.prompt });

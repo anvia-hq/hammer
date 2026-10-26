@@ -31,6 +31,7 @@ export interface ReviewPipelineInput extends BuildReviewPromptInput {
   prior?: PriorFinding[];
   priorFingerprints?: Set<string>;
   pricing?: PricingFn;
+  reasoningEffort?: string;
 }
 
 export async function runReviewPipeline(input: ReviewPipelineInput) {
@@ -100,6 +101,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
           files: batch.files,
           discussion: input.discussion ?? {},
           maxTurns: budget.maxTurns,
+          ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
         },
       );
       return outcome.ok
@@ -126,6 +128,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
         maxTurns: input.config.max_turns,
         maxTokens: 4096,
         retries: { maxAttempts: 3 },
+        ...(input.reasoningEffort ? { controls: { reasoningEffort: input.reasoningEffort } } : {}),
       });
       const response = await verifier.generate({ prompt });
       if (response.type !== "response") throw new Error("Verification did not finish.");

@@ -94,7 +94,8 @@ jobs:
     steps:
       - uses: anvia-hq/hammer@v1
         with:
-          model: anthropic/claude-sonnet-5-5
+          client: anthropic
+          model: claude-sonnet-5-5
           api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
@@ -174,11 +175,12 @@ Commands from users without write access get a 👀 reaction and no run (§9, S1
 | F15 | **Posting:** one `POST /pulls/{n}/reviews` with `event: COMMENT`, `commit_id` = reviewed head SHA, and all inline comments; create or update the sticky summary comment. On GitHub's generic 422 "internal error", retry after 1 s and 3 s. On a 422 naming a bad anchor, move that comment to the summary and retry once. Never check anchors by creating and deleting pending reviews | No `APPROVE`/`REQUEST_CHANGES` ever sent; tested against a mocked API |
 | F16 | **Outputs and job summary:** action outputs `findings_count`, `high_count`, `review_url`, `result_path` (full JSON written to `$RUNNER_TEMP`), `tokens`, `cost_usd`. Markdown table written to `$GITHUB_STEP_SUMMARY` | Outputs readable in a later workflow step |
 | F17 | **Gate:** `fail_on: none\|high\|medium` (default `none`) sets the exit code from the posted findings | `fail_on: high` with 1 high finding → exit 1 |
-| F18 | **Providers:** `model` input `provider/model-id`. v1 providers: `anthropic`, `openai`, `gemini`, plus `openai-compatible` with `base-url`. Uses `@anvia/anthropic`, `@anvia/openai`, `@anvia/gemini` | Smoke test per provider in CI (nightly, real keys) |
+| F18 | **Clients:** separate `client` and `model` inputs (`model` is a bare model id). v1 clients: `anthropic`, `openai`, `gemini`, plus `openai-compatible` and `azure` with `base-url`. Uses `@anvia/anthropic`, `@anvia/openai`, `@anvia/gemini`, `@anvia/azure` | Smoke test per client in CI (nightly, real keys) |
 | F19 | **Caps:** `max_turns` (default 12 per batch), `max_tokens` (default 400k per run), `max_cost_usd` (default 1.00). Hitting a cap stops new batches, posts what is done, and labels the summary "partial" | Cap fixture yields a partial review, not a crash |
 | F20 | **Observability (optional):** `lens-endpoint` / `otel-endpoint` inputs attach `@anvia/lens` or `@anvia/otel` observers; trace URL is added to the job summary (not the PR) | Off by default; no outbound calls when unset |
 | F21 | **Runner portability:** works unchanged on GitHub-hosted, Blacksmith (x64 and arm64) and self-hosted Linux runners; no reliance on preinstalled tools or GitHub-hosted image specifics (§8.9) | Release CI runs the end-to-end suite on the runner matrix in §8.9 |
 | F22 | **Verification pass:** after merging batches, one extra agent call with the same read-only tools re-checks each candidate finding. It confirms the trigger scenario, re-locates the lines, and scores 0–10. Findings below `verify_threshold` (default 6) are dropped. If verification fails (error or cap), findings are kept with their original confidence and the summary notes "unverified". `verify: false` disables it | Eval: verification raises precision by ≥ 5 points at ≤ 30% extra cost, otherwise default flips to off before launch |
+| F23 | **Reasoning effort:** optional `reasoning-effort` input is forwarded as a `reasoningEffort` completion control on every agent call (review and verification). Models that don't support the requested value fail the run with a clear error rather than silently ignoring it | Unit test: unsupported value surfaces `generate_failed` with a message naming the client and model |
 
 ## 8. Technical design
 
@@ -189,9 +191,10 @@ Hammer is built on the published Anvia SDK packages from npm. Their API referenc
 | Package | Hammer uses it for | PRD refs |
 | --- | --- | --- |
 | `@anvia/core` | `Agent`, `createTool`, Zod `outputSchema`, `maxTurns`, lifecycle hooks, `usage`, retry, redaction | §8.3, §8.4, F10–F12, F22, S6 |
-| `@anvia/anthropic` | `anthropic/*` models | F18 |
-| `@anvia/openai` | `openai/*` and `openai-compatible` (with `base-url`) | F18 |
-| `@anvia/gemini` | `gemini/*` models | F18 |
+| `@anvia/anthropic` | `client: anthropic` models | F18 |
+| `@anvia/openai` | `client: openai` and `client: openai-compatible` (with `base-url`) | F18 |
+| `@anvia/gemini` | `client: gemini` models | F18 |
+| `@anvia/azure` | `client: azure` models (with `base-url` as the Azure endpoint) | F18 |
 | `@anvia/lens`, `@anvia/otel` | Optional tracing | F20 |
 
 Not used in v1: `@anvia/durable`, `@anvia/tool-sandbox`, `@anvia/tool-browser`. Runs are short and stateless, and the reviewer never runs code.
@@ -315,19 +318,21 @@ Invalid config: the run fails with a message pointing at the bad key (validated 
 
 ### 8.7 Action inputs
 
-| Input                                                                           | Required | Default               | Notes                                    |
-| ------------------------------------------------------------------------------- | -------- | --------------------- | ---------------------------------------- |
-| `model`                                                                         | yes      | —                     | `provider/model-id`                      |
-| `api-key`                                                                       | yes      | —                     | Masked on read                           |
-| `base-url`                                                                      | no       | —                     | For `openai-compatible`                  |
-| `github-token`                                                                  | no       | `${{ github.token }}` |                                          |
-| `config-path`                                                                   | no       | `.github/hammer.yml`  |                                          |
-| `min_severity`, `max_comments`, `fail_on`, `review_drafts`, `ignore`, `include` | no       | from config           | Override config                          |
-| `max_files` / `max_diff_lines`                                                  | no       | 50 / 3000             |                                          |
-| `max_turns` / `max_tokens` / `max_cost_usd`                                     | no       | 12 / 400000 / 1.00    |                                          |
-| `fail_on_error`                                                                 | no       | `false`               | Fail the job if the action itself errors |
-| `verify` / `verify_threshold`                                                   | no       | `true` / 6            | F22                                      |
-| `lens-endpoint`, `otel-endpoint`                                                | no       | —                     | F20                                      |
+| Input                                                                           | Required | Default               | Notes                                                                 |
+| ------------------------------------------------------------------------------- | -------- | --------------------- | --------------------------------------------------------------------- |
+| `client`                                                                        | yes      | —                     | `anthropic` \| `openai` \| `gemini` \| `openai-compatible` \| `azure` |
+| `model`                                                                         | yes      | —                     | Bare model id for the chosen client                                   |
+| `api-key`                                                                       | yes      | —                     | Masked on read                                                        |
+| `base-url`                                                                      | no       | —                     | For `openai-compatible` and `azure`                                   |
+| `reasoning-effort`                                                              | no       | —                     | F23; fails the run if unsupported                                     |
+| `github-token`                                                                  | no       | `${{ github.token }}` |                                                                       |
+| `config-path`                                                                   | no       | `.github/hammer.yml`  |                                                                       |
+| `min_severity`, `max_comments`, `fail_on`, `review_drafts`, `ignore`, `include` | no       | from config           | Override config                                                       |
+| `max_files` / `max_diff_lines`                                                  | no       | 50 / 3000             |                                                                       |
+| `max_turns` / `max_tokens` / `max_cost_usd`                                     | no       | 12 / 400000 / 1.00    |                                                                       |
+| `fail_on_error`                                                                 | no       | `false`               | Fail the job if the action itself errors                              |
+| `verify` / `verify_threshold`                                                   | no       | `true` / 6            | F22                                                                   |
+| `lens-endpoint`, `otel-endpoint`                                                | no       | —                     | F20                                                                   |
 
 ### 8.8 Repository layout
 
@@ -365,7 +370,12 @@ jobs:
     runs-on: blacksmith-2vcpu-ubuntu-2404 # or blacksmith-2vcpu-ubuntu-2404-arm
     steps:
       - uses: anvia-hq/hammer@v1
-        with: { model: anthropic/claude-sonnet-5-5, api-key: "${{ secrets.ANTHROPIC_API_KEY }}" }
+        with:
+          {
+            client: anthropic,
+            model: claude-sonnet-5-5,
+            api-key: "${{ secrets.ANTHROPIC_API_KEY }}",
+          }
 ```
 
 A review is mostly waiting on the model, so 2 vCPU is enough. A bigger runner doesn't make it meaningfully faster.
