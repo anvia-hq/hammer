@@ -116,3 +116,30 @@ it("validates incremental findings against the overall PR's commentable lines", 
   expect(result.inline).toHaveLength(0);
   expect(result.generalNotes[0]).toContain("a.ts:99");
 });
+
+it("emits progress events through the review lifecycle", async () => {
+  const request = input([batch, { scores: [{ id: "f1", score: 9 }] }]);
+  request.config.verify = true;
+  const events: string[] = [];
+  request.onEvent = (event) => events.push(event.type);
+  await runReviewPipeline(request);
+  expect(events).toEqual([
+    "plan",
+    "batch_start",
+    "turn",
+    "batch_end",
+    "verify_start",
+    "turn",
+    "verify_end",
+    "done",
+  ]);
+});
+
+it("keeps reviewing when the event sink throws", async () => {
+  const request = input([batch]);
+  request.onEvent = () => {
+    throw new Error("sink failed");
+  };
+  const result = await runReviewPipeline(request);
+  expect(result.findings).toHaveLength(1);
+});

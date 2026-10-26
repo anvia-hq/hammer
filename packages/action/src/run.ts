@@ -9,6 +9,7 @@ import {
   decideSkip,
   extractLastSha,
   fetchPullFiles,
+  formatReviewEvent,
   loadConfig,
   parsePriorFingerprints,
   sanitizeForPosting,
@@ -281,6 +282,7 @@ export async function runAction(
           .map((comment) => ({ author: comment.user?.login ?? "unknown", body: comment.body })),
       },
       modelRef,
+      onEvent: (event) => runtime.info(formatReviewEvent(event)),
       ...(inputs["base-url"] ? { baseUrl: inputs["base-url"] } : {}),
       ...(inputs["reasoning-effort"] ? { reasoningEffort: inputs["reasoning-effort"] } : {}),
       model:
