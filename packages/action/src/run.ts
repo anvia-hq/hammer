@@ -260,10 +260,6 @@ export async function runAction(
     const instruction =
       decision.kind === "comment" ? decision.command.replace(/^review\s*/i, "") : "";
     const pricing = resolvePricing(modelRef, inputs.pricing || undefined);
-    if (!pricing)
-      runtime.warning(
-        "No bundled price for this model: reporting tokens only; max_cost_usd is not enforced. Supply the pricing input to enable it.",
-      );
     const result = await runReviewPipeline({
       title: pr.title,
       files: plan.reviewFiles,
