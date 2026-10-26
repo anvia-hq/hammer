@@ -202,7 +202,7 @@ Not used in v1: `@anvia/durable`, `@anvia/tool-sandbox`, `@anvia/tool-browser`. 
 ### 8.1 Packaging
 
 - **JavaScript action** with `runs.using: node24`. It is bundled into a single `dist/index.js` with tsup, so there is no install step at runtime. Cold start target: < 5 s.
-- Language and tooling match the Anvia repo: TypeScript strict, ESM, ES2022, Oxlint and Oxfmt, Vitest, pnpm.
+- Language and tooling match the Anvia repo: TypeScript strict, ESM, ES2022, Oxlint and Oxfmt, Vitest, Bun workspaces.
 - Dependencies: `@actions/core`, `@octokit/rest` (+ retry and throttling plugins), `@anvia/core`, provider adapters, `zod`, `picomatch`, `yaml`. No native modules.
 - Releases: semver tags, plus a moving `v1` major tag. `dist/` is committed on release branches only, and CI checks it matches the source.
 
@@ -336,7 +336,7 @@ Invalid config: the run fails with a message pointing at the bad key (validated 
 
 ### 8.8 Repository layout
 
-pnpm workspace. `core` holds everything that doesn't depend on the Actions runtime, so the eval runner (and a later CLI) can reuse it.
+Bun workspace. `core` holds everything that doesn't depend on the Actions runtime, so the eval runner (and a later CLI) can reuse it.
 
 ```
 action.yml                   # runs packages/action/dist/{index,post}.js

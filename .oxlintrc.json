@@ -16,14 +16,7 @@
       }
     }
   ],
-  "ignorePatterns": [
-    "node_modules",
-    "dist",
-    "**/dist",
-    "coverage",
-    "**/coverage",
-    "pnpm-lock.yaml"
-  ],
+  "ignorePatterns": ["node_modules", "dist", "**/dist", "coverage", "**/coverage", "bun.lock"],
   "env": {
     "builtin": true
   }

@@ -22,4 +22,4 @@ Dependencies point one way: `action` and `eval` depend on `agents` and `core`, a
 - Prompts, tools and the pipeline change without touching the rendering and GitHub code, and core stays free of model providers.
 - `schema.ts` stays in core, so a change to the finding shape is a change to core and is reviewed with its validation and rendering.
 - The bundle is unchanged: tsup still bundles every workspace package into `dist/`.
-- Updates [0001](0001-pnpm-workspaces.md) and [0002](0002-consume-published-anvia-packages.md): the model factory lives in `packages/agents`.
+- Updates [0001](0001-bun-workspaces.md) and [0002](0002-consume-published-anvia-packages.md): the model factory lives in `packages/agents`.

@@ -1,0 +1,5 @@
+[install]
+# Packages must be at least 3 days old; `minimumReleaseAgeExcludes` lists the Anvia
+# releases that are newer on purpose.
+minimumReleaseAge = 259200
+minimumReleaseAgeExcludes = ["@anvia/anthropic", "@anvia/core", "@anvia/openai"]

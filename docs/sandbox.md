@@ -4,7 +4,7 @@ The Action run flow is implemented on the source branch. The live sandbox is [av
 
 ## Local acceptance without credentials
 
-Run `pnpm build` and `node packages/action/scripts/smoke-review.mjs`. This executes the built main and post bundles against local HTTP GitHub/model fixtures. It uses the published OpenAI-compatible adapter, disables git to exercise archive fallback, and checks the pinned review, sticky summary, outputs, usage and cleanup. It uses no real keys and does not contact GitHub or a model service.
+Run `bun run build` and `node packages/action/scripts/smoke-review.mjs`. This executes the built main and post bundles against local HTTP GitHub/model fixtures. It uses the published OpenAI-compatible adapter, disables git to exercise archive fallback, and checks the pinned review, sticky summary, outputs, usage and cleanup. It uses no real keys and does not contact GitHub or a model service.
 
 ## Run from Hammer's workflow
 

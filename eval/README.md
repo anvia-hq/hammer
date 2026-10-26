@@ -36,7 +36,7 @@ cases, so the harness itself is checked deterministically. Real model evaluation
 
 ```sh
 # Supply HAMMER_API_KEY and HAMMER_JUDGE_API_KEY through the environment.
-pnpm eval --model anthropic/claude-sonnet-4-5 --judge-model gemini/gemini-2.5-flash
+bun run eval --model anthropic/claude-sonnet-4-5 --judge-model gemini/gemini-2.5-flash
 ```
 
 Use `--no-native-json-schema` when an OpenAI-compatible endpoint does not support native JSON-schema output. Findings still pass local Zod validation and one repair attempt.

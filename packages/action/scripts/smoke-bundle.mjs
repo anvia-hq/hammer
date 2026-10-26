@@ -6,7 +6,7 @@ import { join } from "node:path";
 const bundle = join(import.meta.dirname, "..", "dist", "index.js");
 
 if (!existsSync(bundle)) {
-  console.error(`missing bundle: ${bundle} (run pnpm build first)`);
+  console.error(`missing bundle: ${bundle} (run bun run build first)`);
   process.exit(1);
 }
 
