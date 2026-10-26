@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  buildReviewPrompt,
-  MAX_GUIDANCE_TOKENS,
-  type BuildReviewPromptInput,
-  type PullFileEntry,
-} from "../src/index";
-import { parsePatch } from "../src/index";
+import { buildReviewPrompt, MAX_GUIDANCE_TOKENS, type BuildReviewPromptInput } from "../src/index";
+import { type PullFileEntry } from "@anvia/hammer-core";
+import { parsePatch } from "@anvia/hammer-core";
 
 function file(filename: string, patch: string): PullFileEntry {
   return {

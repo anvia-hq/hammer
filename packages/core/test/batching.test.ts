@@ -241,6 +241,22 @@ describe("runBatches", () => {
   });
 });
 
+describe("mergeBatchResults changes", () => {
+  it("merges change bullets across batches without repeats", () => {
+    const entry = (id: string, changes: string[]): BatchRunEntry => ({
+      status: "ok",
+      id,
+      batch: reviewBatch({ summary: "s", findings: [], generalNotes: [], changes }),
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+    const merged = mergeBatchResults([
+      entry("a", ["Added retry", "Renamed client"]),
+      entry("b", ["added retry ", "Dropped cache"]),
+    ]);
+    expect(merged.changes).toEqual(["Added retry", "Renamed client", "Dropped cache"]);
+  });
+});
+
 describe("mergeBatchResults", () => {
   it("removes duplicates and keeps the higher-severity finding", () => {
     const results: BatchRunEntry[] = [

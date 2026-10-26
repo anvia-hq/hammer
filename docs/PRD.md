@@ -81,12 +81,11 @@ permissions:
   contents: read
   pull-requests: write
 
-concurrency:
-  group: hammer-review-${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
-
 jobs:
   review:
+    concurrency:
+      group: hammer-review-${{ github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: true
     if: >
       github.event_name == 'pull_request' ||
       (github.event.issue.pull_request && startsWith(github.event.comment.body, '/hammer'))

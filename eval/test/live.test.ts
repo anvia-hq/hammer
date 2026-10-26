@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ReviewPipelineInput } from "@anvia/hammer-core";
+import type { ReviewPipelineInput } from "@anvia/hammer-agents";
 import { createLlmJudge } from "../src/judge";
 import { runLiveEval } from "../src/live";
 

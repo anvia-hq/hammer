@@ -11,14 +11,16 @@ import {
   createGeminiModel,
   createOpenAICompatibleModel,
   createOpenAIModel,
-  DEFAULT_SINGLE_PASS_TOKENS,
   parseModelRef,
   parseModelRefWithBase,
   runSinglePassReview,
+} from "../src/index";
+import {
+  DEFAULT_SINGLE_PASS_TOKENS,
   validateBatchOutput,
   type Finding,
   type ReviewBatch,
-} from "../src/index";
+} from "@anvia/hammer-core";
 
 function validFinding(overrides: Partial<Finding> = {}): Finding {
   return {

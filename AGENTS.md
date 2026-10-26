@@ -6,7 +6,8 @@ Guidance for coding agents working in this repository.
 
 Hammer is a PR review agent shipped as a GitHub Action. The spec is `docs/PRD.md`; read the relevant section before building a component, and its §16 reference implementations.
 
-- `packages/core` (`@anvia/hammer-core`): the review engine. Private, consumed from source (`exports` points at `src/`), no build step.
+- `packages/core` (`@anvia/hammer-core`): the review engine (config, planning, validation, dedupe, rendering, GitHub review client). Private, consumed from source (`exports` points at `src/`), no build step.
+- `packages/agents` (`@anvia/hammer-agents`): the reviewer agents (model factory, prompts, read-only tools, review pipeline, verifier). Depends on core; core never imports it.
 - `packages/action` (`@anvia/hammer-action`): thin Action entry. `tsup` bundles it and every dependency into `dist/index.js` and `dist/post.js`, which `action.yml` runs.
 - `eval` (`@anvia/hammer-eval`): eval runner, run with `pnpm eval`.
 

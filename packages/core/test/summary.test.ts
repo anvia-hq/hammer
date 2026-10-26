@@ -138,6 +138,43 @@ describe("renderSummaryBody", () => {
   });
 });
 
+describe("summary posting", () => {
+  it("keeps blob links to long paths after sanitising the posted body", async () => {
+    const path = "packages/core/src/github/sanitize.ts";
+    const body = renderSummaryBody({
+      files: [{ path, status: "modified" }],
+      headSha: "4a091439ac9fa92aabcdef0123456789abcdef01",
+      repoUrl: "https://github.com/anvia-hq/anvia-hammer",
+      findings: [
+        {
+          path,
+          line: 10,
+          severity: "high",
+          category: "correctness",
+          title: "Over-redacts paths",
+          body: "why",
+          confidence: 0.9,
+        },
+      ],
+    });
+    let posted = "";
+    await upsertSummaryComment(
+      async () => [],
+      async (text) => {
+        posted = text;
+        return { id: 1 };
+      },
+      async () => {},
+      body,
+      { sanitizeOptions: { owner: "anvia-hq", repo: "anvia-hammer" } },
+    );
+    expect(posted).toContain(
+      `[${path}:10](https://github.com/anvia-hq/anvia-hammer/blob/4a09143/${path}#L10)`,
+    );
+    expect(posted).not.toContain("[redacted]");
+  });
+});
+
 describe("upsertSummaryComment", () => {
   it("creates a comment when no marker comment exists", async () => {
     const created: string[] = [];

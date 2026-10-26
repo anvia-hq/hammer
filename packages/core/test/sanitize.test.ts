@@ -41,6 +41,30 @@ describe("redactSecrets", () => {
     expect(text).toContain("[redacted]");
   });
 
+  it("keeps long file paths, identifiers and constants", () => {
+    for (const text of [
+      "See packages/core/src/github/sanitize.ts for details",
+      "Rename getUserAccountSubscriptionBillingStatusFromDatabase soon",
+      "const MAX_RETRY_ATTEMPTS_BEFORE_GIVING_UP_ENTIRELY = 3;",
+      "handleOAuth2CallbackForTenantMigration2024Job fails",
+      "packages/core/src/v2/handlers/user-profile-update-v3/index",
+    ]) {
+      expect(redactSecrets(text)).toBe(text);
+    }
+  });
+
+  it("still redacts random-looking tokens that carry no known prefix", () => {
+    for (const token of [
+      "q8Zk3TfR9xLw2VbN7mYc4HdJ6pSa1UeG",
+      "Zm9vYmFyMTIzNDU2Nzg5MGFiY2RlZmdoaWprbG1ub3A=",
+      "AbCdEf0123456789GhIjKlMnOpQrStUvWxYz+/90",
+    ]) {
+      const text = redactSecrets(`token ${token} end`);
+      expect(text).not.toContain(token);
+      expect(text).toContain("[redacted]");
+    }
+  });
+
   it("redacts anthropic keys, github tokens and jwt-like strings", () => {
     expect(redactSecrets("k sk-ant-abcdefghijklmnop done")).not.toContain(
       "sk-ant-abcdefghijklmnop",
@@ -97,6 +121,15 @@ describe("sanitizeComment", () => {
       repo: "hello",
     });
     expect(otherRepo).toBe("other");
+  });
+
+  it("closes a details block that truncation cut open", () => {
+    const text = sanitizeComment(
+      `<details>\n<summary>More</summary>\n\n${"x ".repeat(3000)}\n\n</details>`,
+    );
+    expect(text.length).toBeLessThanOrEqual(MAX_COMMENT_CHARS);
+    expect(text.match(/<details>/g)).toHaveLength(1);
+    expect(text.endsWith("</details>")).toBe(true);
   });
 
   it("caps length at 4000 chars with an ellipsis", () => {

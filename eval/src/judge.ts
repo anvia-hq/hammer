@@ -1,4 +1,5 @@
-import { redactSecrets, type Finding, type ReviewPipelineInput } from "@anvia/hammer-core";
+import type { ReviewPipelineInput } from "@anvia/hammer-agents";
+import { redactSecrets, type Finding } from "@anvia/hammer-core";
 import type { EvalCase } from "./cases";
 
 export interface JudgeInput {

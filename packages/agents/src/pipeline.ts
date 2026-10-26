@@ -1,13 +1,23 @@
 import type { CompletionModel } from "@anvia/core/completion";
 import { Agent } from "@anvia/core/agent";
-import { buildReviewPrompt, approxTokens, type BuildReviewPromptInput } from "./agent/prompt";
-import { buildReviewerTools, runSinglePassReview, type SinglePassRunOptions } from "./agent/run";
-import { planBatches, runBatches, mergeBatchResults, type FileBatch } from "./batching";
-import { createBudget, type PricingFn } from "./budget";
-import type { EffectiveConfig } from "./config";
-import { filterDuplicates, type PriorFinding } from "./dedupe";
-import { buildPriorFindingsContext } from "./dedupe";
-import { validateFindings } from "./validate";
+import {
+  buildPriorFindingsContext,
+  createBudget,
+  DEFAULT_BATCH_TOKENS,
+  DEFAULT_MAX_CONCURRENT,
+  DEFAULT_SINGLE_PASS_TOKENS,
+  filterDuplicates,
+  mergeBatchResults,
+  planBatches,
+  runBatches,
+  validateFindings,
+  type EffectiveConfig,
+  type FileBatch,
+  type PriorFinding,
+  type PricingFn,
+} from "@anvia/hammer-core";
+import { buildReviewPrompt, approxTokens, type BuildReviewPromptInput } from "./prompt";
+import { buildReviewerTools, runSinglePassReview, type SinglePassRunOptions } from "./run";
 import { applyVerification, VERIFICATION_INSTRUCTIONS } from "./verify";
 
 export interface ReviewPipelineInput extends BuildReviewPromptInput {
@@ -58,8 +68,8 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
   const planned = planBatches({
     files: input.files,
     estimateFileTokens: (file) => approxTokens(file.patch ?? "") + 200,
-    singlePassTokens: Math.max(1, 60000 - overhead),
-    batchTokens: Math.max(1, 40000 - overhead),
+    singlePassTokens: Math.max(1, DEFAULT_SINGLE_PASS_TOKENS - overhead),
+    batchTokens: Math.max(1, DEFAULT_BATCH_TOKENS - overhead),
   });
   const batches: FileBatch[] =
     planned.mode === "single"
@@ -74,7 +84,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
       : planned.batches;
   const results = await runBatches({
     batches,
-    maxConcurrent: 3,
+    maxConcurrent: DEFAULT_MAX_CONCURRENT,
     runBatch: async (batch) => {
       if (!budget.canStartBatch().ok) return { ok: false, error: "Review budget reached." };
       const outcome = await runSinglePassReview(
@@ -137,6 +147,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     .concat(validated.generalNotes.map((entry) => entry.finding));
   return {
     summary: merged.summaries.join(" "),
+    changes: merged.changes,
     ...validated,
     findings,
     inline: validated.inline.filter((entry) => kept.has(entry.finding)),

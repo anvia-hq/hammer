@@ -13,6 +13,7 @@ Hammer has a review engine, a GitHub Action entry, and an eval runner. The eval 
 Use pnpm workspaces declared in [pnpm-workspace.yaml](../../pnpm-workspace.yaml):
 
 - `packages/core` (`@anvia/hammer-core`): the review engine. Private, consumed from `src/` with no build step.
+- `packages/agents` (`@anvia/hammer-agents`): the reviewer agents, prompts, tools and review pipeline. Same packaging as core. See [0007](0007-extract-agents-package.md).
 - `packages/action` (`@anvia/hammer-action`): the Action entry, bundled by tsup into `dist/`. See [0003](0003-bundled-node24-js-action.md).
 - `eval` (`@anvia/hammer-eval`): the eval runner from PRD §11.
 

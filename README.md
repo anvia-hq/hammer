@@ -21,12 +21,11 @@ permissions:
   contents: read
   pull-requests: write
 
-concurrency:
-  group: hammer-review-${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
-
 jobs:
   review:
+    concurrency:
+      group: hammer-review-${{ github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: true
     if: >
       github.event_name == 'pull_request' ||
       (github.event.issue.pull_request && startsWith(github.event.comment.body, '/hammer'))
@@ -46,7 +45,8 @@ For OpenAI-compatible gateways without native JSON-schema output, add `base-url`
 | Path              | Package                | Purpose                                                            |
 | ----------------- | ---------------------- | ------------------------------------------------------------------ |
 | `action.yml`      | —                      | Action metadata; runs `packages/action/dist`                       |
-| `packages/core`   | `@anvia/hammer-core`   | Review engine: config, diff planning, agent, validation, rendering |
+| `packages/core`   | `@anvia/hammer-core`   | Review engine: config, diff planning, validation, rendering        |
+| `packages/agents` | `@anvia/hammer-agents` | Reviewer agents: model factory, prompts, read-only tools, pipeline |
 | `packages/action` | `@anvia/hammer-action` | Action entry (inputs, event, outputs), bundled with tsup           |
 | `eval`            | `@anvia/hammer-eval`   | Eval runner and cases (PRD §11)                                    |
 

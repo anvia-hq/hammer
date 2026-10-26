@@ -4,16 +4,17 @@ import type { AnyTool } from "@anvia/core/tool";
 import type { CompletionModel } from "@anvia/core/completion";
 import { z } from "zod";
 
-import type { PullFileEntry } from "../github/files";
-import { parseModelRefWithBase } from "./model";
-import { buildReviewPrompt, REVIEW_INSTRUCTIONS, type BuildReviewPromptInput } from "./prompt";
 import {
   buildRepairPrompt,
+  DEFAULT_SINGLE_PASS_TOKENS,
+  ReviewBatchSchema,
   runWithRepair,
   validateBatchOutput,
+  type PullFileEntry,
   type ReviewBatch,
-  ReviewBatchSchema,
-} from "./schema";
+} from "@anvia/hammer-core";
+import { parseModelRefWithBase } from "./model";
+import { buildReviewPrompt, REVIEW_INSTRUCTIONS, type BuildReviewPromptInput } from "./prompt";
 import {
   getFileDiff,
   getPrDiscussion,
@@ -23,8 +24,6 @@ import {
   type DiscussionCommentInput,
   type PrDiscussionInput,
 } from "./tools";
-
-export const DEFAULT_SINGLE_PASS_TOKENS = 60000;
 
 export type SinglePassErrorCode =
   | "invalid_model"

@@ -1,6 +1,6 @@
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { createCompletionModel, parseModelRefWithBase } from "@anvia/hammer-core";
+import { createCompletionModel, parseModelRefWithBase } from "@anvia/hammer-agents";
 import { oracleReviewer, runEval } from "./runner";
 import { runLiveEval } from "./live";
 import { createLlmJudge } from "./judge";

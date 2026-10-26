@@ -1,8 +1,8 @@
-import { DEFAULT_SINGLE_PASS_TOKENS } from "./agent/run";
-import type { Finding, ReviewBatch } from "./agent/schema";
+import type { Finding, ReviewBatch } from "./schema";
 import type { Budget } from "./budget";
 import type { PullFileEntry } from "./github/files";
 
+export const DEFAULT_SINGLE_PASS_TOKENS = 60000;
 export const DEFAULT_BATCH_TOKENS = 40000;
 export const DEFAULT_MAX_CONCURRENT = 3;
 
@@ -55,6 +55,7 @@ export interface RunBatchesResult {
 
 export interface MergedBatches {
   summaries: string[];
+  changes: string[];
   findings: Finding[];
   generalNotes: string[];
   failedBatches: string[];
@@ -229,6 +230,7 @@ function better(existing: Finding, candidate: Finding): Finding {
 
 export function mergeBatchResults(results: BatchRunEntry[]): MergedBatches {
   const summaries: string[] = [];
+  const changes = new Map<string, string>();
   const generalNotes: string[] = [];
   const failedBatches: string[] = [];
   const notRunBatches: string[] = [];
@@ -241,6 +243,10 @@ export function mergeBatchResults(results: BatchRunEntry[]): MergedBatches {
       notRunBatches.push(entry.id);
     } else {
       summaries.push(entry.batch.summary);
+      for (const change of entry.batch.changes ?? []) {
+        const key = change.trim().toLowerCase();
+        if (key !== "" && !changes.has(key)) changes.set(key, change.trim());
+      }
       generalNotes.push(...entry.batch.generalNotes);
       for (const finding of entry.batch.findings) {
         const key = dedupeKey(finding);
@@ -253,6 +259,7 @@ export function mergeBatchResults(results: BatchRunEntry[]): MergedBatches {
   const partial = failedBatches.length > 0 || notRunBatches.length > 0;
   return {
     summaries,
+    changes: [...changes.values()],
     findings: [...byKey.values()],
     generalNotes,
     failedBatches,

@@ -3,11 +3,11 @@ import path from "node:path";
 
 import {
   isDenylistedBasename,
+  matchesGlob,
   MAX_READABLE_FILE_BYTES,
   resolveInsideRoot,
-} from "../checkout/path-guard";
-import type { PullFileEntry } from "../github/files";
-import { matchesGlob } from "../plan";
+  type PullFileEntry,
+} from "@anvia/hammer-core";
 
 export const MAX_TOOL_OUTPUT_CHARS = 20_000;
 export const MAX_DIR_ENTRIES = 500;

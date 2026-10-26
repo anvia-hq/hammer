@@ -1,4 +1,5 @@
-import type { Finding } from "../agent/schema";
+import type { Finding } from "../schema";
+import { SEVERITY_ICON } from "./review-body";
 import { MAX_COMMENT_CHARS, sanitizeForPosting, type SanitizeCommentOptions } from "./sanitize";
 
 export const SUMMARY_MARKER = "<!-- hammer:summary -->";
@@ -46,12 +47,6 @@ function lastShaLine(headSha: string | null | undefined): string | null {
   if (headSha === undefined || headSha === null || headSha === "") return null;
   return `<!-- hammer:last-sha=${headSha} -->`;
 }
-
-const SEVERITY_ICON: Record<Finding["severity"], string> = {
-  high: "🔴",
-  medium: "🟡",
-  low: "🔵",
-};
 
 const SAFE_LINK_PATH = /^[\w./-]+$/;
 

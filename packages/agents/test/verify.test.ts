@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { Finding } from "../src/agent/schema";
+import type { Finding } from "@anvia/hammer-core";
 import {
   applyVerification,
   buildVerificationPrompt,

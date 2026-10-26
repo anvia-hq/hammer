@@ -20,4 +20,4 @@ The agent's only output channel is review comments, and PR authors control most 
 
 ## Applies to
 
-`packages/core` (tools, prompts, validation, rendering, GitHub client) and any code that posts to GitHub.
+`packages/core` (validation, rendering, GitHub client) and `packages/agents` (tools, prompts, pipeline) and any code that posts to GitHub.

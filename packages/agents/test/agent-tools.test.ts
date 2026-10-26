@@ -11,7 +11,7 @@ import {
   readFile,
   search,
 } from "../src/index";
-import type { PullFileEntry } from "../src/index";
+import type { PullFileEntry } from "@anvia/hammer-core";
 
 let root = "";
 let outside = "";

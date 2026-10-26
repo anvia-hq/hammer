@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@actions/core": "^3.0.1",
+    "@anvia/hammer-agents": "workspace:*",
     "@anvia/hammer-core": "workspace:*",
     "@octokit/plugin-retry": "^8.1.1",
     "@octokit/plugin-throttling": "^11.0.5",

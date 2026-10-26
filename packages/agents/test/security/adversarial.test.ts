@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { buildReviewPrompt } from "../../src/agent/prompt";
-import { getPrDiscussion } from "../../src/agent/tools";
-import type { PullFileEntry } from "../../src/github/files";
-import { resolveInsideRoot } from "../../src/checkout/path-guard";
+import { buildReviewPrompt } from "../../src/prompt";
+import { getPrDiscussion } from "../../src/tools";
+import type { PullFileEntry } from "@anvia/hammer-core";
+import { resolveInsideRoot } from "@anvia/hammer-core";
 import { cleanup, symlinkEscapePair } from "../fixtures/adversarial/symlink";
 
 const ADV = new URL("../fixtures/adversarial/", import.meta.url);
