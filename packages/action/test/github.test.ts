@@ -55,3 +55,18 @@ it("permits a COMMENT review through the real client and preserves its payload",
     comments: [{ side: "RIGHT" }],
   });
 });
+
+it("does not log handled 403 and 404 responses", async () => {
+  const log = [vi.spyOn(console, "error"), vi.spyOn(console, "info"), vi.spyOn(console, "warn")];
+  const request = vi.fn<typeof globalThis.fetch>(
+    async () =>
+      new Response(JSON.stringify({ message: "Not Found" }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      }),
+  );
+  const github = new GitHub("test-token", apiUrl, request);
+  expect(await github.content("acme", "sandbox", "CLAUDE.md", "a".repeat(40))).toBeUndefined();
+  for (const spy of log) expect(spy).not.toHaveBeenCalled();
+  vi.restoreAllMocks();
+});

@@ -211,8 +211,14 @@ describe("Action review flow", () => {
     expect(inline).toContain("<details>\n<summary>Technical details</summary>");
     expect(inline).toContain("`packages/core/src/github/sanitize.ts:2`");
     expect(inline).not.toContain("[redacted]");
-    expect(f.summaries[0]).toContain("Null dereference");
-    expect(f.summaries[0]).toContain(`hammer:last-sha=${head}`);
+    expect(f.summaries[0]).toContain("Review in progress");
+    expect(f.summaries[0]).toContain("- [ ] ⏳ Check out the PR head");
+    expect(f.summaries[0]).not.toContain("Null dereference");
+    expect(f.github.createSummary).toHaveBeenCalledTimes(1);
+    expect(f.github.updateSummary.mock.calls.every((call) => call[2] === 12)).toBe(true);
+    expect(f.summaries.at(-1)).toContain("Null dereference");
+    expect(f.summaries.at(-1)).not.toContain("Review in progress");
+    expect(f.summaries.at(-1)).toContain(`hammer:last-sha=${head}`);
     expect(f.outputs).toMatchObject({ findings_count: "1", high_count: "1", tokens: "30" });
     expect(JSON.parse(await readFile(f.outputs.result_path!, "utf8"))).toMatchObject({
       headSha: head,
@@ -295,7 +301,7 @@ describe("Action review flow", () => {
       .mockResolvedValueOnce({ ...f.pr, head: { ...f.pr.head, sha: "c".repeat(40) } });
     await f.run();
     expect(f.posted).toHaveLength(0);
-    expect(f.summaries).toHaveLength(0);
+    expect(f.summaries.every((body) => body.includes("Review in progress"))).toBe(true);
   });
   it("publishes a sanitized error and obeys fail_on_error", async () => {
     const f = await fixture({ fail_on_error: "true" });
@@ -333,7 +339,7 @@ describe("Action review flow", () => {
       body: "<!-- hammer:summary -->",
     });
     await f.run();
-    expect(f.github.updateSummary).not.toHaveBeenCalled();
+    expect(f.github.updateSummary.mock.calls.every((call) => call[2] !== 5)).toBe(true);
     expect(f.github.createSummary).toHaveBeenCalled();
   });
   it("reports partial model failures without advancing incremental state", async () => {
@@ -341,8 +347,8 @@ describe("Action review flow", () => {
     vi.mocked(f.model.completion).mockRejectedValue(new Error("model unavailable"));
     await f.run();
     expect(f.posted).toHaveLength(0);
-    expect(f.summaries[0]).toContain("partial");
-    expect(f.summaries[0]).not.toContain("hammer:last-sha=");
+    expect(f.summaries.at(-1)).toContain("partial");
+    expect(f.summaries.at(-1)).not.toContain("hammer:last-sha=");
     expect(f.runtime.setFailed).not.toHaveBeenCalled();
   });
   it("rejects cleanup outside its own directory", async () => {
@@ -389,7 +395,7 @@ it("retains the severity gate for a deduplicated finding", async () => {
   await f.run();
   expect(f.posted).toHaveLength(0);
   expect(f.runtime.setFailed).toHaveBeenCalled();
-  expect(f.summaries[0]).toContain("Null dereference");
+  expect(f.summaries.at(-1)).toContain("Null dereference");
 });
 
 it("honors verification disabled in base config when there is no action override", async () => {
@@ -417,6 +423,6 @@ it("publishes a partial result without treating a zero-cost cap as an action err
   });
   await f.run();
   expect(f.model.completion).not.toHaveBeenCalled();
-  expect(f.summaries[0]).toContain("partial");
+  expect(f.summaries.at(-1)).toContain("partial");
   expect(f.runtime.setFailed).not.toHaveBeenCalled();
 });

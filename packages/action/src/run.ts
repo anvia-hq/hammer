@@ -11,6 +11,7 @@ import {
   extractLastSha,
   fetchPullFiles,
   formatReviewEvent,
+  initialProgress,
   loadConfig,
   parsePriorFingerprints,
   sanitizeForPosting,
@@ -32,7 +33,8 @@ import {
 import { checkoutHead } from "./checkout";
 import { GitHub, type GitHubPort, type IssueComment } from "./github";
 import { configOverrides, readInputs, type ActionInputs } from "./inputs";
-import { publishReview, writeSummary, type PublishTarget } from "./publish";
+import { createProgressReporter, type ProgressReporter } from "./progress";
+import { publishReview, writeProgress, writeSummary, type PublishTarget } from "./publish";
 
 export interface ActionRuntime {
   getInput(name: string): string;
@@ -69,6 +71,7 @@ export async function runAction(
   let target: PublishTarget | undefined;
   let comments: IssueComment[] = [];
   let identity = "";
+  let progress: ProgressReporter | undefined;
   const cleanError = (error: unknown): string => {
     let message =
       error instanceof z.ZodError
@@ -232,6 +235,25 @@ export async function runAction(
     await mkdir(temp, { recursive: true });
     const directory = await mkdtemp(join(temp, "hammer-review-"));
     runtime.saveState("review-directory", directory);
+    const runUrl =
+      env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && env.GITHUB_RUN_ID
+        ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`
+        : undefined;
+    const progressTarget = target;
+    const progressGithub = github;
+    const secrets = [inputs["api-key"], inputs["github-token"]];
+    progress = createProgressReporter({
+      state: initialProgress({
+        files: plan.reviewFiles.length,
+        verify: config.verify,
+        runUrl,
+        lastSha: extractLastSha(lastSha ?? ""),
+      }),
+      write: (body) =>
+        writeProgress(progressGithub, progressTarget, comments, identity, body, secrets),
+      warn: runtime.warning,
+    });
+    await progress.start();
     const checkout = join(directory, "head");
     await (dependencies.checkout ?? checkoutHead)(
       {
@@ -290,7 +312,10 @@ export async function runAction(
           .map((comment) => ({ author: comment.user?.login ?? "unknown", body: comment.body })),
       },
       modelRef,
-      onEvent: (event) => runtime.info(formatReviewEvent(event)),
+      onEvent: (event) => {
+        runtime.info(formatReviewEvent(event));
+        progress?.onEvent(event);
+      },
       ...(skills ? { skills } : {}),
       ...(inputs["base-url"] ? { baseUrl: inputs["base-url"] } : {}),
       ...(inputs["reasoning-effort"] ? { reasoningEffort: inputs["reasoning-effort"] } : {}),
@@ -308,6 +333,7 @@ export async function runAction(
         body: comment.body ?? "",
       })),
     });
+    await progress.settle();
     const current = await github.pull(owner, repo, prNumber);
     if (
       current.head.sha !== target.headSha ||
@@ -363,6 +389,7 @@ export async function runAction(
     });
     if (gate.ok && gate.exitCode) runtime.setFailed(gate.reason);
   } catch (error) {
+    await progress?.settle();
     const message = cleanError(error);
     runtime.warning(`[hammer] ${message}`);
     await runtime.summary(renderJobSummaryMarkdown({ error: message }));

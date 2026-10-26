@@ -104,6 +104,8 @@ const server = createServer(async (request, response) => {
       return json({ html_url: `${origin}/review/1` });
     if (path === "/repos/acme/sandbox/issues/7/comments")
       return json(request.method === "POST" ? { id: 2 } : []);
+    if (request.method === "PATCH" && path === "/repos/acme/sandbox/issues/comments/2")
+      return json({ id: 2 });
     if (path === "/repos/acme/sandbox/pulls/7/comments") return json([]);
     return json({ message: `Unexpected route ${path}` }, 500);
   } catch {
@@ -163,10 +165,15 @@ try {
   assert.equal(review.body.event, "COMMENT");
   assert.equal(review.body.commit_id, head);
   assert.match(review.body.comments[0].body, /<!-- hammer:fp=/);
-  const sticky = calls.find(
+  const progress = calls.find(
     (call) => call.method === "POST" && call.path.endsWith("/issues/7/comments"),
   );
+  assert.ok(progress.body.body.includes("Review in progress"));
+  const sticky = calls.findLast(
+    (call) => call.method === "PATCH" && call.path.endsWith("/issues/comments/2"),
+  );
   assert.ok(sticky.body.body.includes(`hammer:last-sha=${head}`));
+  assert.ok(!sticky.body.body.includes("Review in progress"));
   assert.ok(calls.some((call) => call.path === "/v1/chat/completions"));
   assert.ok(calls.some((call) => call.path.endsWith(`/tarball/${head}`)));
   const saved = /^review-directory<<[^\n]+\n([^\n]+)/m.exec(await readFile(state, "utf8"))?.[1];
