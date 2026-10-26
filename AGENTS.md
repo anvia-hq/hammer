@@ -41,5 +41,5 @@ bun run build
 - Check `docs/decision/` before choosing a library, package layout or GitHub trigger.
 - A workspace package must not share a name with a published npm package. See [0001](docs/decision/0001-bun-workspaces.md).
 - TypeScript strict, ESM, ES2022, `moduleResolution: "Bundler"`. Run `bun run check` before reporting work as done.
-- `dist/` is committed only on release branches; never edit it by hand. Releases come from the manual `Release` workflow on `main` (inputs: `bump` auto/patch/minor, `dry_run`); see [docs/releasing.md](docs/releasing.md). Every PR needs exactly one release label (`breaking`, `enhancement`, `bug`, `documentation`, `chore`).
+- `dist/` is committed only on the tagged release commit, never on a branch; never edit it by hand. Releases come from the manual `Release` workflow on `main` (inputs: `bump` auto/patch/minor, `dry_run`); see [docs/releasing.md](docs/releasing.md). Every PR needs exactly one release label (`breaking`, `enhancement`, `bug`, `documentation`, `chore`).
 - Never commit secrets, API keys or trace payloads.

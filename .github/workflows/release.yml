@@ -13,7 +13,7 @@ on:
           - patch
           - minor
       dry_run:
-        description: Build and verify only; do not push release/v1, tags or a GitHub release.
+        description: Build and verify only; do not push tags or a GitHub release.
         required: true
         default: false
         type: boolean
@@ -95,7 +95,7 @@ jobs:
           echo "next=$next" >> "$GITHUB_OUTPUT"
           echo "Releasing $next ($BUMP) after $latest" | tee -a "$GITHUB_STEP_SUMMARY"
 
-      - name: Publish release/v1 and tags
+      - name: Publish tags and release
         if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -108,11 +108,9 @@ jobs:
 
           source_sha=$(git rev-parse HEAD)
 
-          git fetch origin release/v1 || echo "release/v1 does not exist yet; it will be created"
-          git checkout -B release/v1 "$source_sha"
+          git checkout --detach
           git add -f packages/action/dist
           git commit --allow-empty -m "release: bundle main @ ${source_sha:0:7}"
-          git push --force-with-lease origin release/v1
 
           git tag -a "$NEXT" -m "Hammer $NEXT"
           git tag -f v1

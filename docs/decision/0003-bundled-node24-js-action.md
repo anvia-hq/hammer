@@ -12,7 +12,7 @@ The action must start fast and run on GitHub-hosted, Blacksmith and self-hosted 
 
 `action.yml` uses `runs.using: node24` with `main: packages/action/dist/index.js` and `post: packages/action/dist/post.js` (`post-if: always()`). tsup bundles each entry and all dependencies into one ESM file ([tsup.config.ts](../../packages/action/tsup.config.ts)).
 
-`dist/` is git-ignored on `main` and committed only on release branches, from which the `v1` tag is cut.
+`dist/` is git-ignored on `main`. The release workflow commits it on a detached commit and tags that commit `v1.x.y`, then moves `v1` to it. There is no long-lived release branch: the tags alone keep the commit reachable and are what `uses: anvia-hq/hammer@v1` resolves.
 
 ## Consequences
 
