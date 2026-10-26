@@ -97,7 +97,7 @@ export class GitHub {
       auth: token,
       baseUrl: apiUrl,
       request: { fetch: requestFetch },
-      log: { debug: () => {}, info: () => {}, warn: console.warn, error: console.error },
+      log: { debug: () => {}, info: () => {}, warn: console.warn, error: () => {} },
       retry: { retries: 2 },
       throttle: {
         onRateLimit: (_delay, _options, _client, count) => count < 1,

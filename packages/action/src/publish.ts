@@ -20,6 +20,29 @@ export interface PublishTarget {
   repoUrl?: string;
 }
 
+export async function writeProgress(
+  github: GitHubPort,
+  target: PublishTarget,
+  comments: IssueComment[],
+  identity: string,
+  body: string,
+  secrets: readonly string[] = [],
+): Promise<void> {
+  const written = await upsertSummaryComment(
+    async (page) =>
+      page === 1 ? comments.filter((comment) => comment.user?.login === identity) : [],
+    (text) => github.createSummary(target.owner, target.repo, target.number, text),
+    (id, text) => github.updateSummary(target.owner, target.repo, id, text),
+    body,
+    {
+      perPage: comments.length + 1,
+      sanitizeOptions: { owner: target.owner, repo: target.repo, secrets },
+    },
+  );
+  if (written.action === "created")
+    comments.push({ id: written.id, body: body, user: { login: identity, type: "Bot" } });
+}
+
 export async function writeSummary(
   github: GitHubPort,
   target: PublishTarget,
