@@ -49,16 +49,18 @@ jobs:
     continue-on-error: ${{ matrix.experimental }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: bun install --frozen-lockfile
+      - run: bun run build
       - run: node packages/action/scripts/smoke-bundle.mjs
       - run: node packages/action/scripts/smoke-review.mjs
-      - run: pnpm test
-      - run: pnpm --filter @anvia/hammer-eval eval
+      - run: bun run test
+      - run: bun run eval
 
   self-hosted:
     name: self-hosted linux (not yet enabled)
@@ -68,16 +70,18 @@ jobs:
     runs-on: [self-hosted, linux, X64]
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: bun install --frozen-lockfile
+      - run: bun run build
       - run: node packages/action/scripts/smoke-bundle.mjs
       - run: node packages/action/scripts/smoke-review.mjs
-      - run: pnpm test
-      - run: pnpm --filter @anvia/hammer-eval eval
+      - run: bun run test
+      - run: bun run eval
 
   e2e-sandbox:
     name: live end-to-end on sandbox repo
@@ -86,12 +90,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: bun install --frozen-lockfile
+      - run: bun run build
       - run: node packages/action/scripts/sandbox.mjs
         env:
           HAMMER_SANDBOX_REPOSITORY: ${{ inputs.sandbox_repository }}

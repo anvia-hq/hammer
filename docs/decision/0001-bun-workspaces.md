@@ -1,16 +1,16 @@
-# 0001: Use pnpm workspaces for the monorepo
+# 0001: Use Bun workspaces for the monorepo
 
 ## Status
 
-Accepted
+Accepted. Supersedes the original pnpm choice; see [0009](0009-bun-workspaces.md) for the migration.
 
 ## Context
 
-Hammer has a review engine, a GitHub Action entry, and an eval runner. The eval runner and a later CLI need the engine without the Actions runtime. The Anvia SDK repo already uses pnpm, Oxlint, Oxfmt, Vitest and tsup.
+Hammer has a review engine, a GitHub Action entry, and an eval runner. The eval runner and a later CLI need the engine without the Actions runtime.
 
 ## Decision
 
-Use pnpm workspaces declared in [pnpm-workspace.yaml](../../pnpm-workspace.yaml):
+Use Bun workspaces declared in the root [package.json](../../package.json) (`workspaces`):
 
 - `packages/core` (`@anvia/hammer-core`): the review engine. Private, consumed from `src/` with no build step.
 - `packages/agents` (`@anvia/hammer-agents`): the reviewer agents, prompts, tools and review pipeline. Same packaging as core. See [0007](0007-extract-agents-package.md).
@@ -21,6 +21,6 @@ Use pnpm workspaces declared in [pnpm-workspace.yaml](../../pnpm-workspace.yaml)
 
 ## Consequences
 
-- One lockfile (`pnpm-lock.yaml`) and one `pnpm install` at the root.
+- One lockfile (`bun.lock`) and one `bun install` at the root.
 - Workspace packages reference each other with `workspace:*`.
 - Workspace names must not match a published npm package. All use the `hammer-` prefix so they cannot shadow `@anvia/*` packages from [0002](0002-consume-published-anvia-packages.md).

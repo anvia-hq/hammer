@@ -41,6 +41,24 @@ jobs:
 
 `client` is one of `anthropic`, `openai`, `gemini`, `openai-compatible` or `azure`. For `openai-compatible` gateways and `azure`, also set `base-url` (the gateway URL, or the Azure OpenAI endpoint); for `openai-compatible` endpoints without native JSON-schema output, also set `native-json-schema: "false"`. Models that support it can take a `reasoning-effort` input (e.g. `low` | `medium` | `high`); the run fails with a clear error if the model doesn't support the requested value. Optional team rules live in `.github/hammer.yml` (see [the PRD](docs/PRD.md)).
 
+## Live progress
+
+Hammer streams what it is doing into the job log while it reviews, so you can follow a run instead of waiting for the final comment:
+
+```text
+[hammer] reviewing 12 files in 3 batches
+[hammer] batch src: started, 5 files
+[hammer] batch src: read_file src/auth.ts:1-80
+[hammer] batch src: search /verifyToken/ in src/**
+[hammer] model call done: 18432 tokens used so far, $0.0412
+[hammer] batch src: done, 2 findings
+[hammer] verifying 4 findings
+[hammer] verification kept 3, dropped 1
+[hammer] review ready: 3 inline comments, 0 general notes
+```
+
+Events cover the plan, each batch, every read-only tool call, model calls with running token and cost totals, verification, and the final tally. Every line is prefixed with `[hammer]` and flattened to one line, so PR content can never forge a workflow command. Secrets stay masked by the runner.
+
 ## Workspace
 
 | Path              | Package                | Purpose                                                            |
@@ -57,13 +75,15 @@ Your code is sent only to the configured model provider. Hammer collects no tele
 
 ## Development
 
+The workspace uses [Bun](https://bun.sh) (1.4+) for installs and scripts; the bundled Action itself still runs on the runner's `node24`.
+
 ```sh
-pnpm install
-pnpm check       # format + lint
-pnpm typecheck
-pnpm test
-pnpm build       # bundles packages/action/dist
-pnpm eval
+bun install
+bun run check       # format + lint
+bun run typecheck
+bun run test
+bun run build       # bundles packages/action/dist
+bun run eval
 ```
 
 ## License

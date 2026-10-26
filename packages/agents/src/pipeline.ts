@@ -15,6 +15,7 @@ import {
   type FileBatch,
   type PriorFinding,
   type PricingFn,
+  type ReviewEventSink,
 } from "@anvia/hammer-core";
 import { buildReviewPrompt, approxTokens, type BuildReviewPromptInput } from "./prompt";
 import { buildReviewerTools, runSinglePassReview, type SinglePassRunOptions } from "./run";
@@ -32,9 +33,15 @@ export interface ReviewPipelineInput extends BuildReviewPromptInput {
   priorFingerprints?: Set<string>;
   pricing?: PricingFn;
   reasoningEffort?: string;
+  onEvent?: ReviewEventSink;
 }
 
 export async function runReviewPipeline(input: ReviewPipelineInput) {
+  const emit: ReviewEventSink = (event) => {
+    try {
+      input.onEvent?.(event);
+    } catch {}
+  };
   const budget = createBudget({
     maxTokens: input.config.max_tokens,
     maxTurns: input.config.max_turns,
@@ -60,6 +67,8 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
         totalTokens: response.usage.inputTokens + response.usage.outputTokens,
         model: input.modelRef,
       });
+      const { tokens, costUsd } = budget.summary();
+      emit({ type: "turn", tokens, costUsd });
       return response;
     },
   };
@@ -83,11 +92,13 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
           },
         ]
       : planned.batches;
+  emit({ type: "plan", files: input.files.length, batches: batches.length });
   const results = await runBatches({
     batches,
     maxConcurrent: DEFAULT_MAX_CONCURRENT,
     runBatch: async (batch) => {
       if (!budget.canStartBatch().ok) return { ok: false, error: "Review budget reached." };
+      emit({ type: "batch_start", batch: batch.id, files: batch.files.length });
       const outcome = await runSinglePassReview(
         {
           ...promptInput,
@@ -102,17 +113,29 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
           discussion: input.discussion ?? {},
           maxTurns: budget.maxTurns,
           ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
+          onToolCall: (name, detail) => emit({ type: "tool", batch: batch.id, name, detail }),
         },
       );
-      return outcome.ok
-        ? outcome
-        : { ok: false, error: outcome.issues.map((issue) => issue.message).join("; ") };
+      if (outcome.ok) {
+        emit({
+          type: "batch_end",
+          batch: batch.id,
+          ok: true,
+          findings: outcome.batch.findings.length,
+        });
+        return outcome;
+      }
+      const error = outcome.issues.map((issue) => issue.message).join("; ");
+      emit({ type: "batch_end", batch: batch.id, ok: false, findings: 0, error });
+      return { ok: false, error };
     },
   });
   const merged = mergeBatchResults(results.results);
+  const verifying = input.config.verify && merged.findings.length > 0;
+  if (verifying) emit({ type: "verify_start", findings: merged.findings.length });
   const verification = await applyVerification({
     findings: merged.findings,
-    verify: input.config.verify && merged.findings.length > 0,
+    verify: verifying,
     verifyThreshold: input.config.verify_threshold,
     canContinue: () => budget.canStartBatch().ok,
     runVerifier: async (prompt) => {
@@ -124,6 +147,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
           checkoutRoot: input.checkoutRoot,
           files: input.files,
           discussion: input.discussion,
+          onToolCall: (name, detail) => emit({ type: "tool", batch: "verify", name, detail }),
         }),
         maxTurns: input.config.max_turns,
         maxTokens: 4096,
@@ -135,6 +159,12 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
       return response.text;
     },
   });
+  if (verifying)
+    emit({
+      type: "verify_end",
+      kept: verification.findings.length,
+      dropped: verification.dropped.length,
+    });
   const validated = validateFindings(
     verification.findings,
     input.anchorFiles ?? input.files,
@@ -148,6 +178,11 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
   const findings = [...validated.inline, ...validated.single]
     .map((entry) => entry.finding)
     .concat(validated.generalNotes.map((entry) => entry.finding));
+  emit({
+    type: "done",
+    inline: validated.inline.length + validated.single.length,
+    notes: validated.generalNotes.length,
+  });
   return {
     summary: merged.summaries.join(" "),
     changes: merged.changes,

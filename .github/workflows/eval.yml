@@ -41,18 +41,20 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-      - run: pnpm install --frozen-lockfile
+      - run: bun install --frozen-lockfile
       - run: |
           args=(--model "$REVIEW_MODEL" --judge-model "$JUDGE_MODEL" --concurrency "$EVAL_CONCURRENCY")
           if [ -n "$REVIEW_BASE_URL" ]; then args+=(--base-url "$REVIEW_BASE_URL"); fi
           if [ -n "$JUDGE_BASE_URL" ]; then args+=(--judge-base-url "$JUDGE_BASE_URL"); fi
           if [ "$NATIVE_JSON_SCHEMA" = "false" ]; then args+=(--no-native-json-schema); fi
           if [ "$VERIFY" = "false" ]; then args+=(--no-verify); fi
-          pnpm eval "${args[@]}"
+          bun run eval "${args[@]}"
         env:
           REVIEW_MODEL: ${{ inputs.model }}
           EVAL_CONCURRENCY: ${{ inputs.concurrency }}

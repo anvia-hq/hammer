@@ -24,7 +24,7 @@ Not used in v1: `@anvia/durable` (runs are short and hold no state between jobs)
 
 ## Consequences
 
-- Upgrades go through `pnpm update` and the package changelogs; versions use caret ranges and the lockfile pins exact versions.
+- Upgrades go through `bun update` and the package changelogs; versions use caret ranges and the `bun.lock` pins exact versions.
 - Hammer code depends on the published `.d.ts` types, not the Anvia source repo.
 - Every Anvia package is bundled into the action (see [0003](0003-bundled-node24-js-action.md)), so it must stay pure JavaScript.
 - Bugs found in these packages are handled by [rule 0003](../rules/0003-anvia-bugs-and-patches.md).
