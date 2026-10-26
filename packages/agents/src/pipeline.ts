@@ -73,6 +73,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     provider: input.model.provider,
     modelId: input.model.modelId,
     capabilities: input.model.capabilities,
+    ...(input.model.controls ? { controls: input.model.controls } : {}),
     async completion(request, options) {
       const response = await input.model.completion(request, guarded(options));
       record(response.usage);

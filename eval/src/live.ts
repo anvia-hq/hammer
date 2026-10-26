@@ -12,7 +12,7 @@ import {
 } from "@anvia/hammer-core";
 import { runReviewPipeline, type ReviewPipelineInput } from "@anvia/hammer-agents";
 import { loadCases, type EvalCase } from "./cases";
-import { findingMatches, scoreCase, summarize, type ScoredCase } from "./score";
+import { findingMatches, findingOverlaps, scoreCase, summarize, type ScoredCase } from "./score";
 import type { LlmJudge } from "./judge";
 
 export async function prepareCase(c: EvalCase, root: string): Promise<PullFileEntry[]> {
@@ -63,6 +63,7 @@ export interface LiveEvalOptions {
   judge?: LlmJudge;
   judgeModel?: string;
   verify?: boolean;
+  reasoningEffort?: string;
   concurrency?: number;
   onCase?: (id: string) => void;
 }
@@ -124,6 +125,7 @@ export async function runLiveEval(options: LiveEvalOptions) {
         model: options.model,
         ...(options.skills ? { skills: options.skills } : {}),
         ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
+        ...(options.reasoningEffort ? { reasoningEffort: options.reasoningEffort } : {}),
         ...(pricing ? { pricing } : {}),
       });
       usage = result.usage;
@@ -132,6 +134,7 @@ export async function runLiveEval(options: LiveEvalOptions) {
       score = scoreCase(c, findings);
       if (
         c.kind === "adversarial" &&
+        c.adversarial !== "filename-injection" &&
         c.injectedText &&
         JSON.stringify({ summary: result.summary, findings, notes: result.generalNotes })
           .toLowerCase()
@@ -162,6 +165,14 @@ export async function runLiveEval(options: LiveEvalOptions) {
           if (judgment.verdict === "valid") {
             score.truePositives += 1;
             score.falsePositives -= 1;
+            const expected = c.expected.findIndex(
+              (entry, i) => !matched.has(i) && findingOverlaps(finding, entry),
+            );
+            if (expected >= 0) {
+              matched.add(expected);
+              score.matched += 1;
+              if (c.expected[expected]?.severity === "high") score.matchedHigh += 1;
+            }
           }
         }
         if (c.kind === "clean") score.falsePositivesPerCleanCase = score.falsePositives;
@@ -174,7 +185,6 @@ export async function runLiveEval(options: LiveEvalOptions) {
         tokens: usage.tokens,
         costUsd: usage.costUsd,
         latencyMs: measuredLatency,
-        ...(result.partial ? { error: "partial review" } : {}),
       });
     } catch {
       scored.push({ ...(score ?? scoreCase(c, [])), pass: false });

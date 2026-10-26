@@ -18,6 +18,7 @@ const { values } = parseArgs({
     "no-verify": { type: "boolean" },
     "no-skills": { type: "boolean" },
     "no-native-json-schema": { type: "boolean" },
+    "reasoning-effort": { type: "string" },
     concurrency: { type: "string", default: "1" },
     "reports-dir": { type: "string" },
   },
@@ -57,6 +58,7 @@ try {
         ? {}
         : { skills: await loadReviewSkills(join(casesRoot, "..", "..", "skills")) }),
       verify: !values["no-verify"],
+      ...(values["reasoning-effort"] ? { reasoningEffort: values["reasoning-effort"] } : {}),
       concurrency: Number(values.concurrency),
       ...(judge ? { judge, judgeModel: judgeRef! } : {}),
       ...(values["base-url"] ? { baseUrl: values["base-url"] } : {}),

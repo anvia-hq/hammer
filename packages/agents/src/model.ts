@@ -1,6 +1,10 @@
 import { AnthropicClient } from "@anvia/anthropic";
 import { AzureOpenAIClient } from "@anvia/azure";
-import type { CompletionModel } from "@anvia/core/completion";
+import {
+  defineCompletionModelControls,
+  type CompletionModel,
+  type CompletionModelControls,
+} from "@anvia/core/completion";
 import { GeminiClient } from "@anvia/gemini";
 import { OpenAIClient } from "@anvia/openai";
 
@@ -105,12 +109,24 @@ export interface ModelClientOptions {
   baseUrl?: string | undefined;
 }
 
+const ANTHROPIC_CONTROLS: CompletionModelControls = defineCompletionModelControls({
+  reasoningEffort: {
+    type: "select",
+    label: "Reasoning effort",
+    options: ["low", "medium", "high", "xhigh", "max"],
+    defaultValue: "high",
+  },
+});
+
 export function createAnthropicModel(
   modelId: string,
   options: ModelClientOptions,
 ): CompletionModel {
   const client = new AnthropicClient({ apiKey: options.apiKey });
-  return client.completionModel({ modelId }) as unknown as CompletionModel;
+  return client.completionModel({
+    modelId,
+    controls: ANTHROPIC_CONTROLS,
+  }) as unknown as CompletionModel;
 }
 
 export function createOpenAIModel(modelId: string, options: ModelClientOptions): CompletionModel {
@@ -123,6 +139,14 @@ export function createGeminiModel(modelId: string, options: ModelClientOptions):
   return client.completionModel({ modelId }) as unknown as CompletionModel;
 }
 
+const OPENAI_COMPATIBLE_CONTROLS: CompletionModelControls = defineCompletionModelControls({
+  reasoningEffort: {
+    type: "select",
+    label: "Reasoning effort",
+    options: ["low", "medium", "high", "xhigh", "max"],
+  },
+});
+
 export function createOpenAICompatibleModel(
   modelId: string,
   options: ModelClientOptions,
@@ -134,7 +158,7 @@ export function createOpenAICompatibleModel(
     );
   }
   const client = new OpenAIClient({ apiKey: options.apiKey, baseUrl });
-  const model = client.completionModel({ modelId });
+  const model = client.completionModel({ modelId, controls: OPENAI_COMPATIBLE_CONTROLS });
   if (options.nativeJsonSchema === false) model.capabilities.outputSchema = false;
   return model as unknown as CompletionModel;
 }

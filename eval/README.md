@@ -16,9 +16,11 @@ seeded-defect PRs, 20 clean PRs and 10 adversarial PRs; this task ships
 - `cases/<id>/case.json` — case metadata, expected findings, injection text.
 - `cases/<id>/*.patch` — unified diffs loaded as the review input.
 - `src/cases.ts` — case schema and loader.
-- `src/score.ts` — matching rule (path equal, finding line within ±3
+- `src/score.ts` — strict matching (path equal, finding line within ±3
   lines of the expected range, category equal) plus recall on high,
-  precision, false positives per clean case, and per-case pass/fail.
+  precision, false positives per clean case, and per-case pass/fail. A
+  live judge that calls an unmatched finding valid also counts it when it
+  overlaps the expected path and line range.
 - `src/runner.ts` — loads cases, takes an injected reviewer function
   `(c: EvalCase) => Finding[]`, runs core `validateFindings` on the
   findings against the case patch, scores them, and writes
@@ -42,7 +44,8 @@ bun run eval --model anthropic/claude-sonnet-4-5 --judge-model gemini/gemini-2.5
 Use `--no-native-json-schema` when an OpenAI-compatible endpoint does not support native JSON-schema output. Findings still pass local Zod validation and one repair attempt.
 
 Use `--base-url` for an OpenAI-compatible reviewer, `--judge-base-url` for an
-OpenAI-compatible judge, `--no-verify` for a verification-off comparison, and
+OpenAI-compatible judge, `--reasoning-effort` to set the reviewer's reasoning
+effort, `--no-verify` for a verification-off comparison, and
 `--reports-dir` to preserve each comparison in its own directory. The judge
 must use a different provider/model reference. Without a judge, scoring uses
 strict fixture matching and the report says so.

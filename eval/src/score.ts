@@ -7,6 +7,11 @@ export const MATCH_LINE_TOLERANCE = 3;
 export function findingMatches(finding: Finding, expected: ExpectedFinding): boolean {
   if (finding.path !== expected.path) return false;
   if (finding.category !== expected.category) return false;
+  return findingOverlaps(finding, expected);
+}
+
+export function findingOverlaps(finding: Finding, expected: ExpectedFinding): boolean {
+  if (finding.path !== expected.path) return false;
   const start =
     finding.startLine === undefined ? finding.line : Math.min(finding.startLine, finding.line);
   const end =

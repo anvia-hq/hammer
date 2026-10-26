@@ -279,20 +279,7 @@ export async function runSinglePassReview(
         : REVIEW_INSTRUCTIONS,
       ...(options.skills ? { skills: options.skills } : {}),
       ...(options.model.capabilities.outputSchema ? { outputSchema: ReviewBatchSchema } : {}),
-      retries: {
-        maxAttempts: 3,
-        shouldRetry: ({ error, attempt }) => {
-          if (error instanceof AgentStructuredOutputError) return attempt < 2;
-          if (typeof error !== "object" || error === null) return false;
-          const status =
-            "status" in error
-              ? Number(error.status)
-              : "statusCode" in error
-                ? Number(error.statusCode)
-                : 0;
-          return status === 429 || status >= 500;
-        },
-      },
+      retries: { maxAttempts: 3 },
       maxTokens: 8192,
       tools: buildReviewerTools({
         checkoutRoot: options.checkoutRoot ?? "",
