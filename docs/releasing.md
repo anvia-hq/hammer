@@ -11,7 +11,7 @@ Releases are cut from `main` by the manual `Release` workflow. See [0011](decisi
 
 1. Actions → Release → Run workflow on `main`.
 2. Leave `bump` on `auto`, or force `patch` / `minor`. Tick `dry_run` first if you want to see the next version and run all gates without publishing.
-3. The workflow gates, builds, commits `packages/action/dist` to `release/v1`, tags `v1.x.y`, moves `v1`, and creates the GitHub release with notes grouped by label.
+3. The workflow gates, builds, commits `packages/action/dist` on a detached commit, tags that commit `v1.x.y`, moves `v1`, and creates the GitHub release with notes grouped by label.
 
 `auto` picks `minor` if any PR since the last tag is labelled `enhancement`, otherwise `patch`. It fails if a `breaking` PR is among them; a breaking change needs a new major line, decided by hand.
 

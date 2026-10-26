@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Hammer ships as one artifact: the Action, tagged `v1.x.y`, with a moving `v1` tag and a `release/v1` branch holding the built `dist/` ([0003](0003-bundled-node24-js-action.md)). All workspace packages are private and nothing is published to npm. Changesets versions and changelogs several npm packages; here it would add a file to every PR and a version PR for versions nobody consumes. The first manual releases also showed gaps: any ref could be released, and CI was not required to be green.
+Hammer ships as one artifact: the Action, tagged `v1.x.y`, with a moving `v1` tag; the tagged commit holds the built `dist/` ([0003](0003-bundled-node24-js-action.md)). All workspace packages are private and nothing is published to npm. Changesets versions and changelogs several npm packages; here it would add a file to every PR and a version PR for versions nobody consumes. The first manual releases also showed gaps: any ref could be released, and CI was not required to be green.
 
 ## Decision
 

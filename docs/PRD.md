@@ -204,7 +204,7 @@ Not used in v1: `@anvia/durable`, `@anvia/tool-sandbox`, `@anvia/tool-browser`. 
 - **JavaScript action** with `runs.using: node24`. It is bundled into a single `dist/index.js` with tsup, so there is no install step at runtime. Cold start target: < 5 s.
 - Language and tooling match the Anvia repo: TypeScript strict, ESM, ES2022, Oxlint and Oxfmt, Vitest, Bun workspaces.
 - Dependencies: `@actions/core`, `@octokit/rest` (+ retry and throttling plugins), `@anvia/core`, provider adapters, `zod`, `picomatch`, `yaml`. No native modules.
-- Releases: semver tags, plus a moving `v1` major tag. `dist/` is committed on release branches only, and CI checks it matches the source.
+- Releases: semver tags, plus a moving `v1` major tag. `dist/` is committed only on the tagged release commit, and CI checks it matches the source.
 
 ### 8.2 Run flow
 
@@ -356,7 +356,7 @@ packages/
   action/                    # @anvia/hammer-action
     src/index.ts             # main step: inputs, orchestrates §8.2, outputs
     src/post.ts              # post step: temp cleanup
-    dist/                    # tsup bundle (all deps inlined), release branches only
+    dist/                    # tsup bundle (all deps inlined), tagged release commits only
 eval/                        # @anvia/hammer-eval: runner, cases/, judge (§11)
 ```
 

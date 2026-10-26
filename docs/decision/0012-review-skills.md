@@ -15,7 +15,7 @@ Two things don't fit Hammer as written. The SDK's skill tools include `run_skill
 - Vendor the skill unmodified under [skills/](../../skills/), with the upstream license and a pinned source commit. Hammer's adaptations live in the reviewer prompt ([skills.ts](../../packages/agents/src/skills.ts)), not in the vendored file.
 - `loadReviewSkills` loads skills with `loadSkills(skill.local(dir))` and keeps only `get_skill_instructions` and `get_skill_reference`. `run_skill_script` and `get_skill_script` are never given to the agent. A test enforces this.
 - The reviewer is told to load the skill once, use it as a lens, skip what needs execution, and map its labels: Critical is high, an unprefixed Required change is medium, Optional, Nit and FYI are never findings. Hammer's posting rules still decide what is posted, so "no style nits" stands.
-- The Action loads skills from the `skills/` directory next to the bundle (`release/v1` carries the full tree). If they can't be loaded, the run warns and continues without them. The eval runner loads them too, with `--no-skills` to compare.
+- The Action loads skills from the `skills/` directory next to the bundle (the tagged release commit carries the full tree). If they can't be loaded, the run warns and continues without them. The eval runner loads them too, with `--no-skills` to compare.
 - Only skills shipped in this repository are loaded. Skills from a PR head are untrusted and are not read.
 
 ## Consequences
