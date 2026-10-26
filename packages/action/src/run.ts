@@ -129,7 +129,13 @@ export async function runAction(
       await skip("A newer head commit has superseded this event.");
       return;
     }
-    target = { owner, repo, number: prNumber, headSha: pr.head.sha };
+    target = {
+      owner,
+      repo,
+      number: prNumber,
+      headSha: pr.head.sha,
+      repoUrl: `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${owner}/${repo}`,
+    };
     identity = await github.identity();
     comments = await github.comments(owner, repo, prNumber);
     if (

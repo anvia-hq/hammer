@@ -68,6 +68,19 @@ describe("sanitizeComment", () => {
     expect(text).toContain("bold");
   });
 
+  it("keeps structural tags but strips their attributes and dangerous tags", () => {
+    const text = sanitizeComment(
+      `<details open ontoggle="alert(1)"><summary class="x">Files</summary><sub>Hammer</sub></details><script>alert(1)</script>`,
+    );
+    expect(text).toContain("<details>");
+    expect(text).toContain("<summary>Files</summary>");
+    expect(text).toContain("<sub>Hammer</sub>");
+    expect(text).toContain("</details>");
+    expect(text).not.toContain("ontoggle");
+    expect(text).not.toContain("class=");
+    expect(text).not.toContain("<script>");
+  });
+
   it("keeps github links for this repo and flattens others", () => {
     const kept = sanitizeComment("[pr](https://github.com/octo/hello/pull/1)", {
       owner: "octo",

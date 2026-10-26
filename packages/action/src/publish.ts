@@ -15,6 +15,30 @@ export interface PublishTarget {
   repo: string;
   number: number;
   headSha: string;
+  repoUrl?: string;
+}
+
+const SEVERITY_ICON: Record<Finding["severity"], string> = {
+  high: "🔴",
+  medium: "🟡",
+  low: "🔵",
+};
+
+function formatInlineBody(finding: Finding, suggestion: string): string {
+  const severity = `${finding.severity[0]?.toUpperCase() ?? ""}${finding.severity.slice(1)}`;
+  const attribution = finding.ruleId ? `Rule: \`${finding.ruleId}\` · Hammer` : "Hammer";
+  return `${SEVERITY_ICON[finding.severity]} **${severity} · ${finding.category}** — ${finding.title}\n\n${finding.body}${suggestion}\n\n<sub>${attribution}</sub>`;
+}
+
+function reviewBody(placed: readonly { finding: Finding }[]): string {
+  const counts = (["high", "medium", "low"] as const)
+    .map((severity) => {
+      const n = placed.filter((entry) => entry.finding.severity === severity).length;
+      return n > 0 ? `${n} ${severity}` : "";
+    })
+    .filter((part) => part !== "")
+    .join(", ");
+  return `🔨 **Hammer** — ${placed.length} finding${placed.length === 1 ? "" : "s"} (${counts}). Details in the summary comment.`;
 }
 
 export async function writeSummary(
@@ -59,7 +83,7 @@ export async function publishReview(
         repo: target.repo,
         pullNumber: target.number,
         commitId: target.headSha,
-        body: "Hammer review",
+        body: reviewBody(placed),
         inline: placed.map((entry) => {
           const finding = entry.finding;
           const suggestion =
@@ -70,7 +94,7 @@ export async function publishReview(
             path: finding.path,
             line: entry.line,
             ...(entry.startLine < entry.line ? { start_line: entry.startLine } : {}),
-            body: `**${finding.severity} · ${finding.category} — ${finding.title}**\n\n${finding.body}${suggestion}${finding.ruleId ? `\n\nRule: ${finding.ruleId}` : ""}`,
+            body: formatInlineBody(finding, suggestion),
             fingerprints: fingerprints(finding.path, finding.body, finding.suggestion),
           };
         }),
@@ -103,6 +127,7 @@ export async function publishReview(
       skipped: plan.skippedFiles,
       notReviewed: plan.notReviewed,
       ...(result.partial || plan.partial ? {} : { headSha: target.headSha }),
+      ...(target.repoUrl !== undefined ? { repoUrl: target.repoUrl } : {}),
       findings,
       summary: result.summary,
       generalNotes: notes,
