@@ -6,6 +6,7 @@ import { EnvHttpProxyAgent, setGlobalDispatcher } from "undici";
 
 const repository = process.env.HAMMER_SANDBOX_REPOSITORY ?? "";
 const pullNumber = Number(process.env.HAMMER_SANDBOX_PR);
+const client = process.env.HAMMER_SANDBOX_CLIENT;
 const model = process.env.HAMMER_SANDBOX_MODEL;
 const token = process.env.HAMMER_SANDBOX_TOKEN;
 const key = process.env.HAMMER_API_KEY;
@@ -13,6 +14,7 @@ if (
   !/^[\w.-]+\/[\w.-]+$/.test(repository) ||
   !Number.isSafeInteger(pullNumber) ||
   pullNumber <= 0 ||
+  !client ||
   !model ||
   !token ||
   !key ||
@@ -20,7 +22,7 @@ if (
   !process.env.GITHUB_API_URL
 )
   throw new Error(
-    "Sandbox run needs repository, PR number, model, token, API key, RUNNER_TEMP and GITHUB_API_URL.",
+    "Sandbox run needs repository, PR number, client, model, token, API key, RUNNER_TEMP and GITHUB_API_URL.",
   );
 const [owner, repo] = repository.split("/");
 const dispatcher = new EnvHttpProxyAgent();
@@ -38,6 +40,7 @@ const environment = {
   GITHUB_EVENT_PATH: join(directory, "event.json"),
   GITHUB_OUTPUT: output,
   GITHUB_STATE: state,
+  INPUT_CLIENT: client,
   INPUT_MODEL: model,
   "INPUT_API-KEY": key,
   "INPUT_GITHUB-TOKEN": token,

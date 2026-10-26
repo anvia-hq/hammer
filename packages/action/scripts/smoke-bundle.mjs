@@ -28,7 +28,8 @@ const env = {
   GITHUB_STEP_SUMMARY: summary,
   GITHUB_EVENT_NAME: "push",
   GITHUB_EVENT_PATH: join(tmpdir(), "hammer-smoke-event.json"),
-  INPUT_MODEL: "anthropic/claude-sonnet-5-5",
+  INPUT_CLIENT: "anthropic",
+  INPUT_MODEL: "claude-sonnet-5-5",
 };
 
 const out = execFileSync(process.execPath, [bundle], {

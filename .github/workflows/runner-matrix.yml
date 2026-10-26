@@ -16,8 +16,11 @@ on:
       sandbox_pr:
         description: Sandbox PR number.
         type: string
+      client:
+        description: Reviewer client (anthropic | openai | gemini | openai-compatible | azure).
+        type: string
       model:
-        description: Reviewer provider/model-id.
+        description: Reviewer model id.
         type: string
 
 permissions:
@@ -93,6 +96,7 @@ jobs:
         env:
           HAMMER_SANDBOX_REPOSITORY: ${{ inputs.sandbox_repository }}
           HAMMER_SANDBOX_PR: ${{ inputs.sandbox_pr }}
+          HAMMER_SANDBOX_CLIENT: ${{ inputs.client }}
           HAMMER_SANDBOX_MODEL: ${{ inputs.model }}
           HAMMER_SANDBOX_TOKEN: ${{ secrets.HAMMER_SANDBOX_TOKEN }}
           HAMMER_API_KEY: ${{ secrets.HAMMER_API_KEY }}

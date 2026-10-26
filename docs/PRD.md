@@ -475,12 +475,12 @@ Threat model: PR content and repo files are attacker-controlled (forks, compromi
 
 ## 15. Open decisions (recommended default in bold; build proceeds on the default)
 
-| Decision                  | Options                              | Recommendation                                                       |
-| ------------------------- | ------------------------------------ | -------------------------------------------------------------------- |
-| Default model in template | Anthropic, OpenAI or Gemini mid-tier | **`anthropic/claude-sonnet-5-5`**, with the README showing all three |
-| Default `fail_on`         | `none`, `high`                       | **`none`**: earn trust before gating merges                          |
-| Low-severity findings     | Hidden or collapsed in summary       | **Hidden** by default; `min_severity: low` to show                   |
-| Opt-in telemetry          | None, or anonymous run counts        | **None** in v1                                                       |
+| Decision                  | Options                              | Recommendation                                                                         |
+| ------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------- |
+| Default model in template | Anthropic, OpenAI or Gemini mid-tier | **`client: anthropic`, `model: claude-sonnet-5-5`**, with the README showing all three |
+| Default `fail_on`         | `none`, `high`                       | **`none`**: earn trust before gating merges                                            |
+| Low-severity findings     | Hidden or collapsed in summary       | **Hidden** by default; `min_severity: low` to show                                     |
+| Opt-in telemetry          | None, or anonymous run counts        | **None** in v1                                                                         |
 
 ## 16. Reference implementations
 

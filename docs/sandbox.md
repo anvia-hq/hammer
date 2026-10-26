@@ -10,7 +10,7 @@ Run `pnpm build` and `node packages/action/scripts/smoke-review.mjs`. This execu
 
 1. Create a same-repository PR in a sandbox repository with a small, known defect. The PR must be open and non-draft, with no skip label or ignored bot author.
 2. In the Hammer repository's Actions secrets, set `HAMMER_API_KEY` to the reviewer's model key and `HAMMER_SANDBOX_TOKEN` to a fine-grained GitHub token scoped to the sandbox repository with contents read and pull requests write. The workflow's ordinary token remains read-only.
-3. Run **Runner matrix** with `run_e2e: true`, `sandbox_repository: owner/repo`, `sandbox_pr: number`, and `model: provider/model-id`, using the branch containing the implementation.
+3. Run **Runner matrix** with `run_e2e: true`, `sandbox_repository: owner/repo`, `sandbox_pr: number`, `client: anthropic|openai|gemini|openai-compatible|azure`, and `model: model-id`, using the branch containing the implementation.
 
 The job builds the Action and runs its bundled main step with a sandbox PR event. It checks `result.json`, a sticky summary containing the reviewed head SHA, and a `COMMENT` review when findings exist, then runs the bundled post step. It rejects partial results. This initial smoke run uses a same-repository PR; maintainer-triggered fork behavior is covered locally and needs a separate live check.
 
@@ -20,7 +20,7 @@ The run posts comments to the specified PR and sends the reviewed source to the 
 
 Install dependencies and build, then set these environment variables through your shell's secret-management mechanism:
 
-- `HAMMER_SANDBOX_REPOSITORY`, `HAMMER_SANDBOX_PR`, `HAMMER_SANDBOX_MODEL`
+- `HAMMER_SANDBOX_REPOSITORY`, `HAMMER_SANDBOX_PR`, `HAMMER_SANDBOX_CLIENT`, `HAMMER_SANDBOX_MODEL`
 - `HAMMER_SANDBOX_TOKEN`, `HAMMER_API_KEY`
 - `GITHUB_API_URL`, `GITHUB_SERVER_URL`, `RUNNER_TEMP`
 - `GITHUB_STEP_SUMMARY`: path to an existing writable Markdown file
@@ -29,7 +29,7 @@ Run `node packages/action/scripts/sandbox.mjs`. Keys are read from the environme
 
 ## Custom OpenAI-compatible endpoints
 
-Use `model: openai-compatible/<model-id>` with the `base-url` input. If the gateway does not support native JSON-schema output, set `native-json-schema: "false"`. This omits the provider-specific schema parameter while preserving local Zod validation, one repair attempt, finding verification, and output filtering. Native schema behavior stays enabled by default.
+Use `client: openai-compatible` with `model: <model-id>` and the `base-url` input. If the gateway does not support native JSON-schema output, set `native-json-schema: "false"`. This omits the provider-specific schema parameter while preserving local Zod validation, one repair attempt, finding verification, and output filtering. Native schema behavior stays enabled by default.
 
 ## Current limits
 
