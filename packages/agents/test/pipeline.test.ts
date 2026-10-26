@@ -81,10 +81,10 @@ describe("review pipeline", () => {
     }
   });
   it("accounts for invalid responses even when their batch fails", async () => {
-    const request = input([{ nope: true }, { nope: true }], true);
+    const request = input([{ nope: true }, { nope: true }, { nope: true }], true);
     const result = await runReviewPipeline(request);
-    expect(request.model.completion).toHaveBeenCalledTimes(2);
-    expect(result.usage.tokens).toBe(30);
+    expect(request.model.completion).toHaveBeenCalledTimes(3);
+    expect(result.usage.tokens).toBe(45);
     expect(result.partial).toBe(true);
     expect(result.failedBatches).toHaveLength(1);
   });
