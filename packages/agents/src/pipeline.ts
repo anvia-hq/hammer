@@ -92,7 +92,12 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
           },
         ]
       : planned.batches;
-  emit({ type: "plan", files: input.files.length, batches: batches.length });
+  emit({
+    type: "plan",
+    files: input.files.length,
+    batches: batches.length,
+    batchList: batches.map((batch) => ({ id: batch.id, files: batch.files.length })),
+  });
   const results = await runBatches({
     batches,
     maxConcurrent: DEFAULT_MAX_CONCURRENT,
