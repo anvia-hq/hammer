@@ -1,0 +1,23 @@
+name: PR labels
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  release-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require exactly one release label
+        env:
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          count=$(jq -r '[.[] | select(IN("breaking","enhancement","bug","documentation","chore"))] | length' <<<"$LABELS")
+          if [ "$count" -ne 1 ]; then
+            echo "::error::Add exactly one of: breaking, enhancement, bug, documentation, chore. It sets the release notes section and the version bump (enhancement = minor, breaking blocks an automatic release, the rest = patch)."
+            exit 1
+          fi

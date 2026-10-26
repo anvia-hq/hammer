@@ -3,29 +3,38 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      source:
-        description: Branch or ref to release.
-        required: true
-        default: main
       bump:
-        description: Semver bump for the new v1.x.y tag.
+        description: Version bump for the new v1.x.y tag. auto picks it from the labels of PRs merged since the last release.
         required: true
-        default: patch
+        default: auto
         type: choice
         options:
+          - auto
           - patch
           - minor
+      dry_run:
+        description: Build and verify only; do not push release/v1, tags or a GitHub release.
+        required: true
+        default: false
+        type: boolean
 
 permissions:
+  actions: read
   contents: write
+  pull-requests: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source }}
+          ref: main
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
@@ -33,15 +42,65 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
+
+      - name: Require green CI on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse HEAD)
+          passed=$(gh run list --workflow=ci.yml --commit "$sha" --status success --json databaseId --jq length)
+          if [ "$passed" -lt 1 ]; then
+            echo "::error::No successful CI run for ${sha:0:7}. Wait for CI on main to pass, then release."
+            exit 1
+          fi
+
       - run: bun install --frozen-lockfile
       - run: bun run check
       - run: bun run typecheck
       - run: bun run test
       - run: bun run build
+      - run: node packages/action/scripts/smoke-bundle.mjs
+      - run: node packages/action/scripts/smoke-review.mjs
 
-      - name: Publish release/v1 and tags
+      - name: Decide the next version
+        id: version
         env:
           GH_TOKEN: ${{ github.token }}
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+          latest=$(git tag -l 'v1.*.*' --sort=-v:refname | head -1)
+          latest=${latest:-v1.0.0}
+          IFS=. read -r _ minor patch <<<"${latest#v}"
+
+          if [ "$BUMP" = "auto" ]; then
+            since=$(git log -1 --format=%cI "$latest" 2>/dev/null || echo 1970-01-01T00:00:00Z)
+            labels=$(gh pr list --state merged --base main --search "merged:>$since" \
+              --limit 200 --json labels --jq '[.[].labels[].name] | unique | .[]')
+            if grep -qx breaking <<<"$labels"; then
+              echo "::error::A breaking PR was merged since $latest. v1 is a moving tag that users pin, so a breaking change needs a deliberate new major line. Release manually."
+              exit 1
+            fi
+            if grep -qx enhancement <<<"$labels"; then BUMP=minor; else BUMP=patch; fi
+          fi
+
+          if [ "$BUMP" = "minor" ]; then
+            minor=$((minor + 1)); patch=0
+          else
+            patch=$((patch + 1))
+          fi
+          next="v1.${minor}.${patch}"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "Releasing $next ($BUMP) after $latest" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish release/v1 and tags
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT: ${{ steps.version.outputs.next }}
+          LATEST: ${{ steps.version.outputs.latest }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -52,25 +111,15 @@ jobs:
           git fetch origin release/v1
           git checkout -B release/v1 "$source_sha"
           git add -f packages/action/dist
-          git commit --allow-empty -m "release: bundle ${GITHUB_REF_NAME} @ ${source_sha:0:7}"
+          git commit --allow-empty -m "release: bundle main @ ${source_sha:0:7}"
           git push --force-with-lease origin release/v1
 
-          latest=$(git tag -l 'v1.*.*' --sort=-v:refname | head -1)
-          latest=${latest:-v1.0.0}
-          IFS=. read -r _ major patch <<<"${latest#v}"
-          if [ "${{ inputs.bump }}" = "minor" ]; then
-            major=$((major + 1)); patch=0
-          else
-            patch=$((patch + 1))
-          fi
-          new_tag="v1.${major}.${patch}"
-
-          git tag -a "$new_tag" -m "Hammer $new_tag"
+          git tag -a "$NEXT" -m "Hammer $NEXT"
           git tag -f v1
-          git push origin "$new_tag"
+          git push origin "$NEXT"
           git push -f origin v1
 
-          gh release create "$new_tag" --latest --generate-notes ||
-            gh release edit "$new_tag" --latest
+          gh release create "$NEXT" --latest --generate-notes --notes-start-tag "$LATEST" ||
+            gh release edit "$NEXT" --latest
 
-          echo "released $new_tag from ${source_sha:0:7}; v1 moved"
+          echo "released $NEXT from ${source_sha:0:7}; v1 moved" | tee -a "$GITHUB_STEP_SUMMARY"
