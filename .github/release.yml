@@ -1,0 +1,22 @@
+changelog:
+  exclude:
+    labels:
+      - chore
+    authors:
+      - github-actions
+  categories:
+    - title: Breaking changes
+      labels:
+        - breaking
+    - title: Features
+      labels:
+        - enhancement
+    - title: Fixes
+      labels:
+        - bug
+    - title: Documentation
+      labels:
+        - documentation
+    - title: Other changes
+      labels:
+        - "*"
