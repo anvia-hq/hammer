@@ -31,6 +31,7 @@ export interface RenderSummaryOptions {
   unverified?: boolean;
   error?: string;
   runUrl?: string;
+  repoUrl?: string;
 }
 
 export function sanitizeSummaryText(value: string): string {
@@ -46,12 +47,47 @@ function lastShaLine(headSha: string | null | undefined): string | null {
   return `<!-- hammer:last-sha=${headSha} -->`;
 }
 
+const SEVERITY_ICON: Record<Finding["severity"], string> = {
+  high: "🔴",
+  medium: "🟡",
+  low: "🔵",
+};
+
+const SAFE_LINK_PATH = /^[\w./-]+$/;
+
+function severityLabel(severity: Finding["severity"]): string {
+  return `${SEVERITY_ICON[severity]} ${severity[0]?.toUpperCase() ?? ""}${severity.slice(1)}`;
+}
+
 function describeFile(file: SummaryScopeFile): string {
   const path = sanitizeSummaryText(file.path);
   if (file.status === "renamed" && file.previousPath !== undefined && file.previousPath !== "") {
     return `- \`${sanitizeSummaryText(file.previousPath)}\` → \`${path}\` — renamed`;
   }
   return `- \`${path}\` — ${sanitizeSummaryText(file.status)}`;
+}
+
+function tableCell(value: string): string {
+  return value.replace(/\|/g, "\\|").replace(/[\r\n]/g, " ");
+}
+
+function findingFileCell(finding: Finding, options: RenderSummaryOptions): string {
+  const label = `${tableCell(finding.path)}:${finding.line}`;
+  if (!options.repoUrl || !options.headSha || !SAFE_LINK_PATH.test(finding.path)) return label;
+  const anchor =
+    finding.startLine !== undefined && finding.startLine < finding.line
+      ? `L${finding.startLine}-L${finding.line}`
+      : `L${finding.line}`;
+  const shortSha = options.headSha.slice(0, 7);
+  return `[${label}](${options.repoUrl}/blob/${shortSha}/${finding.path}#${anchor})`;
+}
+
+function formatTokens(tokens: number): string {
+  return `${tokens.toLocaleString("en-US")} tokens`;
+}
+
+function detailsBlock(summary: string, entries: string[]): string[] {
+  return ["<details>", `<summary>${summary}</summary>`, "", ...entries, "", "</details>"];
 }
 
 export function renderSummaryBody(options: RenderSummaryOptions): string {
@@ -77,9 +113,8 @@ export function renderSummaryBody(options: RenderSummaryOptions): string {
     if (options.findings.length > 0) {
       lines.push("| Severity | File | Finding |", "| --- | --- | --- |");
       for (const finding of options.findings) {
-        const cell = (value: string): string => value.replace(/\|/g, "\\|").replace(/[\r\n]/g, " ");
         lines.push(
-          `| ${finding.severity} | ${cell(finding.path)}:${finding.line} | ${cell(finding.title)} |`,
+          `| ${severityLabel(finding.severity)} | ${findingFileCell(finding, options)} | ${tableCell(finding.title)} |`,
         );
       }
       lines.push("");
@@ -94,31 +129,43 @@ export function renderSummaryBody(options: RenderSummaryOptions): string {
   if (options.unverified) lines.push("Verification: unverified.", "");
   if (options.generalNotes?.length)
     lines.push("General notes:", "", ...options.generalNotes.map((note) => `- ${note}`), "");
-  if (options.model)
-    lines.push(
-      `${options.model} · ${options.tokens ?? 0} tokens · ${options.costUsd == null ? "cost unavailable" : `$${options.costUsd.toFixed(4)}`}`,
-      "",
-    );
   const files = options.files;
-  lines.push(`Files in scope (${files.length}):`);
-  if (files.length === 0) {
-    lines.push("", "_No files in scope._");
-  } else {
-    lines.push("", ...files.map(describeFile));
-  }
   const skipped = options.skipped ?? [];
-  if (skipped.length > 0) {
-    lines.push("", `Skipped files (${skipped.length}):`, "");
-    for (const entry of skipped) {
-      lines.push(`- \`${sanitizeSummaryText(entry.path)}\` — ${sanitizeSummaryText(entry.reason)}`);
-    }
-  }
   const notReviewed = options.notReviewed ?? [];
+  const footer: string[] = [
+    `Reviewed ${files.length} file${files.length === 1 ? "" : "s"}${options.headSha ? ` at \`${options.headSha.slice(0, 7)}\`` : ""}`,
+  ];
+  if (skipped.length > 0) footer.push(`skipped ${skipped.length}`);
+  if (notReviewed.length > 0) footer.push(`not reviewed ${notReviewed.length}`);
+  if (options.model) footer.push(options.model);
+  if (options.tokens !== undefined) footer.push(formatTokens(options.tokens));
+  if (options.costUsd != null) footer.push(`$${options.costUsd.toFixed(4)}`);
+  lines.push(footer.join(" · "), "");
+  const fileEntries = files.length === 0 ? ["_No files in scope._"] : files.map(describeFile);
+  lines.push(...detailsBlock(`Files in scope (${files.length})`, fileEntries));
+  if (skipped.length > 0) {
+    lines.push(
+      "",
+      ...detailsBlock(
+        `Skipped files (${skipped.length})`,
+        skipped.map(
+          (entry) =>
+            `- \`${sanitizeSummaryText(entry.path)}\` — ${sanitizeSummaryText(entry.reason)}`,
+        ),
+      ),
+    );
+  }
   if (notReviewed.length > 0) {
-    lines.push("", `Not reviewed (${notReviewed.length}):`, "");
-    for (const entry of notReviewed) {
-      lines.push(`- \`${sanitizeSummaryText(entry.path)}\` — ${sanitizeSummaryText(entry.reason)}`);
-    }
+    lines.push(
+      "",
+      ...detailsBlock(
+        `Not reviewed (${notReviewed.length})`,
+        notReviewed.map(
+          (entry) =>
+            `- \`${sanitizeSummaryText(entry.path)}\` — ${sanitizeSummaryText(entry.reason)}`,
+        ),
+      ),
+    );
   }
   const shaLine = lastShaLine(options.headSha);
   if (shaLine !== null) {

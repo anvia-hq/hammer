@@ -41,8 +41,19 @@ export function redactSecrets(text: string): string {
 
 const MARKDOWN_IMAGE = /!\[[^\]]*\]\([^()]*\)/g;
 const MARKDOWN_LINK = /\[([^\]]*)\]\(([^()\s]+)(?:\s+"[^"]*")?\)/g;
-const HTML_TAG = /<[^<>]*>/g;
+const HTML_TAG = /<\/?([a-zA-Z][a-zA-Z0-9]*)[^<>]*>/g;
 const MENTION = /(?<![\w@])@(?=\w)/g;
+
+const ALLOWED_HTML_TAGS = new Set(["details", "summary", "sub", "br"]);
+const HTML_COMMENT = /<!--[\s\S]*?-->/g;
+
+function neutralizeHtml(text: string): string {
+  return text.replace(HTML_TAG, (match, tag: string) => {
+    const name = tag.toLowerCase();
+    if (!ALLOWED_HTML_TAGS.has(name)) return "";
+    return match.startsWith("</") ? `</${name}>` : `<${name}>`;
+  });
+}
 
 function allowedLinkPrefix(options: SanitizeCommentOptions): string {
   const owner = options.owner ?? "";
@@ -64,7 +75,8 @@ function flattenDisallowedLinks(text: string, prefix: string): string {
 export function sanitizeComment(text: string, options: SanitizeCommentOptions = {}): string {
   const withoutImages = text.replace(MARKDOWN_IMAGE, "");
   const withoutForeignLinks = flattenDisallowedLinks(withoutImages, allowedLinkPrefix(options));
-  const withoutHtml = withoutForeignLinks.replace(HTML_TAG, "");
+  const withoutComments = withoutForeignLinks.replace(HTML_COMMENT, "");
+  const withoutHtml = neutralizeHtml(withoutComments);
   const withoutPings = withoutHtml.replace(MENTION, `@${MENTION_BREAK}`);
   if (withoutPings.length > MAX_COMMENT_CHARS) {
     return `${withoutPings.slice(0, MAX_COMMENT_CHARS - 1)}${ELLIPSIS}`;
@@ -72,7 +84,38 @@ export function sanitizeComment(text: string, options: SanitizeCommentOptions = 
   return withoutPings;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, (char) => `\\${char}`);
+}
+
+function shieldRepoBlobUrls(
+  text: string,
+  options: SanitizeCommentOptions,
+): { text: string; restore: (value: string) => string } {
+  const { owner, repo } = options;
+  if (!owner || !repo) return { text, restore: (value) => value };
+  const slot = (index: number): string => `blob${index}commitref`;
+  const pattern = new RegExp(
+    `https://github\\.com/${escapeRegExp(owner)}/${escapeRegExp(repo)}/blob/([0-9a-f]{4,64})(?=[/#?\\s)]|$)`,
+    "g",
+  );
+  const shas: string[] = [];
+  const masked = text.replace(pattern, (match, sha: string) => {
+    shas.push(sha);
+    return `${match.slice(0, match.length - sha.length)}${slot(shas.length - 1)}`;
+  });
+  return {
+    text: masked,
+    restore: (value) =>
+      value.replace(
+        /blob(\d+)commitref/g,
+        (_token, index: string) => shas[Number(index)] ?? _token,
+      ),
+  };
+}
+
 export function sanitizeForPosting(text: string, options: SanitizeCommentOptions = {}): string {
   for (const secret of options.secrets ?? []) if (secret) text = text.split(secret).join(REDACTED);
-  return sanitizeComment(redactSecrets(text), options);
+  const shielded = shieldRepoBlobUrls(text, options);
+  return shielded.restore(sanitizeComment(redactSecrets(shielded.text), options));
 }

@@ -45,6 +45,79 @@ describe("renderSummaryBody", () => {
     expect(body).toContain("`pnpm-lock.yaml` — lockfile");
   });
 
+  it("renders severity icons and blob links for findings", () => {
+    const body = renderSummaryBody({
+      files: [{ path: "src/app.ts", status: "modified" }],
+      headSha: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+      repoUrl: "https://github.com/acme/widgets",
+      findings: [
+        {
+          path: "src/app.ts",
+          line: 9,
+          severity: "high",
+          category: "security",
+          title: "Timing-unsafe comparison",
+          body: "why",
+          confidence: 0.9,
+        },
+        {
+          path: "src/app.ts",
+          startLine: 17,
+          line: 20,
+          severity: "medium",
+          category: "reliability",
+          title: "No backoff",
+          body: "why",
+          confidence: 0.8,
+        },
+      ],
+    });
+    expect(body).toContain("🔴 High");
+    expect(body).toContain("🟡 Medium");
+    expect(body).toContain(
+      "[src/app.ts:9](https://github.com/acme/widgets/blob/a1b2c3d/src/app.ts#L9)",
+    );
+    expect(body).toContain("#L17-L20");
+  });
+
+  it("falls back to a plain file label for unsafe paths or missing repo url", () => {
+    const body = renderSummaryBody({
+      files: [{ path: "src/app.ts", status: "modified" }],
+      headSha: "a1b2c3d",
+      repoUrl: "https://github.com/acme/widgets",
+      findings: [
+        {
+          path: "src/evil)(path.ts",
+          line: 3,
+          severity: "low",
+          category: "tests",
+          title: "t",
+          body: "b",
+          confidence: 0.7,
+        },
+      ],
+    });
+    expect(body).not.toContain("blob/a1b2c3d");
+    expect(body).toContain("🔵 Low");
+  });
+
+  it("wraps file lists in details and keeps the footer compact", () => {
+    const body = renderSummaryBody({
+      files: [{ path: "src/app.ts", status: "modified" }],
+      headSha: "a1b2c3d4e5f6",
+      model: "anthropic/claude-sonnet-5-5",
+      tokens: 29103,
+      costUsd: null,
+    });
+    expect(body).toContain("<details>");
+    expect(body).toContain("<summary>Files in scope (1)</summary>");
+    expect(body).toContain("</details>");
+    expect(body).toContain(
+      "Reviewed 1 file at `a1b2c3d` · anthropic/claude-sonnet-5-5 · 29,103 tokens",
+    );
+    expect(body).not.toContain("cost unavailable");
+  });
+
   it("neutralises mentions and strips raw html while keeping the hidden markers", () => {
     const body = renderSummaryBody({
       files: [{ path: "src/@evil.ts", status: "<b>modified</b>" }],
