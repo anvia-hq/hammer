@@ -16,6 +16,7 @@ export const FindingSchema = z.object({
   ]),
   title: z.string().max(120),
   body: z.string().max(1500),
+  details: z.string().max(1200).optional(),
   suggestion: z.string().optional(),
   ruleId: z.string().optional(),
   confidence: z.number().min(0).max(1),
@@ -23,6 +24,7 @@ export const FindingSchema = z.object({
 
 export const ReviewBatchSchema = z.object({
   summary: z.string().max(600),
+  changes: z.array(z.string().max(160)).max(6).optional(),
   findings: z.array(FindingSchema).max(25),
   generalNotes: z.array(z.string().max(300)).max(5),
 });
@@ -62,7 +64,7 @@ export function validateBatchOutput(raw: unknown): BatchValidationResult {
 
 export function buildRepairPrompt(originalPrompt: string, issues: BatchValidationIssue[]): string {
   const details = issues.map((issue) => `- ${issue.path}: ${issue.message}`).join("\n");
-  return `${originalPrompt}\n\nYour previous output did not match the required JSON schema. Fix these validation issues:\n${details}\n\nRespond with only JSON matching the schema: an object with summary (max 600 characters), findings (max 25 items), and generalNotes (max 5 strings of max 300 characters each).`;
+  return `${originalPrompt}\n\nYour previous output did not match the required JSON schema. Fix these validation issues:\n${details}\n\nRespond with only JSON matching the schema: an object with summary (max 600 characters), optional changes (max 6 strings of max 160 characters each), findings (max 25 items, each with an optional details string of max 1200 characters), and generalNotes (max 5 strings of max 300 characters each).`;
 }
 
 export type RepairFailureCode = "schema_violation" | "generate_failed";

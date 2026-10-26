@@ -103,6 +103,18 @@ function flattenDisallowedLinks(text: string, prefix: string): string {
   );
 }
 
+const DETAILS_CLOSER = "\n</details>";
+
+// Truncation can cut inside a <details> block, and an unclosed one collapses
+// the rest of the comment, so the closers are added back within the limit.
+function closeOpenDetails(text: string): string {
+  const open = (text.match(/<details>/g) ?? []).length;
+  const closed = (text.match(/<\/details>/g) ?? []).length;
+  if (open <= closed) return text;
+  const closers = DETAILS_CLOSER.repeat(open - closed);
+  return `${text.slice(0, MAX_COMMENT_CHARS - closers.length)}${closers}`;
+}
+
 export function sanitizeComment(text: string, options: SanitizeCommentOptions = {}): string {
   const withoutImages = text.replace(MARKDOWN_IMAGE, "");
   const withoutForeignLinks = flattenDisallowedLinks(withoutImages, allowedLinkPrefix(options));
@@ -110,7 +122,7 @@ export function sanitizeComment(text: string, options: SanitizeCommentOptions = 
   const withoutHtml = neutralizeHtml(withoutComments);
   const withoutPings = withoutHtml.replace(MENTION, `@${MENTION_BREAK}`);
   if (withoutPings.length > MAX_COMMENT_CHARS) {
-    return `${withoutPings.slice(0, MAX_COMMENT_CHARS - 1)}${ELLIPSIS}`;
+    return closeOpenDetails(`${withoutPings.slice(0, MAX_COMMENT_CHARS - 1)}${ELLIPSIS}`);
   }
   return withoutPings;
 }

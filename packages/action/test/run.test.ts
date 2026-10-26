@@ -26,6 +26,8 @@ const finding = {
   category: "correctness",
   title: "Null dereference",
   body: "When user is null, this throws. Guard before use.",
+  details:
+    "- `packages/core/src/github/sanitize.ts:2` — reads `user.profile.displayName` before the null check\n\nRequired outcome: the lookup tolerates a missing user.",
   confidence: 0.95,
 };
 
@@ -140,6 +142,7 @@ async function fixture(overrides: Record<string, string> = {}) {
           type: "text" as const,
           text: JSON.stringify({
             summary: "Changes user lookup",
+            changes: ["Reworked the user lookup"],
             findings: [finding],
             generalNotes: [],
           }),
@@ -201,6 +204,12 @@ describe("Action review flow", () => {
       comments: [{ path: "src/a.ts", line: 2, side: "RIGHT" }],
     });
     expect(f.posted[0]?.comments[0]?.body).toContain("<!-- hammer:fp=");
+    expect(f.posted[0]?.body.startsWith("> [!CAUTION]\n> 1 high-severity finding")).toBe(true);
+    expect(f.posted[0]?.body).toContain("**Reviewed changes**\n\n- Reworked the user lookup");
+    const inline = f.posted[0]?.comments[0]?.body ?? "";
+    expect(inline).toContain("<details>\n<summary>Technical details</summary>");
+    expect(inline).toContain("`packages/core/src/github/sanitize.ts:2`");
+    expect(inline).not.toContain("[redacted]");
     expect(f.summaries[0]).toContain("Null dereference");
     expect(f.summaries[0]).toContain(`hammer:last-sha=${head}`);
     expect(f.outputs).toMatchObject({ findings_count: "1", high_count: "1", tokens: "30" });

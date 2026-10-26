@@ -147,6 +147,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     .concat(validated.generalNotes.map((entry) => entry.finding));
   return {
     summary: merged.summaries.join(" "),
+    changes: merged.changes,
     ...validated,
     findings,
     inline: validated.inline.filter((entry) => kept.has(entry.finding)),

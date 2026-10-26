@@ -151,6 +151,8 @@ export {
   postPullReview,
 } from "./github/review";
 
+export type { ReviewBodyInput } from "./github/review-body";
+export { formatInlineBody, renderReviewBody, SEVERITY_ICON } from "./github/review-body";
 export type { SanitizeCommentOptions } from "./github/sanitize";
 export {
   MAX_COMMENT_CHARS,

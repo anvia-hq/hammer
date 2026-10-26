@@ -1,6 +1,8 @@
 import {
   fingerprints,
+  formatInlineBody,
   postPullReview,
+  renderReviewBody,
   renderSummaryBody,
   upsertSummaryComment,
   type Finding,
@@ -16,29 +18,6 @@ export interface PublishTarget {
   number: number;
   headSha: string;
   repoUrl?: string;
-}
-
-const SEVERITY_ICON: Record<Finding["severity"], string> = {
-  high: "🔴",
-  medium: "🟡",
-  low: "🔵",
-};
-
-function formatInlineBody(finding: Finding, suggestion: string): string {
-  const severity = `${finding.severity[0]?.toUpperCase() ?? ""}${finding.severity.slice(1)}`;
-  const attribution = finding.ruleId ? `Rule: \`${finding.ruleId}\` · Hammer` : "Hammer";
-  return `${SEVERITY_ICON[finding.severity]} **${severity} · ${finding.category}** — ${finding.title}\n\n${finding.body}${suggestion}\n\n<sub>${attribution}</sub>`;
-}
-
-function reviewBody(placed: readonly { finding: Finding }[]): string {
-  const counts = (["high", "medium", "low"] as const)
-    .map((severity) => {
-      const n = placed.filter((entry) => entry.finding.severity === severity).length;
-      return n > 0 ? `${n} ${severity}` : "";
-    })
-    .filter((part) => part !== "")
-    .join(", ");
-  return `🔨 **Hammer** — ${placed.length} finding${placed.length === 1 ? "" : "s"} (${counts}). Details in the summary comment.`;
 }
 
 export async function writeSummary(
@@ -83,13 +62,13 @@ export async function publishReview(
         repo: target.repo,
         pullNumber: target.number,
         commitId: target.headSha,
-        body: reviewBody(placed),
+        body: renderReviewBody({
+          findings: placed.map((entry) => entry.finding),
+          changes: result.changes,
+        }),
         inline: placed.map((entry) => {
           const finding = entry.finding;
-          const suggestion =
-            entry.suggestionKept && finding.suggestion !== undefined
-              ? `\n\n\`\`\`suggestion\n${finding.suggestion.replace(/```/g, "ˋˋˋ")}\n\`\`\``
-              : "";
+          const suggestion = entry.suggestionKept ? finding.suggestion : undefined;
           return {
             path: finding.path,
             line: entry.line,

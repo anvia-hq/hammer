@@ -134,10 +134,33 @@ describe("validateBatchOutput", () => {
 describe("ReviewBatchSchema", () => {
   it("matches the spec shape", () => {
     expect(Object.keys(ReviewBatchSchema.shape).sort()).toEqual([
+      "changes",
       "findings",
       "generalNotes",
       "summary",
     ]);
+  });
+});
+
+describe("details and changes", () => {
+  it("accepts a bounded details string and change bullets", () => {
+    const result = validateBatchOutput(
+      validBatch({
+        changes: ["Extracted retry logic into one module"],
+        findings: [validFinding({ details: "- `src/app.ts:12` — unguarded read" })],
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects oversized details and too many changes", () => {
+    expect(
+      validateBatchOutput(validBatch({ findings: [validFinding({ details: "x".repeat(1201) })] }))
+        .ok,
+    ).toBe(false);
+    expect(validateBatchOutput(validBatch({ changes: Array(7).fill("Changed a thing") })).ok).toBe(
+      false,
+    );
   });
 });
 

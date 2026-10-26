@@ -123,6 +123,15 @@ describe("sanitizeComment", () => {
     expect(otherRepo).toBe("other");
   });
 
+  it("closes a details block that truncation cut open", () => {
+    const text = sanitizeComment(
+      `<details>\n<summary>More</summary>\n\n${"x ".repeat(3000)}\n\n</details>`,
+    );
+    expect(text.length).toBeLessThanOrEqual(MAX_COMMENT_CHARS);
+    expect(text.match(/<details>/g)).toHaveLength(1);
+    expect(text.endsWith("</details>")).toBe(true);
+  });
+
   it("caps length at 4000 chars with an ellipsis", () => {
     const text = sanitizeComment("x".repeat(5000));
     expect(text.length).toBe(MAX_COMMENT_CHARS);
