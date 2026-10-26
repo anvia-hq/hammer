@@ -37,3 +37,20 @@ describe("formatReviewEvent", () => {
     expect(line.length).toBeLessThan(260);
   });
 });
+
+describe("text events", () => {
+  it("renders model text on one prefixed, redacted, truncated line", () => {
+    const line = formatReviewEvent({
+      type: "text",
+      batch: "single",
+      kind: "text",
+      text: `Looking at it\n::error::x ${"a".repeat(600)}`,
+    });
+    expect(line.startsWith("[hammer] batch single says: ")).toBe(true);
+    expect(line.split("\n")).toHaveLength(1);
+    expect(line.length).toBeLessThan(480);
+    expect(formatReviewEvent({ type: "text", batch: "b", kind: "reasoning", text: "hm" })).toBe(
+      "[hammer] batch b thinking: hm",
+    );
+  });
+});

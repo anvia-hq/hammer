@@ -114,7 +114,7 @@ Hammer also reads `AGENTS.md`, `CLAUDE.md` and `CONTRIBUTING.md` from the base b
 
 ### Limits
 
-Each run is bounded. Defaults: 50 files, 3,000 diff lines, 12 agent turns per batch, 400,000 tokens and $1.00. Raise or lower them with `max_files`, `max_diff_lines`, `max_turns`, `max_tokens` and `max_cost_usd`. When a limit is hit, Hammer posts what it has and says the review was partial. `max_cost_usd` is enforced when Hammer knows the model's price; supply the `pricing` input for models it doesn't.
+Each run is bounded. Defaults: 50 files, 3,000 diff lines, 100 agent turns per batch, 400,000 tokens and $1.00. Raise or lower them with `max_files`, `max_diff_lines`, `max_turns`, `max_tokens` and `max_cost_usd`. When a limit is hit, Hammer posts what it has and says the review was partial. `max_cost_usd` is enforced when Hammer knows the model's price; supply the `pricing` input for models it doesn't.
 
 ### Inputs
 
@@ -145,6 +145,7 @@ Hammer streams its work into the job log, so you can follow a run instead of wai
 ```text
 [hammer] reviewing 12 files in 3 batches
 [hammer] batch src: started, 5 files
+[hammer] batch src says: Checking how verifyToken is called before reading it.
 [hammer] batch src: read_file src/auth.ts:1-80
 [hammer] batch src: search /verifyToken/ in src/**
 [hammer] model call done: 18432 tokens used so far, $0.0412
@@ -154,7 +155,7 @@ Hammer streams its work into the job log, so you can follow a run instead of wai
 [hammer] review ready: 3 inline comments, 0 general notes
 ```
 
-Every line is prefixed with `[hammer]` and flattened to one line, so PR content can't forge a workflow command. Secrets stay masked by the runner.
+Commentary the model writes between tool calls (`says`) and, for models that expose it, its reasoning (`thinking`) stream in as they are produced; the final JSON answer is never printed. Every line is prefixed with `[hammer]`, redacted for secrets and flattened to one line, so PR content can't forge a workflow command. Secrets stay masked by the runner.
 
 ## Security and privacy
 

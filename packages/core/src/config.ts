@@ -106,7 +106,7 @@ export interface LoadConfigOptions {
 export const DEFAULT_CAPS = {
   max_files: 50,
   max_diff_lines: 3000,
-  max_turns: 12,
+  max_turns: 100,
   max_tokens: 400000,
   max_cost_usd: 1,
 } as const;

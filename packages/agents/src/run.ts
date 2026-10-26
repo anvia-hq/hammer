@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import {
   buildRepairPrompt,
+  DEFAULT_MAX_TURNS,
   DEFAULT_SINGLE_PASS_TOKENS,
   ReviewBatchSchema,
   runWithRepair,
@@ -16,6 +17,7 @@ import {
 import { parseModelRefWithBase } from "./model";
 import { buildReviewPrompt, REVIEW_INSTRUCTIONS, type BuildReviewPromptInput } from "./prompt";
 import { SKILL_REVIEW_INSTRUCTIONS, type SkillSet } from "./skills";
+import { createTextStreamer, type StreamedTextSink } from "./stream";
 import {
   getFileDiff,
   getPrDiscussion,
@@ -71,6 +73,7 @@ export interface SinglePassRunOptions {
   reasoningEffort?: string;
   onToolCall?: (name: string, detail: string) => void;
   skills?: SkillSet;
+  onText?: StreamedTextSink;
 }
 
 interface PrDiscussionSource {
@@ -184,6 +187,44 @@ export function buildReviewerTools(options: {
   return [readFileTool, listDirTool, searchTool, getFileDiffTool, getPrDiscussionTool];
 }
 
+async function runAgent(
+  agent: Agent<string | ReviewBatch>,
+  prompt: string,
+  options: SinglePassRunOptions,
+): Promise<Awaited<ReturnType<typeof agent.generate>>> {
+  const model = options.model;
+  const canStream =
+    options.onText !== undefined &&
+    model !== undefined &&
+    model.capabilities.streaming &&
+    "streamCompletion" in model;
+  if (!canStream) return agent.generate({ prompt });
+  const streamer = createTextStreamer(options.onText!);
+  const stream = agent.stream({ prompt });
+  let started = false;
+  try {
+    for await (const event of stream) {
+      if (event.type === "text_delta") streamer.delta("text", event.turn, event.delta);
+      else if (event.type === "reasoning_delta")
+        streamer.delta("reasoning", event.turn, event.delta);
+      else if (event.type === "tool_call") streamer.toolCall(event.turn);
+      else if (event.type === "turn_end") streamer.turnEnd(event.turn);
+      if (
+        event.type === "text_delta" ||
+        event.type === "reasoning_delta" ||
+        event.type === "tool_call"
+      )
+        started = true;
+    }
+    streamer.end();
+    return await stream.result;
+  } catch (error) {
+    // A gateway that cannot stream fails before any output; retry once without streaming.
+    if (started) throw error;
+    return agent.generate({ prompt });
+  }
+}
+
 export async function runSinglePassReview(
   input: SinglePassRunInput,
   options: SinglePassRunOptions = {},
@@ -259,7 +300,7 @@ export async function runSinglePassReview(
         discussion: options.discussion,
         ...(options.onToolCall ? { onToolCall: options.onToolCall } : {}),
       }),
-      maxTurns: options.maxTurns ?? 12,
+      maxTurns: options.maxTurns ?? DEFAULT_MAX_TURNS,
       ...(options.reasoningEffort
         ? { controls: { reasoningEffort: options.reasoningEffort } }
         : {}),
@@ -270,7 +311,7 @@ export async function runSinglePassReview(
   }
   let outcome: Awaited<ReturnType<typeof agent.generate>>;
   try {
-    outcome = await agent.generate({ prompt: reviewed.prompt });
+    outcome = await runAgent(agent, reviewed.prompt, options);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return failure(
@@ -292,9 +333,11 @@ export async function runSinglePassReview(
   }
   let repairedOutcome: Awaited<ReturnType<typeof agent.generate>>;
   try {
-    repairedOutcome = await agent.generate({
-      prompt: buildRepairPrompt(reviewed.prompt, first.issues),
-    });
+    repairedOutcome = await runAgent(
+      agent,
+      buildRepairPrompt(reviewed.prompt, first.issues),
+      options,
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return failure(
