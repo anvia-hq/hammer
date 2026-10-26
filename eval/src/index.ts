@@ -1,6 +1,10 @@
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { createCompletionModel, parseModelRefWithBase } from "@anvia/hammer-agents";
+import {
+  createCompletionModel,
+  loadReviewSkills,
+  parseModelRefWithBase,
+} from "@anvia/hammer-agents";
 import { oracleReviewer, runEval } from "./runner";
 import { runLiveEval } from "./live";
 import { createLlmJudge } from "./judge";
@@ -12,6 +16,7 @@ const { values } = parseArgs({
     "judge-model": { type: "string" },
     "judge-base-url": { type: "string" },
     "no-verify": { type: "boolean" },
+    "no-skills": { type: "boolean" },
     "no-native-json-schema": { type: "boolean" },
     concurrency: { type: "string", default: "1" },
     "reports-dir": { type: "string" },
@@ -48,6 +53,9 @@ try {
       reportsDir: resolve(values["reports-dir"] ?? join(casesRoot, "..", "reports", "live")),
       modelRef: values.model,
       model: reviewer,
+      ...(values["no-skills"]
+        ? {}
+        : { skills: await loadReviewSkills(join(casesRoot, "..", "..", "skills")) }),
       verify: !values["no-verify"],
       concurrency: Number(values.concurrency),
       ...(judge ? { judge, judgeModel: judgeRef! } : {}),

@@ -1,4 +1,5 @@
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { z } from "zod";
 import {
@@ -22,6 +23,7 @@ import {
 } from "@anvia/hammer-core";
 import {
   createCompletionModel,
+  loadReviewSkills,
   parseModelRefWithBase,
   readFile as readCheckoutFile,
   runReviewPipeline,
@@ -49,7 +51,9 @@ export interface ActionDependencies {
   github?: GitHubPort;
   model?: ReviewPipelineInput["model"];
   checkout?: typeof checkoutHead;
+  skillsDirectory?: string;
 }
+const DEFAULT_SKILLS_DIRECTORY = fileURLToPath(new URL("../../../skills", import.meta.url));
 const eventSchema = z
   .object({
     sender: z.object({ login: z.string(), type: z.string() }).optional(),
@@ -282,6 +286,14 @@ export async function runAction(
     const instruction =
       decision.kind === "comment" ? decision.command.replace(/^review\s*/i, "") : "";
     const pricing = resolvePricing(modelRef, inputs.pricing || undefined);
+    const skills = await loadReviewSkills(
+      dependencies.skillsDirectory ?? DEFAULT_SKILLS_DIRECTORY,
+    ).catch((error: unknown) => {
+      runtime.warning(`Review skills unavailable; continuing without them: ${cleanError(error)}`);
+      return undefined;
+    });
+    if (skills?.skills.length)
+      runtime.info(`[hammer] skills: ${skills.skills.map((entry) => entry.name).join(", ")}`);
     const result = await runReviewPipeline({
       title: pr.title,
       files: plan.reviewFiles,
@@ -304,6 +316,7 @@ export async function runAction(
         runtime.info(formatReviewEvent(event));
         progress?.onEvent(event);
       },
+      ...(skills ? { skills } : {}),
       ...(inputs["base-url"] ? { baseUrl: inputs["base-url"] } : {}),
       ...(inputs["reasoning-effort"] ? { reasoningEffort: inputs["reasoning-effort"] } : {}),
       model:

@@ -59,6 +59,7 @@ export interface LiveEvalOptions {
   modelRef: string;
   baseUrl?: string;
   model: ReviewPipelineInput["model"];
+  skills?: ReviewPipelineInput["skills"];
   judge?: LlmJudge;
   judgeModel?: string;
   verify?: boolean;
@@ -121,6 +122,7 @@ export async function runLiveEval(options: LiveEvalOptions) {
         discussion: { title: c.title, body: c.prBody, comments: [] },
         modelRef: options.modelRef,
         model: options.model,
+        ...(options.skills ? { skills: options.skills } : {}),
         ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
         ...(pricing ? { pricing } : {}),
       });

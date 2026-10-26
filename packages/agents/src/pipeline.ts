@@ -19,6 +19,7 @@ import {
 } from "@anvia/hammer-core";
 import { buildReviewPrompt, approxTokens, type BuildReviewPromptInput } from "./prompt";
 import { buildReviewerTools, runSinglePassReview, type SinglePassRunOptions } from "./run";
+import type { SkillSet } from "./skills";
 import { applyVerification, VERIFICATION_INSTRUCTIONS } from "./verify";
 
 export interface ReviewPipelineInput extends BuildReviewPromptInput {
@@ -34,6 +35,7 @@ export interface ReviewPipelineInput extends BuildReviewPromptInput {
   pricing?: PricingFn;
   reasoningEffort?: string;
   onEvent?: ReviewEventSink;
+  skills?: SkillSet;
 }
 
 export async function runReviewPipeline(input: ReviewPipelineInput) {
@@ -119,6 +121,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
           maxTurns: budget.maxTurns,
           ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
           onToolCall: (name, detail) => emit({ type: "tool", batch: batch.id, name, detail }),
+          ...(input.skills ? { skills: input.skills } : {}),
         },
       );
       if (outcome.ok) {

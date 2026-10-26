@@ -227,6 +227,10 @@ describe("Action review flow", () => {
     expect(f.runtime.setFailed).toHaveBeenCalled();
     expect(f.github.content.mock.calls.every((call) => call[3] === base)).toBe(true);
     expect(f.runtime.setSecret).toHaveBeenCalledWith("test-model-key");
+    expect(f.runtime.info).toHaveBeenCalledWith("[hammer] skills: code-review-and-quality");
+    expect(f.runtime.warning).not.toHaveBeenCalledWith(
+      expect.stringContaining("skills unavailable"),
+    );
     await cleanup(f.state["review-directory"]!, f.root);
     await expect(readFile(f.outputs.result_path!, "utf8")).rejects.toThrow();
   });
