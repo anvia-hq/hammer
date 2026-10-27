@@ -168,6 +168,13 @@ describe("search", () => {
     }
   });
 
+  it("skips node_modules", async () => {
+    await mkdir(path.join(root, "node_modules/pkg"), { recursive: true });
+    await writeFile(path.join(root, "node_modules/pkg/index.js"), "const vendored = 1;\n");
+    const result = await search(root, "vendored");
+    expect(result.ok && result.hits).toEqual([]);
+  });
+
   it("caps hits at 50", async () => {
     const lines = Array.from({ length: 60 }, (_, i) => `needle ${i}`).join("\n");
     await writeFile(path.join(root, "hay.ts"), `${lines}\n`);

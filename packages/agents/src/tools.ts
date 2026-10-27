@@ -144,6 +144,8 @@ function hasGitSegment(relativePath: string): boolean {
   return relativePath.split("/").includes(".git");
 }
 
+const SEARCH_SKIPPED_DIRS = new Set(["node_modules", "coverage", ".next", ".turbo"]);
+
 async function collectFiles(absoluteDir: string, out: string[]): Promise<void> {
   const dirents = await fs.readdir(absoluteDir, { withFileTypes: true });
   for (const entry of dirents) {
@@ -151,6 +153,7 @@ async function collectFiles(absoluteDir: string, out: string[]): Promise<void> {
     const absolute = path.join(absoluteDir, entry.name);
     if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) {
+      if (SEARCH_SKIPPED_DIRS.has(entry.name)) continue;
       await collectFiles(absolute, out);
     } else if (entry.isFile()) {
       if (isDenylistedBasename(entry.name)) continue;
