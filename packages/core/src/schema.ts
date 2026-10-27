@@ -48,13 +48,28 @@ function toIssues(error: z.ZodError): BatchValidationIssue[] {
   }));
 }
 
+// Models without native JSON-schema output often wrap the object in a code fence or a sentence.
+function extractJsonObject(text: string): string {
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
+  const body = (fenced?.[1] ?? text).trim();
+  const start = body.indexOf("{");
+  const end = body.lastIndexOf("}");
+  return start >= 0 && end > start ? body.slice(start, end + 1) : body;
+}
+
+function describeUnparsable(text: string): string {
+  const trimmed = text.trim();
+  const ending = trimmed.endsWith("}") ? "ends with }" : "does not end with }, possibly cut off";
+  return `Output is not valid JSON (${trimmed.length} chars, ${ending}).`;
+}
+
 export function validateBatchOutput(raw: unknown): BatchValidationResult {
   let candidate: unknown = raw;
-  if (typeof candidate === "string") {
+  if (typeof raw === "string") {
     try {
-      candidate = JSON.parse(candidate);
+      candidate = JSON.parse(extractJsonObject(raw));
     } catch {
-      return { ok: false, issues: [{ path: "(root)", message: "Output is not valid JSON." }] };
+      return { ok: false, issues: [{ path: "(root)", message: describeUnparsable(raw) }] };
     }
   }
   const parsed = ReviewBatchSchema.safeParse(candidate);
