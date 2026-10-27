@@ -86,13 +86,11 @@ export function assertAllowedRequest(
   throw new Error(`GitHub operation is outside Hammer's allowlist: ${method} ${route}`);
 }
 
+export const proxiedFetch = proxyFetch as unknown as typeof globalThis.fetch;
+
 export class GitHub {
   private readonly api;
-  constructor(
-    token: string,
-    apiUrl: string,
-    requestFetch: typeof globalThis.fetch = proxyFetch as unknown as typeof globalThis.fetch,
-  ) {
+  constructor(token: string, apiUrl: string, requestFetch: typeof globalThis.fetch = proxiedFetch) {
     this.api = new Client({
       auth: token,
       baseUrl: apiUrl,

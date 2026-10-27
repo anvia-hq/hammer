@@ -31,8 +31,9 @@ import {
   type ReviewPipelineInput,
 } from "@anvia/hammer-agents";
 import { checkoutHead } from "./checkout";
-import { GitHub, type GitHubPort, type IssueComment } from "./github";
+import { GitHub, proxiedFetch, type GitHubPort, type IssueComment } from "./github";
 import { configOverrides, readInputs, type ActionInputs } from "./inputs";
+import { requestPlatformToken } from "./platform";
 import { createProgressReporter, type ProgressReporter } from "./progress";
 import { publishReview, writeProgress, writeSummary, type PublishTarget } from "./publish";
 
@@ -52,6 +53,7 @@ export interface ActionDependencies {
   model?: ReviewPipelineInput["model"];
   checkout?: typeof checkoutHead;
   skillsDirectory?: string;
+  platformToken?: typeof requestPlatformToken;
 }
 const DEFAULT_SKILLS_DIRECTORY = fileURLToPath(new URL("../../../skills", import.meta.url));
 const eventSchema = z
@@ -71,6 +73,7 @@ export async function runAction(
   let target: PublishTarget | undefined;
   let comments: IssueComment[] = [];
   let identity = "";
+  let githubToken = "";
   let progress: ProgressReporter | undefined;
   const cleanError = (error: unknown): string => {
     let message =
@@ -79,8 +82,11 @@ export async function runAction(
         : error instanceof Error
           ? error.message
           : String(error);
-    for (const name of ["api-key", "github-token"]) {
-      const value = runtime.getInput(name);
+    for (const value of [
+      runtime.getInput("api-key"),
+      runtime.getInput("github-token"),
+      githubToken,
+    ]) {
       if (value) message = message.split(value).join("[redacted]");
     }
     return redactSecrets(message);
@@ -101,10 +107,26 @@ export async function runAction(
       if (secret) runtime.setSecret(secret);
     }
     inputs = readInputs(runtime.getInput);
+    githubToken = inputs["github-token"];
+    let botLogin = inputs["bot-login"];
+    if (!botLogin && inputs["platform-url"]) {
+      const platform = await (dependencies.platformToken ?? requestPlatformToken)({
+        platformUrl: inputs["platform-url"],
+        env,
+        request: proxiedFetch,
+        setSecret: runtime.setSecret,
+      });
+      if (platform.ok) {
+        githubToken = platform.value.token;
+        botLogin = platform.value.login;
+        runtime.info(`[hammer] posting as ${botLogin}`);
+      } else {
+        runtime.info(`[hammer] posting as the workflow token: ${platform.reason}`);
+      }
+    }
     const eventPath = z.string().min(1).parse(env.GITHUB_EVENT_PATH);
     const payload = eventSchema.parse(JSON.parse(await readFile(eventPath, "utf8")));
-    github =
-      dependencies.github ?? new GitHub(inputs["github-token"], z.url().parse(env.GITHUB_API_URL));
+    github = dependencies.github ?? new GitHub(githubToken, z.url().parse(env.GITHUB_API_URL));
     const decision = await decideEvent({
       eventName: env.GITHUB_EVENT_NAME,
       payload,
@@ -146,7 +168,7 @@ export async function runAction(
       headSha: pr.head.sha,
       repoUrl: `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${owner}/${repo}`,
     };
-    identity = inputs["bot-login"] || (await github.identity());
+    identity = botLogin || (await github.identity());
     comments = await github.comments(owner, repo, prNumber);
     if (
       decision.kind === "comment" &&
@@ -241,7 +263,7 @@ export async function runAction(
         : undefined;
     const progressTarget = target;
     const progressGithub = github;
-    const secrets = [inputs["api-key"], inputs["github-token"]];
+    const secrets = [inputs["api-key"], githubToken];
     progress = createProgressReporter({
       state: initialProgress({
         files: plan.reviewFiles.length,
@@ -260,7 +282,7 @@ export async function runAction(
         directory: checkout,
         repositoryUrl: pr.base.repo.clone_url,
         headSha: pr.head.sha,
-        token: inputs["github-token"],
+        token: githubToken,
       },
       () => github!.archive(owner, repo, pr.head.sha),
       env,
@@ -351,7 +373,7 @@ export async function runAction(
       plan,
       result,
       modelRef,
-      [inputs["api-key"], inputs["github-token"]],
+      [inputs["api-key"], githubToken],
     );
     const resultPath = join(directory, "result.json");
     await writeFile(
@@ -377,7 +399,7 @@ export async function runAction(
         costUsd: result.usage.costUsd,
         partial: plan.partial || result.partial,
         modelSummary: sanitizeForPosting(result.summary, {
-          secrets: [inputs["api-key"], inputs["github-token"]],
+          secrets: [inputs["api-key"], githubToken],
         }),
       }),
     );
@@ -405,7 +427,7 @@ export async function runAction(
           comments,
           identity,
           { files: [], error: message, ...(runUrl ? { runUrl } : {}) },
-          [runtime.getInput("api-key"), runtime.getInput("github-token")],
+          [runtime.getInput("api-key"), runtime.getInput("github-token"), githubToken],
         );
       } catch (postError) {
         runtime.warning(`Could not publish error summary: ${cleanError(postError)}`);
