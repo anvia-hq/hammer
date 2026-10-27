@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { parseGatewayCatalog, resolvePricing } from "../src/index";
+import { describe, expect, it, vi } from "vitest";
+import { fetchGatewayCatalog, parseGatewayCatalog, resolvePricing } from "../src/index";
 
 describe("Haiku 5.5 pricing", () => {
   const model = "anthropic/claude-haiku-5-5";
@@ -66,5 +66,34 @@ describe("gateway pricing", () => {
 
   it("returns undefined when no source knows the model", () => {
     expect(resolvePricing("openai-compatible/unknown", undefined, {})).toBeUndefined();
+  });
+});
+
+describe("fetchGatewayCatalog", () => {
+  const payload = {
+    data: [{ id: "vendor/m", pricing: { prompt: "0.000001", completion: "0.000002" } }],
+  };
+
+  it("requests <base>/models with the api key and parses prices", async () => {
+    const request = vi.fn(async () => Response.json(payload));
+    const catalog = await fetchGatewayCatalog("https://gw.example/v1/", "key", request);
+    expect(request).toHaveBeenCalledWith(
+      "https://gw.example/v1/models",
+      expect.objectContaining({ headers: { authorization: "Bearer key" } }),
+    );
+    expect(catalog).toEqual({ "vendor/m": { input: 1, output: 2 } });
+  });
+
+  it("returns an empty catalog on http errors, bad json and network failures", async () => {
+    const url = "https://gw.example";
+    expect(
+      await fetchGatewayCatalog(url, "k", async () => new Response("", { status: 500 })),
+    ).toEqual({});
+    expect(await fetchGatewayCatalog(url, "k", async () => new Response("not json"))).toEqual({});
+    expect(
+      await fetchGatewayCatalog(url, "k", async () => {
+        throw new Error("offline");
+      }),
+    ).toEqual({});
   });
 });

@@ -320,3 +320,37 @@ it("limits concurrent reviews and preserves case order in reports", async () => 
   expect(result.report.concurrency).toBe(2);
   await expect(runLiveEval({ ...options, concurrency: 0 })).rejects.toThrow("concurrency");
 });
+
+it("prices cases from a gateway catalog", async () => {
+  const root = await mkdtemp(join(tmpdir(), "hammer-live-eval-price-"));
+  roots.push(root);
+  const single = join(root, "cases", "clean-01");
+  await mkdir(single, { recursive: true });
+  await writeFile(
+    join(single, "case.json"),
+    JSON.stringify({
+      id: "clean-01",
+      kind: "clean",
+      title: "Docs",
+      prBody: "",
+      expected: [],
+      files: [{ path: "src/a.ts", status: "added", patchFile: "changes.patch" }],
+    }),
+  );
+  await writeFile(join(single, "changes.patch"), "@@ -0,0 +1 @@\n+export const a = 1;");
+  const options = {
+    casesRoot: join(root, "cases"),
+    reportsDir: join(root, "reports"),
+    modelRef: "openai-compatible/vendor/m",
+    baseUrl: "https://gw.example/v1",
+    model: fakeModel(JSON.stringify({ summary: "Adds a", findings: [], generalNotes: [] })),
+  };
+  const unpriced = await runLiveEval(options);
+  expect(unpriced.report.metrics.pricedCases).toBe(0);
+  const priced = await runLiveEval({
+    ...options,
+    gatewayCatalog: { "vendor/m": { input: 1_000_000, output: 2_000_000 } },
+  });
+  expect(priced.report.metrics.pricedCases).toBe(1);
+  expect(priced.report.metrics.medianReviewCostUsd).toBeGreaterThan(0);
+});

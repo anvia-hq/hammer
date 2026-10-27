@@ -9,6 +9,8 @@ import {
   decideExitCode,
   decideSkip,
   extractLastSha,
+  type PriceCatalog,
+  fetchGatewayCatalog,
   fetchPullFiles,
   formatReviewEvent,
   initialProgress,
@@ -31,9 +33,8 @@ import {
   type ReviewPipelineInput,
 } from "@anvia/hammer-agents";
 import { checkoutHead } from "./checkout";
-import { GitHub, type GitHubPort, type IssueComment } from "./github";
+import { GitHub, proxiedFetch, type GitHubPort, type IssueComment } from "./github";
 import { configOverrides, readInputs, type ActionInputs } from "./inputs";
-import { fetchGatewayCatalog } from "./pricing";
 import { createProgressReporter, type ProgressReporter } from "./progress";
 import { publishReview, writeProgress, writeSummary, type PublishTarget } from "./publish";
 
@@ -53,7 +54,7 @@ export interface ActionDependencies {
   model?: ReviewPipelineInput["model"];
   checkout?: typeof checkoutHead;
   skillsDirectory?: string;
-  fetchPricing?: typeof fetchGatewayCatalog;
+  fetchPricing?: (baseUrl: string, apiKey: string) => Promise<PriceCatalog>;
 }
 const DEFAULT_SKILLS_DIRECTORY = fileURLToPath(new URL("../../../skills", import.meta.url));
 const eventSchema = z
@@ -289,10 +290,10 @@ export async function runAction(
       decision.kind === "comment" ? decision.command.replace(/^review\s*/i, "") : "";
     const gatewayCatalog =
       ref.value.provider === "openai-compatible" && inputs["base-url"]
-        ? await (dependencies.fetchPricing ?? fetchGatewayCatalog)(
-            inputs["base-url"],
-            inputs["api-key"],
-          )
+        ? await (
+            dependencies.fetchPricing ??
+            ((baseUrl, apiKey) => fetchGatewayCatalog(baseUrl, apiKey, proxiedFetch))
+          )(inputs["base-url"], inputs["api-key"])
         : undefined;
     const pricing = resolvePricing(modelRef, inputs.pricing || undefined, gatewayCatalog);
     const skills = await loadReviewSkills(

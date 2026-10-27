@@ -230,7 +230,12 @@ export {
   resolveConfig,
 } from "./config";
 
-export { parseGatewayCatalog, resolvePricing, type PriceCatalog } from "./pricing";
+export {
+  fetchGatewayCatalog,
+  parseGatewayCatalog,
+  resolvePricing,
+  type PriceCatalog,
+} from "./pricing";
 
 export type {
   InitialProgressOptions,
