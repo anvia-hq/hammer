@@ -110,6 +110,32 @@ describe("validateBatchOutput", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("accepts JSON wrapped in a code fence or prose", () => {
+    const json = JSON.stringify(validBatch());
+    expect(validateBatchOutput(`\`\`\`json\n${json}\n\`\`\``).ok).toBe(true);
+    expect(validateBatchOutput(`Here is my review:\n${json}\nHope that helps.`).ok).toBe(true);
+  });
+
+  it("keeps valid JSON whose string values contain a code fence", () => {
+    const fence = "```";
+    const batch = validBatch({
+      findings: [validFinding({ suggestion: `${fence}ts\nconst x = 1;\n${fence}` })],
+    });
+    const result = validateBatchOutput(JSON.stringify(batch));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.findings[0]?.suggestion).toContain(fence);
+  });
+
+  it("reports the length and whether truncated output ended with a brace", () => {
+    const json = JSON.stringify(validBatch());
+    const cut = validateBatchOutput(json.slice(0, json.length - 20));
+    expect(cut.ok).toBe(false);
+    if (!cut.ok) {
+      expect(cut.issues[0]?.message).toContain("does not end with }");
+      expect(cut.issues[0]?.message).toContain(`${json.length - 20} chars`);
+    }
+  });
+
   it("returns an issue for invalid JSON strings", () => {
     const result = validateBatchOutput("{not json");
     expect(result.ok).toBe(false);
