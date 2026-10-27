@@ -67,9 +67,13 @@ export function validateBatchOutput(raw: unknown): BatchValidationResult {
   let candidate: unknown = raw;
   if (typeof raw === "string") {
     try {
-      candidate = JSON.parse(extractJsonObject(raw));
+      candidate = JSON.parse(raw);
     } catch {
-      return { ok: false, issues: [{ path: "(root)", message: describeUnparsable(raw) }] };
+      try {
+        candidate = JSON.parse(extractJsonObject(raw));
+      } catch {
+        return { ok: false, issues: [{ path: "(root)", message: describeUnparsable(raw) }] };
+      }
     }
   }
   const parsed = ReviewBatchSchema.safeParse(candidate);

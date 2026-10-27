@@ -116,6 +116,16 @@ describe("validateBatchOutput", () => {
     expect(validateBatchOutput(`Here is my review:\n${json}\nHope that helps.`).ok).toBe(true);
   });
 
+  it("keeps valid JSON whose string values contain a code fence", () => {
+    const fence = "```";
+    const batch = validBatch({
+      findings: [validFinding({ suggestion: `${fence}ts\nconst x = 1;\n${fence}` })],
+    });
+    const result = validateBatchOutput(JSON.stringify(batch));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.findings[0]?.suggestion).toContain(fence);
+  });
+
   it("reports the length and whether truncated output ended with a brace", () => {
     const json = JSON.stringify(validBatch());
     const cut = validateBatchOutput(json.slice(0, json.length - 20));
