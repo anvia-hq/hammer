@@ -17,6 +17,7 @@ import {
   type PricingFn,
   type ReviewEventSink,
 } from "@anvia/hammer-core";
+import { COMPLETION_TIMEOUT_MS, createIdleSignal, STREAM_IDLE_MS } from "./idle-signal";
 import { buildReviewPrompt, approxTokens, type BuildReviewPromptInput } from "./prompt";
 import { buildReviewerTools, runSinglePassReview, type SinglePassRunOptions } from "./run";
 import type { SkillSet } from "./skills";
@@ -52,7 +53,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
   });
   const guarded = <T extends { abortSignal?: AbortSignal | undefined }>(options: T | undefined) => {
     if (!budget.canStartBatch().ok) throw new Error("Review budget reached.");
-    const timeout = AbortSignal.timeout(120_000);
+    const timeout = AbortSignal.timeout(COMPLETION_TIMEOUT_MS);
     return {
       ...options,
       abortSignal: options?.abortSignal ? AbortSignal.any([timeout, options.abortSignal]) : timeout,
@@ -85,9 +86,19 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
             request: Parameters<CompletionModel["completion"]>[0],
             options?: Parameters<CompletionModel["completion"]>[1],
           ) {
-            for await (const event of upstream.streamCompletion!(request, guarded(options))) {
-              if (event.type === "final") record(event.response.usage);
-              yield event;
+            if (!budget.canStartBatch().ok) throw new Error("Review budget reached.");
+            const idle = createIdleSignal(STREAM_IDLE_MS, options?.abortSignal);
+            try {
+              for await (const event of upstream.streamCompletion!(request, {
+                ...options,
+                abortSignal: idle.signal,
+              })) {
+                idle.touch();
+                if (event.type === "final") record(event.response.usage);
+                yield event;
+              }
+            } finally {
+              idle.clear();
             }
           },
         }
