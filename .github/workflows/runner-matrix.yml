@@ -5,6 +5,11 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      run_blacksmith:
+        description: Also run the experimental Blacksmith jobs (needs the Blacksmith app on this repository).
+        required: false
+        default: false
+        type: boolean
       run_e2e:
         description: Run the live end-to-end job against the sandbox repo (needs sandbox secrets).
         required: false
@@ -39,14 +44,37 @@ jobs:
           - label: ubuntu-24.04-arm
             arch: arm64
             experimental: false
-          - label: blacksmith-2vcpu-ubuntu-2404
-            arch: x64
-            experimental: true
-          - label: blacksmith-2vcpu-ubuntu-2404-arm
-            arch: arm64
-            experimental: true
     runs-on: ${{ matrix.label }}
     continue-on-error: ${{ matrix.experimental }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: node packages/action/scripts/smoke-bundle.mjs
+      - run: node packages/action/scripts/smoke-review.mjs
+      - run: bun run test
+      - run: bun run eval
+
+  blacksmith:
+    name: blacksmith (${{ matrix.label }})
+    # Blacksmith stays supported but runs only on request, so it is not triggered on every push.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_blacksmith }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: blacksmith-2vcpu-ubuntu-2404
+            arch: x64
+          - label: blacksmith-2vcpu-ubuntu-2404-arm
+            arch: arm64
+    runs-on: ${{ matrix.label }}
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
