@@ -77,7 +77,7 @@ export async function readFile(
     return { ok: false, reason: "invalid_range" };
   }
   const numbered = lines
-    .slice(start - 1, end)
+    .slice(start, end)
     .map((line, index) => `${start + index}: ${line}`)
     .join("\n");
   const { text, truncated } = truncateText(numbered, MAX_TOOL_OUTPUT_CHARS);
