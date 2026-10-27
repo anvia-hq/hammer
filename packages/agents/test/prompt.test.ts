@@ -101,6 +101,14 @@ describe("buildReviewPrompt hunks", () => {
   });
 });
 
+describe("REVIEW_INSTRUCTIONS calibration", () => {
+  it("anchors confidence and includes an example finding", async () => {
+    const { REVIEW_INSTRUCTIONS } = await import("../src/prompt");
+    expect(REVIEW_INSTRUCTIONS).toContain("confidence: 0.9 or more");
+    expect(REVIEW_INSTRUCTIONS).toContain("Example finding:");
+  });
+});
+
 describe("buildReviewPrompt metadata", () => {
   it("includes the title and a capped, untrusted body inline", () => {
     const { prompt } = buildReviewPrompt({
