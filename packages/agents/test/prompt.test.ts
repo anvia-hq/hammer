@@ -78,6 +78,20 @@ describe("buildReviewPrompt hunks", () => {
     expect(numbered.length).toBeLessThanOrEqual(40);
   });
 
+  it("falls back to a fixed window when no brace scope exists and adds trailing context", () => {
+    const lines = Array.from({ length: 60 }, (_, i) => `row${i + 1}: value`);
+    const patch = ["@@ -30,2 +30,3 @@", " row30: value", "+added", " row31: value"].join("\n");
+    const { prompt } = buildReviewPrompt({
+      ...baseInput,
+      files: [file("config.yaml", patch)],
+      fileContents: { "config.yaml": lines.join("\n") },
+    });
+    expect(prompt).toContain(" 15 row15: value");
+    expect(prompt).not.toContain(" 14 row14: value");
+    expect(prompt).toContain(" 42 row42: value");
+    expect(prompt).not.toContain(" 43 row43: value");
+  });
+
   it("keeps the hunk as is when no enclosing scope is found", () => {
     const { prompt } = buildReviewPrompt({
       ...baseInput,
@@ -88,15 +102,21 @@ describe("buildReviewPrompt hunks", () => {
 });
 
 describe("buildReviewPrompt metadata", () => {
-  it("includes the title inline and never the body", () => {
+  it("includes the title and a capped, untrusted body inline", () => {
     const { prompt } = buildReviewPrompt({
       ...baseInput,
       title: "Add retry with backoff",
+      body: `At most four attempts. ${"x".repeat(3000)}`,
       files: [],
     });
     expect(prompt).toContain("PR title: Add retry with backoff");
-    expect(prompt).not.toContain("Secret body content");
-    expect(prompt).not.toContain("PR body:");
+    expect(prompt).toContain("<untrusted>\nPR body: At most four attempts.");
+    expect(prompt).not.toContain("x".repeat(1600));
+  });
+
+  it("marks an empty body", () => {
+    const { prompt } = buildReviewPrompt({ ...baseInput, files: [] });
+    expect(prompt).toContain("PR body: (empty)");
   });
 
   it("applies path_instructions only to matching paths", () => {

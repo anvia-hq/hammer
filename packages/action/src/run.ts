@@ -296,6 +296,7 @@ export async function runAction(
       runtime.info(`[hammer] skills: ${skills.skills.map((entry) => entry.name).join(", ")}`);
     const result = await runReviewPipeline({
       title: pr.title,
+      body: pr.body,
       files: plan.reviewFiles,
       anchorFiles,
       config,
