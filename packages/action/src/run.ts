@@ -146,7 +146,7 @@ export async function runAction(
       headSha: pr.head.sha,
       repoUrl: `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${owner}/${repo}`,
     };
-    identity = await github.identity();
+    identity = inputs["bot-login"] || (await github.identity());
     comments = await github.comments(owner, repo, prNumber);
     if (
       decision.kind === "comment" &&

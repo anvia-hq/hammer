@@ -331,6 +331,18 @@ describe("Action review flow", () => {
     expect(f.posted).toHaveLength(0);
     expect(f.outputs.findings_count).toBe("1");
   });
+  it("uses bot-login as its identity without looking the token up", async () => {
+    const f = await fixture({ "bot-login": "hammer[bot]" });
+    f.comments.push({
+      id: 5,
+      user: { login: "hammer[bot]", type: "Bot" },
+      body: "<!-- hammer:summary -->",
+    });
+    await f.run();
+    expect(f.github.identity).not.toHaveBeenCalled();
+    expect(f.github.updateSummary.mock.calls.some((call) => call[2] === 5)).toBe(true);
+    expect(f.github.createSummary).not.toHaveBeenCalled();
+  });
   it("does not overwrite an attacker comment containing the sticky marker", async () => {
     const f = await fixture();
     f.comments.push({
