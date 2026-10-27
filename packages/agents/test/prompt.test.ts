@@ -101,6 +101,21 @@ describe("buildReviewPrompt hunks", () => {
   });
 });
 
+describe("buildReviewPrompt other files", () => {
+  it("lists files from other batches as untrusted, capped", () => {
+    const others = Array.from({ length: 70 }, (_, i) => file(`pkg/f${i}.ts`, MULTI_HUNK));
+    const { prompt } = buildReviewPrompt({ ...baseInput, otherFiles: others });
+    expect(prompt).toContain("## Other files in this PR");
+    expect(prompt).toContain("- pkg/f0.ts (+");
+    expect(prompt).toContain("- ... and 10 more");
+    expect(prompt).not.toContain("pkg/f69.ts");
+  });
+
+  it("omits the section when there are no other files", () => {
+    expect(buildReviewPrompt(baseInput).prompt).not.toContain("Other files in this PR");
+  });
+});
+
 describe("REVIEW_INSTRUCTIONS calibration", () => {
   it("anchors confidence and includes an example finding", async () => {
     const { REVIEW_INSTRUCTIONS } = await import("../src/prompt");

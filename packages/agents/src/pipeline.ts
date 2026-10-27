@@ -110,6 +110,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
   const overhead = buildReviewPrompt({
     ...promptInput,
     files: [],
+    otherFiles: input.files,
   }).approxTokens;
   const planned = planBatches({
     files: input.files,
@@ -144,6 +145,8 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
         {
           ...promptInput,
           files: batch.files,
+          otherFiles:
+            batches.length > 1 ? input.files.filter((file) => !batch.files.includes(file)) : [],
           model: input.modelRef,
           ...(input.baseUrl ? { baseUrl: input.baseUrl } : {}),
         },

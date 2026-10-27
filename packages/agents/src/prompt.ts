@@ -32,6 +32,7 @@ export interface BuildReviewPromptInput {
   title: string;
   body?: string | null;
   files: PullFileEntry[];
+  otherFiles?: PullFileEntry[];
   config: PromptConfig;
   guidelines?: PromptGuidelines;
   fileContents?: Record<string, string>;
@@ -217,6 +218,20 @@ export const REVIEW_INSTRUCTIONS = [
   'Return only JSON: {"summary":"what this PR does (max 600 chars)","changes":["short past-tense bullet"],"findings":[{"path":"file","line":1,"startLine":1,"severity":"high|medium|low","category":"correctness|security|performance|reliability|maintainability|tests|rule","title":"max 120 chars","body":"problem and blast radius, at most 3 sentences (max 1500 chars)","details":"optional technical details (max 1200 chars)","confidence":0.9,"suggestion":"optional replacement code","ruleId":"optional configured id"}],"generalNotes":[]}. changes, startLine, details, suggestion and ruleId are optional. At most 25 findings and 5 general notes (300 chars each). An empty findings array is valid.',
 ].join("\n");
 
+export const MAX_OTHER_FILES = 60;
+
+function renderOtherFiles(files: PullFileEntry[]): string[] {
+  if (files.length === 0) return [];
+  const shown = files.slice(0, MAX_OTHER_FILES);
+  const lines = shown.map((file) => `- ${file.filename} (+${file.additions} -${file.deletions})`);
+  if (files.length > shown.length) lines.push(`- ... and ${files.length - shown.length} more`);
+  return [
+    "",
+    "## Other files in this PR (reviewed in separate batches; read them with tools if a change here depends on them)",
+    untrusted(lines.join("\n")),
+  ];
+}
+
 export function buildReviewPrompt(input: BuildReviewPromptInput): ReviewPrompt {
   const guidance = buildGuidance(input);
   const title = input.title.replace(/\s+/g, " ").trim();
@@ -239,6 +254,7 @@ export function buildReviewPrompt(input: BuildReviewPromptInput): ReviewPrompt {
       parts.push(untrusted(renderPromptFile(file, input.fileContents)));
     }
   }
+  parts.push(...renderOtherFiles(input.otherFiles ?? []));
   if (guidance.text !== "") {
     parts.push("", "## Repo guidance", guidance.text);
   }
