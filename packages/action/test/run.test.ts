@@ -190,7 +190,8 @@ async function fixture(overrides: Record<string, string> = {}) {
     model,
     checkout,
     env,
-    run: () => runAction(runtime, env, { github, model, checkout }),
+    run: (extra: Partial<Parameters<typeof runAction>[2]> = {}) =>
+      runAction(runtime, env, { github, model, checkout, ...extra }),
   };
 }
 
@@ -330,6 +331,55 @@ describe("Action review flow", () => {
     await f.run();
     expect(f.posted).toHaveLength(0);
     expect(f.outputs.findings_count).toBe("1");
+  });
+  it("uses bot-login as its identity without looking the token up", async () => {
+    const f = await fixture({ "bot-login": "hammer[bot]" });
+    f.comments.push({
+      id: 5,
+      user: { login: "hammer[bot]", type: "Bot" },
+      body: "<!-- hammer:summary -->",
+    });
+    await f.run();
+    expect(f.github.identity).not.toHaveBeenCalled();
+    expect(f.github.updateSummary.mock.calls.some((call) => call[2] === 5)).toBe(true);
+    expect(f.github.createSummary).not.toHaveBeenCalled();
+  });
+  it("posts as the platform bot when the platform issues a token", async () => {
+    const f = await fixture({ "platform-url": "https://platform.example" });
+    f.comments.push({
+      id: 5,
+      user: { login: "anvia-hammer[bot]", type: "Bot" },
+      body: "<!-- hammer:summary -->",
+    });
+    const platformToken = vi.fn(async () => ({
+      ok: true as const,
+      value: { token: "ghs_app", login: "anvia-hammer[bot]" },
+    }));
+    await f.run({ platformToken });
+    expect(platformToken).toHaveBeenCalledWith(
+      expect.objectContaining({ platformUrl: "https://platform.example" }),
+    );
+    expect(f.github.identity).not.toHaveBeenCalled();
+    expect(f.github.updateSummary.mock.calls.some((call) => call[2] === 5)).toBe(true);
+    expect(f.runtime.info).toHaveBeenCalledWith("[hammer] posting as anvia-hammer[bot]");
+  });
+  it("falls back to the workflow token when the platform cannot issue one", async () => {
+    const f = await fixture({ "platform-url": "https://platform.example" });
+    const platformToken = vi.fn(async () => ({ ok: false as const, reason: "no id-token" }));
+    await f.run({ platformToken });
+    expect(f.github.identity).toHaveBeenCalled();
+    expect(f.posted).toHaveLength(1);
+    expect(f.runtime.info).toHaveBeenCalledWith(
+      "[hammer] posting as the workflow token: no id-token",
+    );
+  });
+  it("skips the platform when bot-login is set or platform-url is empty", async () => {
+    const platformToken = vi.fn(async () => ({ ok: false as const, reason: "unused" }));
+    const withLogin = await fixture({ "platform-url": "https://p.example", "bot-login": "x[bot]" });
+    await withLogin.run({ platformToken });
+    const disabled = await fixture({ "platform-url": "" });
+    await disabled.run({ platformToken });
+    expect(platformToken).not.toHaveBeenCalled();
   });
   it("does not overwrite an attacker comment containing the sticky marker", async () => {
     const f = await fixture();

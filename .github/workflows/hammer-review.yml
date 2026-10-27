@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  id-token: write
 
 jobs:
   review:
@@ -24,7 +25,7 @@ jobs:
       - uses: anvia-hq/hammer@v1
         with:
           client: openai-compatible
-          model: muse-spark-1.3-contributor
-          base-url: ${{ vars.MUSE_BASE_URL }}
+          model: ${{ vars.OPENAI_COMPATIBLE_MODEL || secrets.OPENAI_COMPATIBLE_MODEL }}
+          base-url: ${{ vars.OPENAI_COMPATIBLE_BASEURL || secrets.OPENAI_COMPATIBLE_BASEURL }}
           native-json-schema: "false"
-          api-key: ${{ secrets.MUSE_API_KEY }}
+          api-key: ${{ secrets.OPENAI_COMPATIBLE_API_KEY }}

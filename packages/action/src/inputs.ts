@@ -17,6 +17,8 @@ const schema = z.object({
   pricing: z.string(),
   "api-key": z.string(),
   "github-token": z.string(),
+  "bot-login": z.string(),
+  "platform-url": z.string(),
   "base-url": z.string(),
   "native-json-schema": optional(bool),
   "reasoning-effort": z.string(),
