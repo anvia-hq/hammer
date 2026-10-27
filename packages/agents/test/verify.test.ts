@@ -187,3 +187,16 @@ it("includes diff context in the verifier prompt", async () => {
   expect(seen).toContain("Diff context:");
   expect(seen).toContain("### src/a.ts");
 });
+
+it("lowers severity on request but never raises it", async () => {
+  const result = await applyVerification({
+    findings: [finding(), finding({ severity: "medium" })],
+    runVerifier: async () => ({
+      scores: [
+        { id: "f1", score: 9, severity: "medium" },
+        { id: "f2", score: 9, severity: "high" },
+      ],
+    }),
+  });
+  expect(result.findings.map((entry) => entry.severity)).toEqual(["medium", "medium"]);
+});
