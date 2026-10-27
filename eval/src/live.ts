@@ -7,6 +7,7 @@ import {
   resolveConfig,
   defaultRepoConfig,
   resolvePricing,
+  type PriceCatalog,
   type PullFileEntry,
   type Finding,
 } from "@anvia/hammer-core";
@@ -58,6 +59,7 @@ export interface LiveEvalOptions {
   reportsDir: string;
   modelRef: string;
   baseUrl?: string;
+  gatewayCatalog?: PriceCatalog;
   model: ReviewPipelineInput["model"];
   skills?: ReviewPipelineInput["skills"];
   judge?: LlmJudge;
@@ -90,7 +92,7 @@ export async function runLiveEval(options: LiveEvalOptions) {
     humanSpotCheck: boolean;
     finding: Finding;
   }> = [];
-  const pricing = resolvePricing(options.modelRef);
+  const pricing = resolvePricing(options.modelRef, undefined, options.gatewayCatalog);
   const reviewCase = async (c: EvalCase) => {
     options.onCase?.(c.id);
     const directory = await mkdtemp(join(tmpdir(), "hammer-eval-"));

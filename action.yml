@@ -16,7 +16,7 @@ inputs:
     description: API key for the model client.
     required: true
   pricing:
-    description: JSON mapping provider/model-id to input and output USD prices per million tokens.
+    description: JSON mapping provider/model-id to input and output USD prices per million tokens. Takes precedence over prices Hammer reads from an openai-compatible gateway's /models endpoint and over its bundled list.
     required: false
   base-url:
     description: Base URL for the openai-compatible client, or endpoint for azure.

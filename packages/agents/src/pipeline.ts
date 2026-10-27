@@ -14,6 +14,7 @@ import {
   type EffectiveConfig,
   type FileBatch,
   type PriorFinding,
+  type PullFileEntry,
   type PricingFn,
   type ReviewEventSink,
 } from "@anvia/hammer-core";
@@ -37,6 +38,17 @@ export interface ReviewPipelineInput extends BuildReviewPromptInput {
   reasoningEffort?: string;
   onEvent?: ReviewEventSink;
   skills?: SkillSet;
+}
+
+const MAX_VERIFY_DIFF_CHARS = 16_000;
+
+function buildDiffContext(findings: Array<{ path: string }>, files: PullFileEntry[]): string {
+  const paths = new Set(findings.map((finding) => finding.path));
+  const text = files
+    .filter((file) => paths.has(file.filename) && file.patch)
+    .map((file) => `### ${file.filename}\n${file.patch}`)
+    .join("\n\n");
+  return text.slice(0, MAX_VERIFY_DIFF_CHARS);
 }
 
 export async function runReviewPipeline(input: ReviewPipelineInput) {
@@ -106,7 +118,11 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
   };
   const context = input.prior?.length ? buildPriorFindingsContext(input.prior) : "";
   const promptInput = { ...input, priorFindings: context };
-  const overhead = buildReviewPrompt({ ...promptInput, files: [] }).approxTokens;
+  const overhead = buildReviewPrompt({
+    ...promptInput,
+    files: [],
+    otherFiles: input.files,
+  }).approxTokens;
   const planned = planBatches({
     files: input.files,
     estimateFileTokens: (file) => approxTokens(file.patch ?? "") + 200,
@@ -140,6 +156,8 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
         {
           ...promptInput,
           files: batch.files,
+          otherFiles:
+            batches.length > 1 ? input.files.filter((file) => !batch.files.includes(file)) : [],
           model: input.modelRef,
           ...(input.baseUrl ? { baseUrl: input.baseUrl } : {}),
         },
@@ -174,6 +192,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
   if (verifying) emit({ type: "verify_start", findings: merged.findings.length });
   const verification = await applyVerification({
     findings: merged.findings,
+    diffContext: buildDiffContext(merged.findings, input.files),
     verify: verifying,
     verifyThreshold: input.config.verify_threshold,
     canContinue: () => budget.canStartBatch().ok,

@@ -9,6 +9,8 @@ import {
   decideExitCode,
   decideSkip,
   extractLastSha,
+  type PriceCatalog,
+  fetchGatewayCatalog,
   fetchPullFiles,
   formatReviewEvent,
   initialProgress,
@@ -31,7 +33,7 @@ import {
   type ReviewPipelineInput,
 } from "@anvia/hammer-agents";
 import { checkoutHead } from "./checkout";
-import { GitHub, type GitHubPort, type IssueComment } from "./github";
+import { GitHub, proxiedFetch, type GitHubPort, type IssueComment } from "./github";
 import { configOverrides, readInputs, type ActionInputs } from "./inputs";
 import { createProgressReporter, type ProgressReporter } from "./progress";
 import { publishReview, writeProgress, writeSummary, type PublishTarget } from "./publish";
@@ -52,6 +54,7 @@ export interface ActionDependencies {
   model?: ReviewPipelineInput["model"];
   checkout?: typeof checkoutHead;
   skillsDirectory?: string;
+  fetchPricing?: (baseUrl: string, apiKey: string) => Promise<PriceCatalog>;
 }
 const DEFAULT_SKILLS_DIRECTORY = fileURLToPath(new URL("../../../skills", import.meta.url));
 const eventSchema = z
@@ -285,7 +288,14 @@ export async function runAction(
     );
     const instruction =
       decision.kind === "comment" ? decision.command.replace(/^review\s*/i, "") : "";
-    const pricing = resolvePricing(modelRef, inputs.pricing || undefined);
+    const gatewayCatalog =
+      ref.value.provider === "openai-compatible" && inputs["base-url"]
+        ? await (
+            dependencies.fetchPricing ??
+            ((baseUrl, apiKey) => fetchGatewayCatalog(baseUrl, apiKey, proxiedFetch))
+          )(inputs["base-url"], inputs["api-key"])
+        : undefined;
+    const pricing = resolvePricing(modelRef, inputs.pricing || undefined, gatewayCatalog);
     const skills = await loadReviewSkills(
       dependencies.skillsDirectory ?? DEFAULT_SKILLS_DIRECTORY,
     ).catch((error: unknown) => {
@@ -296,6 +306,7 @@ export async function runAction(
       runtime.info(`[hammer] skills: ${skills.skills.map((entry) => entry.name).join(", ")}`);
     const result = await runReviewPipeline({
       title: pr.title,
+      body: pr.body,
       files: plan.reviewFiles,
       anchorFiles,
       config,

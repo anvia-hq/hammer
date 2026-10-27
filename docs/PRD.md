@@ -242,7 +242,7 @@ const res = await reviewer.generate({ prompt: buildBatchPrompt(batch) });
 if (res.type !== "response") throw new UnexpectedOutcomeError(res.type); // no approval tools in v1
 ````
 
-- Usage from `res.usage` feeds the cost meter. Prices come from a bundled `pricing.json`, which can be overridden with the `pricing` input. Unknown models report tokens only, and `max_cost_usd` is skipped with a warning.
+- Usage from `res.usage` feeds the cost meter. Prices come from the `pricing` input, then an openai-compatible gateway's `/models` endpoint when `base-url` is set, then a bundled `pricing.json`. Unknown models report tokens only, and `max_cost_usd` is skipped with a warning.
 - Calls get a per-call timeout of 120 s and up to 2 retries on 429/5xx with backoff, using the core retry helper.
 
 ### 8.4 Output schema
