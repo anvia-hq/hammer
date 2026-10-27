@@ -114,7 +114,7 @@ Hammer also reads `AGENTS.md`, `CLAUDE.md` and `CONTRIBUTING.md` from the base b
 
 ### Limits
 
-Each run is bounded. Defaults: 50 files, 3,000 diff lines, 100 agent turns per batch, 400,000 tokens and $1.00. Raise or lower them with `max_files`, `max_diff_lines`, `max_turns`, `max_tokens` and `max_cost_usd`. When a limit is hit, Hammer posts what it has and says the review was partial. `max_cost_usd` is enforced when Hammer knows the model's price; supply the `pricing` input for models it doesn't.
+Each run is bounded. Defaults: 50 files, 3,000 diff lines, 100 agent turns per batch, 400,000 tokens and $1.00. Raise or lower them with `max_files`, `max_diff_lines`, `max_turns`, `max_tokens` and `max_cost_usd`. When a limit is hit, Hammer posts what it has and says the review was partial. `max_cost_usd` is enforced when Hammer knows the model's price: from the `pricing` input, from an openai-compatible gateway's `/models` endpoint (when `base-url` is set and lists prices), or from the bundled list. Supply `pricing` for models none of these cover.
 
 ### Inputs
 
