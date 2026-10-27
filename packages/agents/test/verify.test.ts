@@ -164,11 +164,26 @@ describe("verifyCostOk", () => {
   });
 });
 
-it("marks omitted verification scores as unverified", async () => {
+it("drops findings the verifier omitted and marks the run unverified", async () => {
   const result = await applyVerification({
     findings: [finding()],
     runVerifier: async () => ({ scores: [] }),
   });
   expect(result.status).toBe("unverified");
-  expect(result.findings).toHaveLength(1);
+  expect(result.findings).toHaveLength(0);
+  expect(result.dropped[0]?.reason).toBe("verify_omitted");
+});
+
+it("includes diff context in the verifier prompt", async () => {
+  let seen = "";
+  await applyVerification({
+    findings: [finding()],
+    diffContext: "### src/a.ts\n@@ -1 +1 @@",
+    runVerifier: async (prompt) => {
+      seen = prompt;
+      return { scores: [{ id: "f1", score: 9 }] };
+    },
+  });
+  expect(seen).toContain("Diff context:");
+  expect(seen).toContain("### src/a.ts");
 });
