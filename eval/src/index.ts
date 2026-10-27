@@ -5,6 +5,7 @@ import {
   loadReviewSkills,
   parseModelRefWithBase,
 } from "@anvia/hammer-agents";
+import { fetchGatewayCatalog } from "@anvia/hammer-core";
 import { oracleReviewer, runEval } from "./runner";
 import { runLiveEval } from "./live";
 import { createLlmJudge } from "./judge";
@@ -49,6 +50,11 @@ try {
           model: model(judgeRef, process.env.HAMMER_JUDGE_API_KEY, values["judge-base-url"]),
         })
       : undefined;
+    const apiKey = process.env.HAMMER_API_KEY;
+    const gatewayCatalog =
+      values["base-url"] && apiKey && values.model.startsWith("openai-compatible/")
+        ? await fetchGatewayCatalog(values["base-url"], apiKey, fetch)
+        : undefined;
     const result = await runLiveEval({
       casesRoot,
       reportsDir: resolve(values["reports-dir"] ?? join(casesRoot, "..", "reports", "live")),
@@ -62,6 +68,7 @@ try {
       concurrency: Number(values.concurrency),
       ...(judge ? { judge, judgeModel: judgeRef! } : {}),
       ...(values["base-url"] ? { baseUrl: values["base-url"] } : {}),
+      ...(gatewayCatalog ? { gatewayCatalog } : {}),
       onCase: (id) => console.log(`reviewing ${id}`),
     });
     console.log(

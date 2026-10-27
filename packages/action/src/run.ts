@@ -9,6 +9,8 @@ import {
   decideExitCode,
   decideSkip,
   extractLastSha,
+  type PriceCatalog,
+  fetchGatewayCatalog,
   fetchPullFiles,
   formatReviewEvent,
   initialProgress,
@@ -54,6 +56,7 @@ export interface ActionDependencies {
   checkout?: typeof checkoutHead;
   skillsDirectory?: string;
   platformToken?: typeof requestPlatformToken;
+  fetchPricing?: (baseUrl: string, apiKey: string) => Promise<PriceCatalog>;
 }
 const DEFAULT_SKILLS_DIRECTORY = fileURLToPath(new URL("../../../skills", import.meta.url));
 const eventSchema = z
@@ -307,7 +310,14 @@ export async function runAction(
     );
     const instruction =
       decision.kind === "comment" ? decision.command.replace(/^review\s*/i, "") : "";
-    const pricing = resolvePricing(modelRef, inputs.pricing || undefined);
+    const gatewayCatalog =
+      ref.value.provider === "openai-compatible" && inputs["base-url"]
+        ? await (
+            dependencies.fetchPricing ??
+            ((baseUrl, apiKey) => fetchGatewayCatalog(baseUrl, apiKey, proxiedFetch))
+          )(inputs["base-url"], inputs["api-key"])
+        : undefined;
+    const pricing = resolvePricing(modelRef, inputs.pricing || undefined, gatewayCatalog);
     const skills = await loadReviewSkills(
       dependencies.skillsDirectory ?? DEFAULT_SKILLS_DIRECTORY,
     ).catch((error: unknown) => {
@@ -318,6 +328,7 @@ export async function runAction(
       runtime.info(`[hammer] skills: ${skills.skills.map((entry) => entry.name).join(", ")}`);
     const result = await runReviewPipeline({
       title: pr.title,
+      body: pr.body,
       files: plan.reviewFiles,
       anchorFiles,
       config,
