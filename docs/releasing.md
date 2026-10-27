@@ -7,6 +7,8 @@ Releases are cut from `main` by the manual `Release` workflow. See [0011](decisi
 1. Every merged PR has one release label: `breaking`, `enhancement`, `bug`, `documentation` or `chore`. The `PR labels` check enforces it.
 2. CI is green on the head of `main`. The workflow refuses to run otherwise.
 
+Run `git fetch --tags` before reading `git tag` locally. A stale clone can show an older latest version than the one the workflow will bump from.
+
 ## Release
 
 1. Actions → Release → Run workflow on `main`.
