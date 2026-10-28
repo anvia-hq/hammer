@@ -80,7 +80,7 @@ it("contains delimiter escapes in titles, bodies, filenames and patches inside u
     ],
     config: { rules: [], path_instructions: [], use_repo_guidelines: false },
   }).prompt;
-  expect(prompt.match(/<untrusted>/g)).toHaveLength(2);
-  expect(prompt.match(/<\/untrusted>/g)).toHaveLength(2);
+  expect(prompt.match(/<untrusted>/g)).toHaveLength(3);
+  expect(prompt.match(/<\/untrusted>/g)).toHaveLength(3);
   expect(prompt).toContain("&lt;untrusted>");
 });

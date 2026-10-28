@@ -12,6 +12,7 @@ export const MAX_HUNK_RENDER_LINES = 40;
 export const FALLBACK_PREFIX_LINES = 15;
 export const SUFFIX_LINES = 10;
 export const MAX_BODY_CHARS = 1500;
+export const MAX_INLINE_DIFF_TOKENS = 20000;
 // Tokens are approximated as characters/4 throughout this module.
 export const CHARS_PER_TOKEN = 4;
 
@@ -221,18 +222,32 @@ export function buildReviewPrompt(input: BuildReviewPromptInput): ReviewPrompt {
   const guidance = buildGuidance(input);
   const title = input.title.replace(/\s+/g, " ").trim();
   const body = (input.body ?? "").trim().slice(0, MAX_BODY_CHARS);
+  const inline =
+    approxTokens(
+      input.files.map((file) => renderPromptFile(file, input.fileContents)).join("\n"),
+    ) <= MAX_INLINE_DIFF_TOKENS;
   const parts: string[] = [
     "You are reviewing a pull request. Report specific problems only: bugs, security issues, and violations of the listed rules.",
-    "Start with checkout_pr: it returns the PR metadata and a table of contents with the diff line range of each file. Then read the entire diff with read_diff, using the ranges as a checklist, before you write the review. Read each range once; the output stays in the conversation. Once you have read the diff and traced the risky paths, reply with the JSON review instead of re-reading.",
     "Quote new-file (RIGHT side) line numbers exactly as shown in each __new hunk__ block that read_diff returns.",
     "When a finding violates a configured rule, cite its rule id.",
     "The PR title and the start of its body (the author's stated intent) are inline below. Compare the diff against that intent; use the get_pr_discussion tool for the full body and comments.",
+    ...(inline
+      ? [
+          "The whole diff is inline below. checkout_pr and read_diff return the same diff if you need to look again.",
+        ]
+      : [
+          "The diff is too large to inline. Start with checkout_pr: it returns the PR metadata and a table of contents with the diff line range of each file. Then read the entire diff with read_diff, using the ranges as a checklist, before you write the review. Read each range once; the output stays in the conversation. Once you have read the diff and traced the risky paths, reply with the JSON review instead of re-reading.",
+        ]),
     "",
     untrusted(`PR title: ${title}`),
     untrusted(`PR body: ${body === "" ? "(empty)" : body}`),
     "",
     `## Changed files: ${input.files.length}`,
   ];
+  if (inline) {
+    for (const file of input.files)
+      parts.push(untrusted(renderPromptFile(file, input.fileContents)));
+  }
   if (guidance.text !== "") {
     parts.push("", "## Repo guidance", guidance.text);
   }

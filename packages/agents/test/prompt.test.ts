@@ -107,10 +107,20 @@ describe("buildReviewPrompt hunks", () => {
 });
 
 describe("buildReviewPrompt diff delivery", () => {
-  it("points the agent at checkout_pr instead of inlining the diff", () => {
+  it("inlines a small diff", () => {
     const { prompt } = buildReviewPrompt(baseInput);
+    expect(prompt).toContain("### File: src/big.ts");
+    expect(prompt).not.toContain("too large to inline");
+  });
+
+  it("points the agent at checkout_pr when the diff is large", () => {
+    const big = [
+      "@@ -1,0 +1,6000 @@",
+      ...Array.from({ length: 6000 }, (_, i) => `+line number ${i}`),
+    ].join("\n");
+    const { prompt } = buildReviewPrompt({ ...baseInput, files: [file("src/huge.ts", big)] });
+    expect(prompt).toContain("too large to inline");
     expect(prompt).toContain("checkout_pr");
-    expect(prompt).toContain("read_diff");
     expect(prompt).not.toContain("### File:");
   });
 });
