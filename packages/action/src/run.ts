@@ -112,20 +112,28 @@ export async function runAction(
     inputs = readInputs(runtime.getInput);
     githubToken = inputs["github-token"];
     let botLogin = inputs["bot-login"];
-    if (!botLogin && inputs["platform-url"]) {
+    if (!botLogin) {
+      if (!inputs["platform-url"]) {
+        runtime.setFailed(
+          "[hammer] platform-url must be set: Hammer reviews only registered repositories.",
+        );
+        return;
+      }
       const platform = await (dependencies.platformToken ?? requestPlatformToken)({
         platformUrl: inputs["platform-url"],
         env,
         request: proxiedFetch,
         setSecret: runtime.setSecret,
       });
-      if (platform.ok) {
-        githubToken = platform.value.token;
-        botLogin = platform.value.login;
-        runtime.info(`[hammer] posting as ${botLogin}`);
-      } else {
-        runtime.info(`[hammer] posting as the workflow token: ${platform.reason}`);
+      if (!platform.ok) {
+        runtime.setFailed(
+          `[hammer] This repository is not registered with the Hammer platform: ${platform.reason}`,
+        );
+        return;
       }
+      githubToken = platform.value.token;
+      botLogin = platform.value.login;
+      runtime.info(`[hammer] posting as ${botLogin}`);
     }
     const eventPath = z.string().min(1).parse(env.GITHUB_EVENT_PATH);
     const payload = eventSchema.parse(JSON.parse(await readFile(eventPath, "utf8")));

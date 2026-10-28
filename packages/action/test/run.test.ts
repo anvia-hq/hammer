@@ -47,6 +47,7 @@ async function fixture(overrides: Record<string, string> = {}) {
     model: "gpt-4o",
     "api-key": "test-model-key",
     "github-token": "test-github-token",
+    "platform-url": "https://platform.example",
     verify: "false",
     ...overrides,
   };
@@ -192,7 +193,16 @@ async function fixture(overrides: Record<string, string> = {}) {
     checkout,
     env,
     run: (extra: Partial<Parameters<typeof runAction>[2]> = {}) =>
-      runAction(runtime, env, { github, model, checkout, ...extra }),
+      runAction(runtime, env, {
+        github,
+        model,
+        checkout,
+        platformToken: async () => ({
+          ok: true as const,
+          value: { token: "installation-token", login: "anvia-hammer[bot]" },
+        }),
+        ...extra,
+      }),
   };
 }
 
@@ -325,7 +335,7 @@ describe("Action review flow", () => {
         path: finding.path,
         line: 2,
         original_line: 2,
-        user: { login: "github-actions[bot]", type: "Bot" },
+        user: { login: "anvia-hammer[bot]", type: "Bot" },
         body: `${finding.body}\n${formatFingerprintComment(fingerprints(finding.path, finding.body))}`,
       },
     ] as never);
@@ -364,14 +374,25 @@ describe("Action review flow", () => {
     expect(f.github.updateSummary.mock.calls.some((call) => call[2] === 5)).toBe(true);
     expect(f.runtime.info).toHaveBeenCalledWith("[hammer] posting as anvia-hammer[bot]");
   });
-  it("falls back to the workflow token when the platform cannot issue one", async () => {
+  it("refuses to review when platform-url is empty", async () => {
+    const f = await fixture({ "platform-url": "" });
+    await f.run();
+    expect(f.posted).toHaveLength(0);
+    expect(f.runtime.setFailed).toHaveBeenCalledWith(
+      expect.stringContaining("platform-url must be set"),
+    );
+  });
+  it("refuses to review when the platform cannot issue a token", async () => {
     const f = await fixture({ "platform-url": "https://platform.example" });
-    const platformToken = vi.fn(async () => ({ ok: false as const, reason: "no id-token" }));
+    const platformToken = vi.fn(async () => ({
+      ok: false as const,
+      reason: "the Hammer GitHub App is not installed on this repository (https://install.example)",
+    }));
     await f.run({ platformToken });
-    expect(f.github.identity).toHaveBeenCalled();
-    expect(f.posted).toHaveLength(1);
-    expect(f.runtime.info).toHaveBeenCalledWith(
-      "[hammer] posting as the workflow token: no id-token",
+    expect(f.posted).toHaveLength(0);
+    expect(f.model.completion).not.toHaveBeenCalled();
+    expect(f.runtime.setFailed).toHaveBeenCalledWith(
+      expect.stringContaining("not registered with the Hammer platform"),
     );
   });
   it("skips the platform when bot-login is set or platform-url is empty", async () => {
@@ -439,7 +460,7 @@ it("retains the severity gate for a deduplicated finding", async () => {
       path: finding.path,
       line: 2,
       original_line: 2,
-      user: { login: "github-actions[bot]", type: "Bot" },
+      user: { login: "anvia-hammer[bot]", type: "Bot" },
       body: formatFingerprintComment(fingerprints(finding.path, finding.body)),
     },
   ]);
@@ -457,7 +478,7 @@ it("tells the reviewer which earlier findings were resolved and dedupes them", a
       path: finding.path,
       line: 2,
       original_line: 2,
-      user: { login: "github-actions[bot]", type: "Bot" },
+      user: { login: "anvia-hammer[bot]", type: "Bot" },
       body: formatFingerprintComment(fingerprints(finding.path, finding.body)),
     },
   ]);

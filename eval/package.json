@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Hammer eval runner and cases (docs/PRD.md §11).",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "eval": "bun src/index.ts",
