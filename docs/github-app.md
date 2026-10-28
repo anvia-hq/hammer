@@ -3,16 +3,26 @@
 By default Hammer comments as `github-actions[bot]`, because the workflow token belongs to that account. To comment as the Hammer bot:
 
 1. Install the Hammer GitHub App on your repository.
-2. Add `id-token: write` to the workflow permissions.
+2. Sign in at [hammer.anvia.dev](https://hammer.anvia.dev), register the repository (you need admin permission on it) and copy the API key it shows.
+3. Add the key as the repository secret `HAMMER_API_KEY` and pass it to the Action:
 
 ```yaml
 permissions:
   contents: read
   pull-requests: write
-  id-token: write
+
+steps:
+  - uses: anvia-hq/hammer@v1
+    with:
+      client: anthropic
+      model: claude-sonnet-5-5
+      api-key: ${{ secrets.MODEL_API_KEY }}
+      hammer-api-key: ${{ secrets.HAMMER_API_KEY }}
 ```
 
-Nothing else changes: you still pass only your model key. Hammer asks the Hammer platform for a short-lived token scoped to your repository ([0014](decision/0014-platform-token-broker.md)). If the permission or the installation is missing, or the platform is unreachable, Hammer logs the reason and posts as `github-actions[bot]`, so the review still happens. Fork PRs reviewed automatically do not get `id-token` and use the workflow token.
+You still pass your model key. Hammer asks the Hammer platform for a short-lived token scoped to your repository ([0014](decision/0014-platform-token-broker.md), [0016](decision/0016-platform-registration.md)). If the key, the registration or the installation is missing, or the platform is unreachable, Hammer logs the reason and posts as `github-actions[bot]`, so the review still happens. Fork PRs do not receive repository secrets and use the workflow token.
+
+Without `hammer-api-key`, Hammer falls back to a GitHub OIDC token when the workflow grants `id-token: write`.
 
 Set `platform-url` to an empty string to disable the lookup, or to your own broker's URL.
 

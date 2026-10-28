@@ -46,6 +46,49 @@ describe("requestPlatformToken", () => {
     expect(setSecret).toHaveBeenCalledWith("ghs_app");
   });
 
+  it("uses the API key directly, without id-token or an OIDC request", async () => {
+    const request = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) =>
+      Response.json({ token: "ghs_app", botLogin: "hammer[bot]" }),
+    );
+    const { options: o, setSecret } = options(request as typeof globalThis.fetch, {
+      ACTIONS_ID_TOKEN_REQUEST_URL: undefined,
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: undefined,
+    });
+    expect(await requestPlatformToken({ ...o, apiKey: "hammer_key" })).toEqual({
+      ok: true,
+      value: { token: "ghs_app", login: "hammer[bot]" },
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(String(request.mock.calls[0]?.[0])).toBe("https://platform.example/api/token");
+    expect(request.mock.calls[0]?.[1]).toMatchObject({
+      method: "POST",
+      headers: { authorization: "Bearer hammer_key" },
+    });
+    expect(setSecret).toHaveBeenCalledWith("ghs_app");
+  });
+
+  it("tells the user to regenerate a rejected API key", async () => {
+    const request = vi.fn(async () => Response.json({ error: "invalid_token" }, { status: 401 }));
+    const { options: o } = options(request as unknown as typeof globalThis.fetch);
+    const result = await requestPlatformToken({ ...o, apiKey: "hammer_old" });
+    expect(result).toMatchObject({ ok: false, reason: expect.stringContaining("regenerate") });
+  });
+
+  it("explains an unregistered repository with the register link", async () => {
+    const request = vi.fn(async () =>
+      Response.json(
+        { error: "not_registered", registerUrl: "https://platform.example" },
+        { status: 403 },
+      ),
+    );
+    const { options: o } = options(request as unknown as typeof globalThis.fetch);
+    const result = await requestPlatformToken({ ...o, apiKey: "hammer_key" });
+    expect(result).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("https://platform.example"),
+    });
+  });
+
   it("reports a missing id-token permission without any request", async () => {
     const request = vi.fn();
     const { options: o } = options(request as unknown as typeof globalThis.fetch, {
