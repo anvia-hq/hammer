@@ -17,6 +17,7 @@ import { COMPLETION_TIMEOUT_MS, createIdleSignal, STREAM_IDLE_MS } from "./idle-
 import { buildPrDiff, DIFF_PAGE_LINES, type PrMeta } from "./diff";
 import type { BuildReviewPromptInput } from "./prompt";
 import { buildReviewerTools, runSinglePassReview, type SinglePassRunOptions } from "./run";
+import { promptCacheProviderOptions } from "./model";
 import type { SkillSet } from "./skills";
 import { applyVerification, VERIFICATION_INSTRUCTIONS } from "./verify";
 
@@ -178,6 +179,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
   };
   const verifying = input.config.verify && merged.findings.length > 0;
   if (verifying) emit({ type: "verify_start", findings: merged.findings.length });
+  const providerOptions = promptCacheProviderOptions(input.model.provider);
   const verification = await applyVerification({
     findings: merged.findings,
     diffContext: buildDiffContext(merged.findings, input.files),
@@ -188,6 +190,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
       const verifier = new Agent({
         id: "hammer-verifier",
         model,
+        ...(providerOptions ? { providerOptions } : {}),
         instructions: VERIFICATION_INSTRUCTIONS,
         tools: buildReviewerTools({
           checkoutRoot: input.checkoutRoot,
