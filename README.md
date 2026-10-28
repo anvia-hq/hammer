@@ -118,23 +118,22 @@ Each run is bounded. Defaults: 50 files, 3,000 diff lines, 100 agent turns, 400,
 
 ### Inputs
 
-| Input                                      | Description                                                           |
-| ------------------------------------------ | --------------------------------------------------------------------- |
-| `client`, `model`, `api-key`               | Required. Model client, model id and API key.                         |
-| `base-url`                                 | Gateway URL (`openai-compatible`) or endpoint (`azure`).              |
-| `native-json-schema`                       | Set `"false"` for endpoints without native JSON-schema output.        |
-| `reasoning-effort`                         | `low`, `medium` or `high`, for models that support it.                |
-| `pricing`                                  | JSON of per-million-token USD prices, to enforce `max_cost_usd`.      |
-| `github-token`                             | Defaults to the workflow token.                                       |
-| `platform-url`                             | Token broker that lets Hammer post as the bot. Empty disables it.     |
-| `bot-login`                                | Login of your own GitHub App behind `github-token`.                   |
-| `config-path`                              | Config file path. Default `.github/hammer.yml`.                       |
-| `min_severity`, `max_comments`, `fail_on`  | Override the matching config keys.                                    |
-| `review_drafts`, `ignore`, `include`       | Override the matching config keys. Lists are newline-separated.       |
-| `max_files`, `max_diff_lines`, `max_turns` | Review limits.                                                        |
-| `max_tokens`, `max_cost_usd`               | Token and cost limits.                                                |
-| `verify`, `verify_threshold`               | Verification pass on or off, and the minimum score to keep a finding. |
-| `fail_on_error`                            | Fail the job if Hammer itself errors. Default `false`.                |
+| Input                                      | Description                                                                                     |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `client`, `model`, `api-key`               | Required. Model client, model id and API key.                                                   |
+| `base-url`                                 | Gateway URL (`openai-compatible`) or endpoint (`azure`).                                        |
+| `native-json-schema`                       | Set `"false"` for endpoints without native JSON-schema output.                                  |
+| `reasoning-effort`                         | `low`, `medium` or `high`, for models that support it.                                          |
+| `pricing`                                  | JSON of per-million-token USD prices, to enforce `max_cost_usd`.                                |
+| `github-token`                             | Defaults to the workflow token.                                                                 |
+| `platform-url`                             | Required. Hammer platform that issues the bot token; only registered repositories are reviewed. |
+| `config-path`                              | Config file path. Default `.github/hammer.yml`.                                                 |
+| `min_severity`, `max_comments`, `fail_on`  | Override the matching config keys.                                                              |
+| `review_drafts`, `ignore`, `include`       | Override the matching config keys. Lists are newline-separated.                                 |
+| `max_files`, `max_diff_lines`, `max_turns` | Review limits.                                                                                  |
+| `max_tokens`, `max_cost_usd`               | Token and cost limits.                                                                          |
+| `verify`, `verify_threshold`               | Verification pass on or off, and the minimum score to keep a finding.                           |
+| `fail_on_error`                            | Fail the job if Hammer itself errors. Default `false`.                                          |
 
 ### Outputs
 
@@ -203,4 +202,4 @@ Architecture decisions are in [docs/decision](docs/decision), repository rules i
 
 ## License
 
-MIT
+Hammer is free software under the [GNU Affero General Public License v3.0](LICENSE). The hosted platform that issues the Hammer bot token is a separate, private service.

@@ -29,12 +29,9 @@ inputs:
     description: Reasoning effort for clients/models that support it (e.g. low | medium | high). Fails the run if the model doesn't support it.
     required: false
   platform-url:
-    description: Hammer platform that issues a short-lived GitHub App token so reviews are posted as the Hammer bot. Needs the id-token write permission in the workflow and the Hammer App installed on the repository. Falls back to github-token when either is missing. Set to an empty string to disable.
+    description: Hammer platform that issues a short-lived GitHub App token. It is required, because Hammer reviews only repositories registered with the platform. Needs the id-token write permission in the workflow and the Hammer App installed on the repository. The run fails with an install link otherwise.
     required: false
     default: https://hammer-platform.me-063.workers.dev
-  bot-login:
-    description: Login of the GitHub App that owns github-token, such as hammer[bot]. Installation tokens cannot look up their own login, so set this when github-token comes from a GitHub App; Hammer uses it to find and update its own comments.
-    required: false
   github-token:
     description: Token used to read the PR and post the review.
     required: false
