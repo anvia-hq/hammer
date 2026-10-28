@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildPriorFindingsContext,
+  buildResolvedFindingsContext,
   filterDuplicates,
   fingerprints,
   formatFingerprintComment,
@@ -152,4 +153,14 @@ it("keeps unrelated findings on the same file when neither has a suggestion", ()
   const previous = fingerprints("src/a.ts", "first issue");
   const prior = parsePriorFingerprints([formatFingerprintComment(previous)]);
   expect(isDuplicate({ path: "src/a.ts", body: "different issue" }, prior)).toBe(false);
+});
+
+describe("buildResolvedFindingsContext", () => {
+  it("tells the model not to raise resolved findings again", () => {
+    const context = buildResolvedFindingsContext([
+      { path: "src/a.ts", line: 3, title: "Previous finding", body: "Null deref" },
+    ]);
+    expect(context).toContain("marked resolved");
+    expect(context).toContain("src/a.ts:3");
+  });
 });

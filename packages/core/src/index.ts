@@ -145,6 +145,7 @@ export {
 export type { DedupeFinding, FindingFingerprints, PriorFinding } from "./dedupe";
 export {
   buildPriorFindingsContext,
+  buildResolvedFindingsContext,
   filterDuplicates,
   fingerprints,
   formatFingerprintComment,

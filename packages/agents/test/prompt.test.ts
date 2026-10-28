@@ -125,6 +125,13 @@ describe("buildReviewPrompt diff delivery", () => {
   });
 });
 
+describe("buildReviewPrompt resolved findings", () => {
+  it("includes resolved findings as untrusted data", () => {
+    const { prompt } = buildReviewPrompt({ ...baseInput, resolvedFindings: "- a.ts:1 — old" });
+    expect(prompt).toContain("<untrusted>\n- a.ts:1 — old\n</untrusted>");
+  });
+});
+
 describe("REVIEW_INSTRUCTIONS calibration", () => {
   it("anchors confidence and includes an example finding", async () => {
     const { REVIEW_INSTRUCTIONS } = await import("../src/prompt");

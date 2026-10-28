@@ -2,6 +2,7 @@ import type { CompletionModel, StreamingCompletionModel } from "@anvia/core/comp
 import { Agent } from "@anvia/core/agent";
 import {
   buildPriorFindingsContext,
+  buildResolvedFindingsContext,
   createBudget,
   filterDuplicates,
   validateFindings,
@@ -29,6 +30,7 @@ export interface ReviewPipelineInput extends BuildReviewPromptInput {
   discussion: SinglePassRunOptions["discussion"];
   model: CompletionModel;
   prior?: PriorFinding[];
+  resolved?: PriorFinding[];
   priorFingerprints?: Set<string>;
   pricing?: PricingFn;
   reasoningEffort?: string;
@@ -128,7 +130,10 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
       : {}),
   };
   const context = input.prior?.length ? buildPriorFindingsContext(input.prior) : "";
-  const promptInput = { ...input, priorFindings: context };
+  const resolvedContext = input.resolved?.length
+    ? buildResolvedFindingsContext(input.resolved)
+    : "";
+  const promptInput = { ...input, priorFindings: context, resolvedFindings: resolvedContext };
   emit({ type: "plan", files: input.files.length });
   let review: { ok: true; batch: ReviewBatch } | { ok: false; error: string };
   if (!budget.canStartBatch().ok) {
