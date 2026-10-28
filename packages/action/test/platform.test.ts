@@ -92,16 +92,4 @@ describe("requestPlatformToken", () => {
     );
     expect(request).not.toHaveBeenCalled();
   });
-  it("accepts plain http only for loopback, the local test stub", async () => {
-    const request = vi.fn(async (url: string | URL | Request, _init?: RequestInit) =>
-      String(url).startsWith("https://actions.example")
-        ? Response.json({ value: "oidc-jwt" })
-        : Response.json({ token: "ghs_app", botLogin: "anvia-hammer[bot]" }),
-    );
-    const { options: o } = options(request as typeof globalThis.fetch);
-    expect((await requestPlatformToken({ ...o, platformUrl: "http://127.0.0.1:8080" })).ok).toBe(
-      true,
-    );
-    expect(String(request.mock.calls[1]?.[0])).toBe("http://127.0.0.1:8080/api/token");
-  });
 });

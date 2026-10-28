@@ -1,16 +1,6 @@
 import { z } from "zod";
 
 export const PLATFORM_AUDIENCE = "hammer-platform";
-
-const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
-
-// https is required. Plain http is allowed only for loopback, so the bundled smoke test can run the platform stub.
-function secureOrLoopbackUrl(value: string): string {
-  const url = new URL(z.url().parse(value));
-  if (url.protocol === "https:" || (url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname)))
-    return url.href;
-  throw new Error("platform-url must use https");
-}
 const REQUEST_TIMEOUT_MS = 10_000;
 
 const oidcSchema = z.object({ value: z.string().min(1) });
@@ -37,7 +27,10 @@ export async function requestPlatformToken(options: PlatformOptions): Promise<Pl
     return { ok: false, reason: "the workflow does not grant `id-token: write`" };
   }
   try {
-    const endpoint = new URL("/api/token", secureOrLoopbackUrl(options.platformUrl));
+    const endpoint = new URL(
+      "/api/token",
+      z.url({ protocol: /^https$/ }).parse(options.platformUrl),
+    );
     const oidcUrl = new URL(env.ACTIONS_ID_TOKEN_REQUEST_URL);
     oidcUrl.searchParams.set("audience", PLATFORM_AUDIENCE);
     const oidcResponse = await request(oidcUrl, {

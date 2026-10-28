@@ -19,7 +19,6 @@ Users need a way to register a repository, so the platform can tell which reposi
     If either check fails, nothing is stored.
 - **Stored per registration:** the registering user's GitHub id and login, the repository id and full name, the installation id, and the time of registration. Nothing else about the user is kept.
 - **The user's OAuth access token is used for the checks and then discarded.** It is not stored, so the platform holds no long-lived user credential.
-- **The Action refuses unregistered repositories.** The Action does not fall back to the workflow token. A run without a platform token fails with the reason and the install link. This is what makes registration a gate rather than an option.
 - **Token minting requires a registration.** The OIDC flow from 0014 is unchanged, except that the platform also requires an active registration for the repository named in the verified claims. An unregistered repository gets no token.
 - **Users never give the platform a model key or a secret.** Model keys stay in the repository's GitHub secrets, which is how the workflow already works.
 - **Unregistering** deletes the registration, so minting stops immediately. Uninstalling the App also stops minting.

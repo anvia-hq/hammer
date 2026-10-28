@@ -111,27 +111,22 @@ export async function runAction(
     }
     inputs = readInputs(runtime.getInput);
     githubToken = inputs["github-token"];
-    if (!inputs["platform-url"]) {
-      runtime.setFailed(
-        "[hammer] platform-url must be set: Hammer reviews only registered repositories.",
-      );
-      return;
+    let botLogin = inputs["bot-login"];
+    if (!botLogin && inputs["platform-url"]) {
+      const platform = await (dependencies.platformToken ?? requestPlatformToken)({
+        platformUrl: inputs["platform-url"],
+        env,
+        request: proxiedFetch,
+        setSecret: runtime.setSecret,
+      });
+      if (platform.ok) {
+        githubToken = platform.value.token;
+        botLogin = platform.value.login;
+        runtime.info(`[hammer] posting as ${botLogin}`);
+      } else {
+        runtime.info(`[hammer] posting as the workflow token: ${platform.reason}`);
+      }
     }
-    const platform = await (dependencies.platformToken ?? requestPlatformToken)({
-      platformUrl: inputs["platform-url"],
-      env,
-      request: proxiedFetch,
-      setSecret: runtime.setSecret,
-    });
-    if (!platform.ok) {
-      runtime.setFailed(
-        `[hammer] This repository is not registered with the Hammer platform: ${platform.reason}`,
-      );
-      return;
-    }
-    githubToken = platform.value.token;
-    const botLogin = platform.value.login;
-    runtime.info(`[hammer] posting as ${botLogin}`);
     const eventPath = z.string().min(1).parse(env.GITHUB_EVENT_PATH);
     const payload = eventSchema.parse(JSON.parse(await readFile(eventPath, "utf8")));
     github = dependencies.github ?? new GitHub(githubToken, z.url().parse(env.GITHUB_API_URL));
@@ -176,7 +171,7 @@ export async function runAction(
       headSha: pr.head.sha,
       repoUrl: `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${owner}/${repo}`,
     };
-    identity = botLogin;
+    identity = botLogin || (await github.identity());
     comments = await github.comments(owner, repo, prNumber);
     if (
       decision.kind === "comment" &&
