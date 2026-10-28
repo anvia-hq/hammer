@@ -105,7 +105,7 @@ export async function runAction(
       await skip(`event ${env.GITHUB_EVENT_NAME ?? "unknown"} is not a review trigger`);
       return;
     }
-    for (const name of ["api-key", "github-token"]) {
+    for (const name of ["api-key", "github-token", "hammer-api-key"]) {
       const secret = runtime.getInput(name);
       if (secret) runtime.setSecret(secret);
     }
@@ -115,6 +115,7 @@ export async function runAction(
     if (!botLogin && inputs["platform-url"]) {
       const platform = await (dependencies.platformToken ?? requestPlatformToken)({
         platformUrl: inputs["platform-url"],
+        apiKey: inputs["hammer-api-key"] || undefined,
         env,
         request: proxiedFetch,
         setSecret: runtime.setSecret,

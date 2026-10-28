@@ -20,6 +20,7 @@ Users need a way to register a repository, so the platform can tell which reposi
 - **Stored per registration:** the registering user's GitHub id and login, the repository id and full name, the installation id, and the time of registration. Nothing else about the user is kept.
 - **The user's OAuth access token is used for the checks and then discarded.** It is not stored, so the platform holds no long-lived user credential.
 - **Token minting requires a registration.** The OIDC flow from 0014 is unchanged, except that the platform also requires an active registration for the repository named in the verified claims. An unregistered repository gets no token.
+- **Registration issues a per-repository API key.** The platform stores only its SHA-256 hash and shows the key once; the user can regenerate it, which invalidates the old one. The Action sends it as `hammer-api-key`, so a workflow needs only the `HAMMER_API_KEY` secret and no `id-token` permission. The OIDC flow remains as a fallback.
 - **Users never give the platform a model key or a secret.** Model keys stay in the repository's GitHub secrets, which is how the workflow already works.
 - **Unregistering** deletes the registration, so minting stops immediately. Uninstalling the App also stops minting.
 - **Scope of a sign-in** is the user's own admin rights. A user can register only repositories they administer, and the platform never grants more than the App's installation already does.

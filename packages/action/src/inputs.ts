@@ -19,6 +19,7 @@ const schema = z.object({
   "github-token": z.string(),
   "bot-login": z.string(),
   "platform-url": z.string(),
+  "hammer-api-key": z.string(),
   "base-url": z.string(),
   "native-json-schema": optional(bool),
   "reasoning-effort": z.string(),

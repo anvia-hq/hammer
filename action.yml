@@ -29,9 +29,12 @@ inputs:
     description: Reasoning effort for clients/models that support it (e.g. low | medium | high). Fails the run if the model doesn't support it.
     required: false
   platform-url:
-    description: Hammer platform that issues a short-lived GitHub App token so reviews are posted as the Hammer bot. Needs the id-token write permission in the workflow and the Hammer App installed on the repository. Falls back to github-token when either is missing. Set to an empty string to disable.
+    description: Hammer platform that issues a short-lived GitHub App token so reviews are posted as the Hammer bot. Needs the Hammer App installed and the repository registered, plus hammer-api-key or the id-token write permission. Falls back to github-token when any of that is missing. Set to an empty string to disable.
     required: false
-    default: https://hammer-platform.me-063.workers.dev
+    default: https://hammer.anvia.dev
+  hammer-api-key:
+    description: API key for this repository from the Hammer platform (hammer.anvia.dev). Store it as the secret HAMMER_API_KEY. When set, the id-token write permission is not needed.
+    required: false
   bot-login:
     description: Login of the GitHub App that owns github-token, such as hammer[bot]. Installation tokens cannot look up their own login, so set this when github-token comes from a GitHub App; Hammer uses it to find and update its own comments.
     required: false
