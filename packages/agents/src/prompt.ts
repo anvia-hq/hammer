@@ -138,7 +138,7 @@ function renderHunk(hunk: PatchHunk, prefix: PrefixLine[], suffix: PrefixLine[])
   return out.join("\n");
 }
 
-function renderPromptFile(file: PullFileEntry, contents?: Record<string, string>): string {
+export function renderPromptFile(file: PullFileEntry, contents?: Record<string, string>): string {
   const out: string[] = [`### File: ${file.filename}`];
   const hunks = parsePatch(file.patch ?? "");
   if (hunks.length === 0) {

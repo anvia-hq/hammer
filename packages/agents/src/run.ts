@@ -14,12 +14,12 @@ import {
   type PullFileEntry,
   type ReviewBatch,
 } from "@anvia/hammer-core";
+import { buildPrDiff, renderCheckout, type PrDiff, type PrMeta } from "./diff";
 import { parseModelRefWithBase } from "./model";
 import { buildReviewPrompt, REVIEW_INSTRUCTIONS, type BuildReviewPromptInput } from "./prompt";
 import { SKILL_REVIEW_INSTRUCTIONS, type SkillSet } from "./skills";
 import { createTextStreamer, type StreamedTextSink } from "./stream";
 import {
-  getFileDiff,
   getPrDiscussion,
   listDir,
   readFile,
@@ -127,9 +127,13 @@ async function resolveDiscussion(
 export function buildReviewerTools(options: {
   checkoutRoot: string;
   files: PullFileEntry[];
+  fileContents?: Record<string, string>;
+  pr?: PrMeta;
+  diff?: PrDiff;
   discussion: PrDiscussionInput | DiscussionSource | undefined;
   onToolCall?: (name: string, detail: string) => void;
 }): AnyTool[] {
+  const diff = options.diff ?? buildPrDiff(options.files, options.fileContents);
   const readFileTool = createTool({
     name: "read_file",
     description: "Read lines from a file inside the PR-head checkout.",
@@ -165,13 +169,28 @@ export function buildReviewerTools(options: {
       return search(options.checkoutRoot, args.pattern, args.glob);
     },
   });
-  const getFileDiffTool = createTool({
-    name: "get_file_diff",
-    description: "Return the collected diff patch for one file.",
-    inputSchema: z.object({ path: z.string() }),
+  const checkoutPrTool = createTool({
+    name: "checkout_pr",
+    description:
+      "Return the PR metadata and a table of contents of the diff (diff line range per file). Call this first.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      options.onToolCall?.("checkout_pr", "");
+      return renderCheckout(options.pr ?? { title: "" }, diff);
+    },
+  });
+  const readDiffTool = createTool({
+    name: "read_diff",
+    description:
+      "Read the PR diff by diff line range, with new-file line numbers on each line. Returns at most 400 diff lines per call.",
+    inputSchema: z.object({
+      startLine: z.number().int().min(1).optional(),
+      endLine: z.number().int().min(1).optional(),
+    }),
     execute: async (args) => {
-      options.onToolCall?.("get_file_diff", args.path);
-      return getFileDiff(options.files, args.path);
+      const range = args.startLine === undefined ? "" : `${args.startLine}-${args.endLine ?? ""}`;
+      options.onToolCall?.("read_diff", range);
+      return diff.read(args.startLine, args.endLine);
     },
   });
   const getPrDiscussionTool = createTool({
@@ -184,7 +203,7 @@ export function buildReviewerTools(options: {
       return getPrDiscussion(await resolveDiscussion(options.discussion));
     },
   });
-  return [readFileTool, listDirTool, searchTool, getFileDiffTool, getPrDiscussionTool];
+  return [checkoutPrTool, readDiffTool, readFileTool, listDirTool, searchTool, getPrDiscussionTool];
 }
 
 async function runAgent(

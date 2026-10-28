@@ -6,7 +6,6 @@ import {
   matchesGlob,
   MAX_READABLE_FILE_BYTES,
   resolveInsideRoot,
-  type PullFileEntry,
 } from "@anvia/hammer-core";
 
 export const MAX_TOOL_OUTPUT_CHARS = 20_000;
@@ -23,8 +22,7 @@ export type AgentToolReason =
   | "not_a_file"
   | "not_a_directory"
   | "invalid_range"
-  | "invalid_pattern"
-  | "diff_not_found";
+  | "invalid_pattern";
 
 export interface TruncatedText {
   text: string;
@@ -226,24 +224,6 @@ export async function search(root: string, pattern: string, glob?: string): Prom
     }
   }
   return { ok: true, hits, truncated: hits.length >= MAX_SEARCH_HITS };
-}
-
-export interface FileDiffSuccess {
-  ok: true;
-  path: string;
-  patch: string;
-  truncated: boolean;
-}
-
-export type FileDiffResult = FileDiffSuccess | { ok: false; reason: AgentToolReason };
-
-export function getFileDiff(files: PullFileEntry[], filePath: string): FileDiffResult {
-  const entry = files.find((file) => file.filename === filePath);
-  if (entry === undefined || entry.patch === undefined) {
-    return { ok: false, reason: "diff_not_found" };
-  }
-  const { text, truncated } = truncateText(entry.patch, MAX_TOOL_OUTPUT_CHARS);
-  return { ok: true, path: filePath, patch: text, truncated };
 }
 
 export const MAX_DISCUSSION_COMMENTS = 20;

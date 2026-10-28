@@ -164,8 +164,8 @@ it("streams model commentary but not the final JSON, and still accounts usage", 
         const call = {
           type: "tool-call" as const,
           toolCallId: "c1",
-          toolName: "get_file_diff",
-          input: { path: "a.ts" },
+          toolName: "checkout_pr",
+          input: {},
         };
         yield { type: "tool_call" as const, toolCall: call };
         yield {

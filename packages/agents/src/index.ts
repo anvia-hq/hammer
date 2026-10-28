@@ -43,7 +43,6 @@ export type {
 export { buildReviewerTools, runSinglePassReview } from "./run";
 export type { AgentToolReason } from "./tools";
 export {
-  getFileDiff,
   getPrDiscussion,
   listDir,
   MAX_DIR_ENTRIES,
@@ -57,8 +56,6 @@ export {
 } from "./tools";
 export type {
   DiscussionCommentInput,
-  FileDiffResult,
-  FileDiffSuccess,
   ListDirResult,
   ListDirSuccess,
   PrDiscussionInput,
@@ -96,3 +93,5 @@ export { loadReviewSkills, SKILL_REVIEW_INSTRUCTIONS } from "./skills";
 export type { SkillSet } from "./skills";
 export { runReviewPipeline } from "./pipeline";
 export type { ReviewPipelineInput, ReviewPipelineResult } from "./pipeline";
+export { buildPrDiff, renderCheckout, DIFF_PAGE_LINES } from "./diff";
+export type { DiffTocEntry, PrDiff, PrMeta } from "./diff";
