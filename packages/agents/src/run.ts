@@ -73,6 +73,7 @@ export interface SinglePassRunOptions {
   onToolCall?: (name: string, detail: string) => void;
   skills?: SkillSet;
   onText?: StreamedTextSink;
+  isNearBudget?: () => boolean;
 }
 
 interface PrDiscussionSource {
@@ -87,6 +88,9 @@ type DiscussionSource =
 
 const REPEATED_CALL =
   "You already made this exact call in this review and its result is in the conversation above. Use that result: investigate something new, or reply with the JSON review.";
+
+const WIND_DOWN_CALL =
+  "Review budget is almost used up. Do not call any more tools: reply now with the final JSON review.";
 
 const ZERO_USAGE: SinglePassUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
@@ -134,6 +138,7 @@ export function buildReviewerTools(options: {
   diff?: PrDiff;
   discussion: PrDiscussionInput | DiscussionSource | undefined;
   onToolCall?: (name: string, detail: string) => void;
+  isNearBudget?: () => boolean;
 }): AnyTool[] {
   const diff = options.diff ?? buildPrDiff(options.files, options.fileContents);
   const answered = new Set<string>();
@@ -142,6 +147,7 @@ export function buildReviewerTools(options: {
     args: unknown,
     run: () => Promise<T> | T,
   ): Promise<T | string> => {
+    if (options.isNearBudget?.()) return WIND_DOWN_CALL;
     const key = `${name}:${JSON.stringify(args)}`;
     if (answered.has(key)) return REPEATED_CALL;
     answered.add(key);
@@ -205,6 +211,7 @@ export function buildReviewerTools(options: {
     execute: async (args) => {
       const range = args.startLine === undefined ? "" : `${args.startLine}-${args.endLine ?? ""}`;
       options.onToolCall?.("read_diff", range);
+      if (options.isNearBudget?.()) return WIND_DOWN_CALL;
       return diff.read(args.startLine, args.endLine);
     },
   });
@@ -316,6 +323,7 @@ export async function runSinglePassReview(
         ...(options.diff ? { diff: options.diff } : {}),
         discussion: options.discussion,
         ...(options.onToolCall ? { onToolCall: options.onToolCall } : {}),
+        ...(options.isNearBudget ? { isNearBudget: options.isNearBudget } : {}),
       }),
       maxTurns: options.maxTurns ?? DEFAULT_MAX_TURNS,
       ...(options.reasoningEffort

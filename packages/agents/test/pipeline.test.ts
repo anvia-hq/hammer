@@ -219,7 +219,10 @@ it("falls back to a non-streaming run when the stream fails before any output", 
   expect(result.failed).toBe(false);
 });
 
-it("forbids tool calls near the budget but keeps the tool list unchanged", async () => {
+it("never changes the request shape near the budget", async () => {
+  // Anthropic binds a signed thinking block to the tools/tool_choice shape of the turn that
+  // created it, so the request sent to the model must stay identical turn to turn; wind-down
+  // is enforced by the reviewer tools themselves (see agent-tools.test.ts), not by this request.
   const request = input([]);
   const usage = {
     inputTokens: 10,
@@ -253,7 +256,8 @@ it("forbids tool calls near the budget but keeps the tool list unchanged", async
   } as unknown as typeof request.model;
   request.config.max_tokens = 16;
   const result = await runReviewPipeline(request);
+  expect(seen).toHaveLength(2);
   expect(seen[0]?.tools).toBeGreaterThan(0);
-  expect(seen[1]).toEqual({ tools: seen[0]?.tools, toolChoice: "none" });
+  expect(seen[1]).toEqual(seen[0]);
   expect(result.findings).toHaveLength(1);
 });
