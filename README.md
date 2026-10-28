@@ -165,7 +165,7 @@ Commentary the model writes between tool calls (`says`) and, for models that exp
 - The agent is read-only: no writes, no command execution, no network tools.
 - Hammer checks out the PR head without running hooks, installs or builds, and file tools stay inside the checkout.
 - PR title, body, comments, filenames and file contents are untrusted data. Config and guidance come from the base branch.
-- Every comment is secret-scanned and sanitized before it is posted. Posting is limited to creating a review, creating or editing Hammer's own comments, and a reaction.
+- Every comment is secret-scanned and sanitized before it is posted. Posting is limited to creating a review, creating or editing Hammer's own comments, and a reaction. The only other call is one read-only GraphQL query that lists which review threads are resolved, so Hammer does not raise a resolved finding again.
 - Your code is sent only to the model provider you configure. There is no telemetry.
 
 See [docs/security-coverage.md](docs/security-coverage.md) for how each control is tested.

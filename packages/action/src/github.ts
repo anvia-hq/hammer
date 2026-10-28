@@ -57,6 +57,18 @@ export function assertAllowedRequest(
 ): void {
   const base = new URL(`${apiUrl.replace(/\/$/, "")}/`);
   const target = new URL(url, base);
+  const graphqlUrl = `${apiUrl.replace(/\/$/, "").replace(/\/api\/v3$/, "/api")}/graphql`;
+  if (
+    method === "POST" &&
+    target.href === new URL(graphqlUrl).href &&
+    typeof body === "object" &&
+    body !== null &&
+    "query" in body &&
+    typeof body.query === "string" &&
+    /^\s*query\b/.test(body.query) &&
+    !/\bmutation\b/i.test(body.query)
+  )
+    return;
   if (target.origin !== base.origin || !target.pathname.startsWith(base.pathname))
     throw new Error("GitHub request escaped the configured API host.");
   const route = decodeURI(target.pathname.slice(base.pathname.length));
@@ -87,6 +99,33 @@ export function assertAllowedRequest(
 }
 
 export const proxiedFetch = proxyFetch as unknown as typeof globalThis.fetch;
+
+const MAX_THREAD_PAGES = 5;
+const THREADS_QUERY = `query($owner: String!, $repo: String!, $pull_number: Int!, $after: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $pull_number) {
+      reviewThreads(first: 100, after: $after) {
+        pageInfo { hasNextPage endCursor }
+        nodes { isResolved comments(first: 50) { nodes { databaseId } } }
+      }
+    }
+  }
+}`;
+const threadsSchema = z.object({
+  repository: z.object({
+    pullRequest: z.object({
+      reviewThreads: z.object({
+        pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable() }),
+        nodes: z.array(
+          z.object({
+            isResolved: z.boolean(),
+            comments: z.object({ nodes: z.array(z.object({ databaseId: z.number() })) }),
+          }),
+        ),
+      }),
+    }),
+  }),
+});
 
 export class GitHub {
   private readonly api;
@@ -187,6 +226,29 @@ export class GitHub {
         per_page: 100,
       }),
     );
+  }
+  async resolvedReviewCommentIds(
+    owner: string,
+    repo: string,
+    pull_number: number,
+  ): Promise<Set<number>> {
+    const resolved = new Set<number>();
+    let after: string | null = null;
+    for (let page = 0; page < MAX_THREAD_PAGES; page += 1) {
+      const data: unknown = await this.api.graphql(THREADS_QUERY, {
+        owner,
+        repo,
+        pull_number,
+        after,
+      });
+      const threads = threadsSchema.parse(data).repository.pullRequest.reviewThreads;
+      for (const thread of threads.nodes)
+        if (thread.isResolved)
+          for (const comment of thread.comments.nodes) resolved.add(comment.databaseId);
+      if (!threads.pageInfo.hasNextPage) break;
+      after = threads.pageInfo.endCursor;
+    }
+    return resolved;
   }
   async createComment(
     owner: string,

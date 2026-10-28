@@ -109,6 +109,7 @@ async function fixture(overrides: Record<string, string> = {}) {
     ),
     comments: vi.fn(async () => comments),
     reviewComments: vi.fn<GitHubPort["reviewComments"]>(async () => []),
+    resolvedReviewCommentIds: vi.fn(async () => new Set<number>()),
     parents: vi.fn(async () => [base]),
     review: vi.fn(async (value: CreateReviewPayload) => {
       posted.push(value);
@@ -446,6 +447,36 @@ it("retains the severity gate for a deduplicated finding", async () => {
   expect(f.posted).toHaveLength(0);
   expect(f.runtime.setFailed).toHaveBeenCalled();
   expect(f.summaries.at(-1)).toContain("Null dereference");
+});
+
+it("tells the reviewer which earlier findings were resolved and dedupes them", async () => {
+  const f = await fixture();
+  f.github.reviewComments.mockResolvedValue([
+    {
+      id: 9,
+      path: finding.path,
+      line: 2,
+      original_line: 2,
+      user: { login: "github-actions[bot]", type: "Bot" },
+      body: formatFingerprintComment(fingerprints(finding.path, finding.body)),
+    },
+  ]);
+  f.github.resolvedReviewCommentIds.mockResolvedValue(new Set([9]));
+  await f.run();
+  const prompt = JSON.stringify(vi.mocked(f.model.completion).mock.calls[0]?.[0].chatHistory);
+  expect(prompt).toContain("marked resolved");
+  expect(prompt).not.toContain("Previously posted open Hammer findings");
+  expect(f.posted).toHaveLength(0);
+});
+
+it("keeps reviewing when resolved threads cannot be read", async () => {
+  const f = await fixture();
+  f.github.resolvedReviewCommentIds.mockRejectedValue(new Error("Resource not accessible"));
+  await f.run();
+  expect(f.posted).toHaveLength(1);
+  expect(f.runtime.warning).toHaveBeenCalledWith(
+    expect.stringContaining("Resolved threads unavailable"),
+  );
 });
 
 it("honors verification disabled in base config when there is no action override", async () => {

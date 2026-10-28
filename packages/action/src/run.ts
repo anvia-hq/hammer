@@ -305,9 +305,25 @@ export async function runAction(
       const content = await readCheckoutFile(checkout, file.filename);
       if (content.ok) fileContents[file.filename] = content.text.replace(/^\d+: /gm, "");
     }
-    const prior = (await github.reviewComments(owner, repo, prNumber)).filter(
+    const hammerComments = (await github.reviewComments(owner, repo, prNumber)).filter(
       (comment) => comment.user?.login === identity && comment.body?.includes("<!-- hammer:fp="),
     );
+    const resolvedIds = await github
+      .resolvedReviewCommentIds(owner, repo, prNumber)
+      .catch((error: unknown) => {
+        runtime.warning(
+          `Resolved threads unavailable; continuing without them: ${cleanError(error)}`,
+        );
+        return new Set<number>();
+      });
+    const prior = hammerComments.filter((comment) => !resolvedIds.has(comment.id));
+    const resolved = hammerComments.filter((comment) => resolvedIds.has(comment.id));
+    const toFinding = (comment: (typeof hammerComments)[number]) => ({
+      path: comment.path,
+      line: comment.line ?? comment.original_line ?? 1,
+      title: "Previous finding",
+      body: comment.body ?? "",
+    });
     const instruction =
       decision.kind === "comment" ? decision.command.replace(/^review\s*/i, "") : "";
     const gatewayCatalog =
@@ -358,13 +374,11 @@ export async function runAction(
           apiKey: inputs["api-key"],
           nativeJsonSchema: inputs["native-json-schema"],
         }),
-      priorFingerprints: parsePriorFingerprints(prior.map((comment) => comment.body ?? "")),
-      prior: prior.map((comment) => ({
-        path: comment.path,
-        line: comment.line ?? comment.original_line ?? 1,
-        title: "Previous finding",
-        body: comment.body ?? "",
-      })),
+      priorFingerprints: parsePriorFingerprints(
+        hammerComments.map((comment) => comment.body ?? ""),
+      ),
+      prior: prior.map(toFinding),
+      resolved: resolved.map(toFinding),
     });
     await progress.settle();
     const current = await github.pull(owner, repo, prNumber);

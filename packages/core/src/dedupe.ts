@@ -83,13 +83,11 @@ export function filterDuplicates<T extends DedupeFinding>(
   return { kept, duplicates };
 }
 
-export function buildPriorFindingsContext(
+function renderFindingLines(
   priorFindings: PriorFinding[],
-  maxChars: number = MAX_PRIOR_FINDINGS_CHARS,
+  lines: string[],
+  maxChars: number,
 ): string {
-  const lines = [
-    "Previously posted open Hammer findings. If a finding below is still valid, restate it word for word instead of posting a reworded duplicate:",
-  ];
   for (const prior of priorFindings) {
     const snippet =
       prior.body.length > PRIOR_BODY_SNIPPET_CHARS
@@ -99,4 +97,27 @@ export function buildPriorFindingsContext(
   }
   const full = `${lines.join("\n")}\n`;
   return full.length > maxChars ? full.slice(0, maxChars) : full;
+}
+
+export function buildResolvedFindingsContext(
+  resolvedFindings: PriorFinding[],
+  maxChars: number = MAX_PRIOR_FINDINGS_CHARS,
+): string {
+  return renderFindingLines(
+    resolvedFindings,
+    [
+      "Findings from earlier Hammer reviews that a person marked resolved. Do not raise them again, reworded or not, unless the current code reintroduces the problem:",
+    ],
+    maxChars,
+  );
+}
+
+export function buildPriorFindingsContext(
+  priorFindings: PriorFinding[],
+  maxChars: number = MAX_PRIOR_FINDINGS_CHARS,
+): string {
+  const lines = [
+    "Previously posted open Hammer findings. If a finding below is still valid, restate it word for word instead of posting a reworded duplicate:",
+  ];
+  return renderFindingLines(priorFindings, lines, maxChars);
 }

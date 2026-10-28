@@ -38,6 +38,7 @@ export interface BuildReviewPromptInput {
   fileContents?: Record<string, string>;
   instruction?: string;
   priorFindings?: string;
+  resolvedFindings?: string;
 }
 
 export interface ReviewPrompt {
@@ -258,6 +259,7 @@ export function buildReviewPrompt(input: BuildReviewPromptInput): ReviewPrompt {
       "Restate still-valid prior findings word for word:",
       untrusted(input.priorFindings),
     );
+  if (input.resolvedFindings) parts.push("", untrusted(input.resolvedFindings));
   parts.push("", `Write comments in ${input.config.language ?? "en"}.`);
   const prompt = parts.join("\n");
   return { prompt, approxTokens: approxTokens(prompt), guidanceTruncated: guidance.truncated };

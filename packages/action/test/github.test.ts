@@ -70,3 +70,57 @@ it("does not log handled 403 and 404 responses", async () => {
   for (const spy of log) expect(spy).not.toHaveBeenCalled();
   vi.restoreAllMocks();
 });
+
+describe("resolved review threads", () => {
+  const graphql = (nodes: unknown[]) =>
+    vi.fn<typeof globalThis.fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              repository: {
+                pullRequest: {
+                  reviewThreads: { pageInfo: { hasNextPage: false, endCursor: null }, nodes },
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+
+  it("collects the comment ids of resolved threads only", async () => {
+    const request = graphql([
+      { isResolved: true, comments: { nodes: [{ databaseId: 1 }, { databaseId: 2 }] } },
+      { isResolved: false, comments: { nodes: [{ databaseId: 3 }] } },
+    ]);
+    const ids = await new GitHub("test-token", apiUrl, request).resolvedReviewCommentIds(
+      "o",
+      "r",
+      7,
+    );
+    expect([...ids]).toEqual([1, 2]);
+    expect(request.mock.calls[0]?.[0]).toBe("https://enterprise.example/api/graphql");
+  });
+
+  it("allows a read-only GraphQL query and refuses a mutation", () => {
+    expect(() =>
+      assertAllowedRequest("POST", "https://enterprise.example/api/graphql", apiUrl, {
+        query: "query { viewer { id } }",
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertAllowedRequest("POST", "https://enterprise.example/api/graphql", apiUrl, {
+        query: 'mutation { resolveReviewThread(input: {threadId: "x"}) { thread { id } } }',
+      }),
+    ).toThrow();
+    expect(() =>
+      assertAllowedRequest("POST", "https://enterprise.example/api/graphql", apiUrl, {}),
+    ).toThrow();
+    expect(() =>
+      assertAllowedRequest("POST", "https://attacker.example/api/graphql", apiUrl, {
+        query: "query { viewer { id } }",
+      }),
+    ).toThrow();
+  });
+});
