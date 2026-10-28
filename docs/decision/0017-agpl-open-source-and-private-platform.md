@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. The refusal described below takes effect in v2.0.0. v1.11.1 restores the workflow-token fallback and the `bot-login` input so existing v1 users keep working.
+Accepted. Hammer has no external users yet, so the registration refusal ships directly on the 1.x line as an `enhancement`-labelled release rather than waiting for a major version.
 
 ## Context
 
@@ -20,4 +20,4 @@ Hammer's code was private and its packages declared MIT without a LICENSE file. 
 - Anyone can read, run and modify the Action, and reviews that use a fork's own token are not part of the hosted service.
 - AGPL requires anyone who runs a modified version of this code as a network service to publish their changes. The Action runs on the user's runner, so this mostly affects anyone hosting a modified Hammer for others.
 - Contributions are accepted under AGPL. Hammer has one contributor so far, so relicensing needs no further consent. A contributor agreement is needed before outside contributions.
-- The released action's major version changes, because unregistered repositories are now refused. That change is labelled `breaking`, so the release is manual.
+- Unregistered repositories are now refused. Behaviourally this is a breaking change, but with no users on the Action yet there is no compatibility to protect, so it ships as a normal `enhancement`-labelled 1.x release instead of a hand-picked major version. Once Hammer has real users, a change of this kind would need a major line instead.
