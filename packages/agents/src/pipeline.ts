@@ -85,17 +85,20 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
   const softTurns = SOFT_TURNS + 2 * Math.ceil(diff.totalLines / DIFF_PAGE_LINES);
   let reviewing = true;
   let calls = 0;
-  const windDown = <T extends Parameters<CompletionModel["completion"]>[0]>(request: T): T => {
+  let near = false;
+  // Anthropic binds a signed thinking block to the tools/tool_choice shape of the turn
+  // that created it, so wind-down must never change the request mid-conversation. Instead
+  // the budget state below is surfaced to reviewer tools (see isNearBudget), which return a
+  // wind-down message and skip the real work, while the request itself stays untouched.
+  const trackWindDown = (): void => {
     const { tokens, costUsd } = budget.summary();
     calls += 1;
-    const near =
+    near =
       tokens >= budget.maxTokens * WIND_DOWN_RATIO ||
       (costUsd !== null && costUsd >= budget.maxCostUsd * WIND_DOWN_RATIO) ||
       (reviewing && calls > softTurns);
-    // Changing the tool list mid-conversation invalidates signed thinking blocks (Anthropic 400),
-    // so keep it and forbid calls instead.
-    return near ? { ...request, toolChoice: "none" } : request;
   };
+  const isNearBudget = (): boolean => near;
   const upstream = input.model as Partial<StreamingCompletionModel>;
   const model: CompletionModel = {
     provider: input.model.provider,
@@ -103,7 +106,8 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     capabilities: input.model.capabilities,
     ...(input.model.controls ? { controls: input.model.controls } : {}),
     async completion(request, options) {
-      const response = await input.model.completion(windDown(request), guarded(options));
+      trackWindDown();
+      const response = await input.model.completion(request, guarded(options));
       record(response.usage);
       return response;
     },
@@ -114,9 +118,10 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
             options?: Parameters<CompletionModel["completion"]>[1],
           ) {
             if (!budget.canStartBatch().ok) throw new Error("Review budget reached.");
+            trackWindDown();
             const idle = createIdleSignal(STREAM_IDLE_MS, options?.abortSignal);
             try {
-              for await (const event of upstream.streamCompletion!(windDown(request), {
+              for await (const event of upstream.streamCompletion!(request, {
                 ...options,
                 abortSignal: idle.signal,
               })) {
@@ -159,6 +164,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
         onToolCall: (name, detail) => emit({ type: "tool", name, detail }),
         onText: (kind, text) => emit({ type: "text", kind, text }),
         ...(input.skills ? { skills: input.skills } : {}),
+        isNearBudget,
       },
     );
     if (outcome.ok) {
@@ -198,6 +204,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
           pr: { title: input.title, ...input.pr },
           discussion: input.discussion,
           onToolCall: (name, detail) => emit({ type: "tool", name: `verify ${name}`, detail }),
+          isNearBudget,
         }),
         maxTurns: input.config.max_turns,
         maxTokens: 4096,
