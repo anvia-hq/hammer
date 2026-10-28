@@ -10,7 +10,7 @@ PR content and repository files are attacker-controlled. Coding agents in GitHub
 
 ## Decision
 
-The agent gets only read tools: `read_file`, `list_dir`, `search`, `get_file_diff` and `get_pr_discussion` (PRD F10). Its only output is a structured result that Hammer validates and posts as one `COMMENT` review and one summary comment. The checkout is fetched, never built or executed, and git hooks, submodules and LFS are disabled.
+The agent gets only read tools: `checkout_pr`, `read_diff`, `read_file`, `list_dir`, `search` and `get_pr_discussion` (PRD F10). Its only output is a structured result that Hammer validates and posts as one `COMMENT` review and one summary comment. The checkout is fetched, never built or executed, and git hooks, submodules and LFS are disabled.
 
 ## Consequences
 

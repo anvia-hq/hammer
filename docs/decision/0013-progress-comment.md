@@ -10,7 +10,7 @@ A review can run for minutes. The job log streams progress ([0010](0010-stream-r
 
 ## Decision
 
-- Once Hammer decides to review, it posts the sticky summary comment immediately as a todo list: check out the PR head, review the files (one item per batch when the review is split), verify findings if enabled, post the review.
+- Once Hammer decides to review, it posts the sticky summary comment immediately as a todo list: check out the PR head, review the files, verify findings if enabled, post the review.
 - Review events tick items off. Updates are throttled to one edit every 8 seconds and serialized, so rapid events collapse into one write. The pure state, reducer and renderer live in [progress.ts](../../packages/core/src/progress.ts); the throttled writer is [progress.ts](../../packages/action/src/progress.ts).
 - When the pipeline returns, the reporter is settled first, so no late progress edit can overwrite the final result. Then the review with its inline comments is posted and the same sticky comment is rewritten as the final summary. The error path rewrites it too.
 - The progress comment shows only step names and counts, never findings or model text, because findings are not validated yet.

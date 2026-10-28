@@ -114,7 +114,7 @@ Hammer also reads `AGENTS.md`, `CLAUDE.md` and `CONTRIBUTING.md` from the base b
 
 ### Limits
 
-Each run is bounded. Defaults: 50 files, 3,000 diff lines, 100 agent turns per batch, 400,000 tokens and $1.00. Raise or lower them with `max_files`, `max_diff_lines`, `max_turns`, `max_tokens` and `max_cost_usd`. When a limit is hit, Hammer posts what it has and says the review was partial. `max_cost_usd` is enforced when Hammer knows the model's price: from the `pricing` input, from an openai-compatible gateway's `/models` endpoint (when `base-url` is set and lists prices), or from the bundled list. Supply `pricing` for models none of these cover.
+Each run is bounded. Defaults: 50 files, 3,000 diff lines, 100 agent turns, 400,000 tokens and $1.00. Raise or lower them with `max_files`, `max_diff_lines`, `max_turns`, `max_tokens` and `max_cost_usd`. When a limit is hit, Hammer posts what it has and says the review was partial. `max_cost_usd` is enforced when Hammer knows the model's price: from the `pricing` input, from an openai-compatible gateway's `/models` endpoint (when `base-url` is set and lists prices), or from the bundled list. Supply `pricing` for models none of these cover.
 
 ### Inputs
 
@@ -145,13 +145,14 @@ Each run is bounded. Defaults: 50 files, 3,000 diff lines, 100 agent turns per b
 Hammer streams its work into the job log, so you can follow a run instead of waiting for the final comment:
 
 ```text
-[hammer] reviewing 12 files in 3 batches
-[hammer] batch src: started, 5 files
-[hammer] batch src says: Checking how verifyToken is called before reading it.
-[hammer] batch src: read_file src/auth.ts:1-80
-[hammer] batch src: search /verifyToken/ in src/**
+[hammer] reviewing 12 files
+[hammer] checkout_pr
+[hammer] read_diff 1-400
+[hammer] says: Checking how verifyToken is called before reading it.
+[hammer] read_file src/auth.ts:1-80
+[hammer] search /verifyToken/ in src/**
 [hammer] model call done: 18432 tokens used so far, $0.0412
-[hammer] batch src: done, 2 findings
+[hammer] review done, 2 findings
 [hammer] verifying 4 findings
 [hammer] verification kept 3, dropped 1
 [hammer] review ready: 3 inline comments, 0 general notes

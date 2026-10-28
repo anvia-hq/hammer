@@ -16,12 +16,7 @@ import {
   parseModelRefWithBase,
   runSinglePassReview,
 } from "../src/index";
-import {
-  DEFAULT_SINGLE_PASS_TOKENS,
-  validateBatchOutput,
-  type Finding,
-  type ReviewBatch,
-} from "@anvia/hammer-core";
+import { validateBatchOutput, type Finding, type ReviewBatch } from "@anvia/hammer-core";
 
 function validFinding(overrides: Partial<Finding> = {}): Finding {
   return {
@@ -328,10 +323,6 @@ describe("runSinglePassReview", () => {
       expect(result.batch.summary).toContain("null handling");
       expect(result.usage).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
     }
-  });
-
-  it("exposes the default token budget", () => {
-    expect(DEFAULT_SINGLE_PASS_TOKENS).toBe(60000);
   });
 });
 
