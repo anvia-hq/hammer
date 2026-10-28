@@ -38,5 +38,8 @@
   ],
   "trustedDependencies": [
     "esbuild"
-  ]
+  ],
+  "patchedDependencies": {
+    "@anvia/anthropic@1.1.9": "patches/@anvia%2Fanthropic@1.1.9.patch"
+  }
 }

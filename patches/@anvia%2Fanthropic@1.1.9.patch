@@ -1,0 +1,37 @@
+diff --git a/dist/index.js b/dist/index.js
+index 0fcd35a2945e3dc7d85459ac81282882ca594331..357200f90eb5b0dd846f97f1e79917bdbf3a5d5a 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -418,6 +418,18 @@ function anthropicToolStreamIndex(value, usage) {
+ function optionalAnthropicToolStreamIndex(value) {
+   return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : void 0;
+ }
++// Hammer patch (docs/anvia-bug/0001): mark the last content block of the last message as a
++// prompt cache breakpoint, so each turn of an agent loop reads the previous turn from cache.
++function addMessageCacheBreakpoint(messages) {
++  const last = messages[messages.length - 1];
++  if (last === void 0) return;
++  if (typeof last.content === "string") {
++    last.content = [{ type: "text", text: last.content, cache_control: { type: "ephemeral" } }];
++    return;
++  }
++  const block = last.content[last.content.length - 1];
++  if (block !== void 0) block.cache_control = { type: "ephemeral" };
++}
+ function toAnthropicMessagesParams(modelId, request) {
+   const messages = requestMessages(request);
+   const system = systemFromMessages(request, messages);
+@@ -438,11 +450,12 @@ function toAnthropicMessagesParams(modelId, request) {
+   }
+   delete params.tools;
+   if (system !== void 0) {
+-    params.system = system;
++    params.system = [{ type: "text", text: system, cache_control: { type: "ephemeral" } }];
+   }
+   if (request.tools.length > 0) {
+     params.tools = request.tools.map(toolDefinitionToAnthropic);
+   }
++  addMessageCacheBreakpoint(params.messages);
+   if (request.temperature !== void 0) {
+     params.temperature = request.temperature;
+   }
