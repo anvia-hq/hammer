@@ -174,6 +174,7 @@ const env = {
   "INPUT_NATIVE-JSON-SCHEMA": "false",
   "INPUT_API-KEY": "bundle-test-model-key",
   "INPUT_GITHUB-TOKEN": "bundle-test-github-token",
+  "INPUT_BOT-LOGIN": "github-actions[bot]",
   INPUT_VERIFY: "false",
   INPUT_FAIL_ON_ERROR: "true",
 };
