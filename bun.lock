@@ -55,6 +55,7 @@
       "name": "@anvia/hammer-agents",
       "version": "0.0.0",
       "dependencies": {
+        "@anthropic-ai/sdk": "0.133.0",
         "@anvia/anthropic": "^1.1.9",
         "@anvia/azure": "^0.1.7",
         "@anvia/core": "^1.17.0",
@@ -89,9 +90,6 @@
   "trustedDependencies": [
     "esbuild",
   ],
-  "patchedDependencies": {
-    "@anvia/anthropic@1.1.9": "patches/@anvia%2Fanthropic@1.1.9.patch",
-  },
   "packages": {
     "@actions/core": ["@actions/core@3.0.1", "", { "dependencies": { "@actions/exec": "^3.0.0", "@actions/http-client": "^4.0.0" } }, "sha512-a6d/Nwahm9fliVGRhdhofo40HjHQasUPusmc7vBfyky+7Z+P2A1J68zyFVaNcEclc/Se+eO595oAr5nwEIoIUA=="],
 

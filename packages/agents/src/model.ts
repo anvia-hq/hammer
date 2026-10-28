@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { AnthropicClient } from "@anvia/anthropic";
 import { AzureOpenAIClient } from "@anvia/azure";
 import {
@@ -7,6 +8,7 @@ import {
 } from "@anvia/core/completion";
 import { GeminiClient } from "@anvia/gemini";
 import { OpenAIClient } from "@anvia/openai";
+import { withPromptCache } from "./anthropic-cache";
 
 export const SUPPORTED_MODEL_PROVIDERS = [
   "anthropic",
@@ -122,7 +124,8 @@ export function createAnthropicModel(
   modelId: string,
   options: ModelClientOptions,
 ): CompletionModel {
-  const client = new AnthropicClient({ apiKey: options.apiKey });
+  const sdk = new Anthropic({ apiKey: options.apiKey, maxRetries: 0 });
+  const client = new AnthropicClient({ client: withPromptCache(sdk) });
   return client.completionModel({
     modelId,
     controls: ANTHROPIC_CONTROLS,

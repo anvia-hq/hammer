@@ -13,12 +13,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.133.0",
     "@anvia/anthropic": "^1.1.9",
     "@anvia/azure": "^0.1.7",
-    "@anvia/gemini": "^1.1.8",
-    "@anvia/openai": "^1.3.4",
     "@anvia/core": "^1.17.0",
+    "@anvia/gemini": "^1.1.8",
     "@anvia/hammer-core": "workspace:*",
+    "@anvia/openai": "^1.3.4",
     "zod": "^4.6.7"
   },
   "devDependencies": {
