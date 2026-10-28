@@ -35,8 +35,10 @@ export function createTextStreamer(emit: StreamedTextSink): TextStreamer {
     for (;;) {
       const newline = channel.buffer.indexOf("\n");
       let cut = newline;
-      if (cut < 0 && channel.buffer.length > MAX_LINE_CHARS)
-        cut = Math.max(channel.buffer.lastIndexOf(" ", MAX_LINE_CHARS), MAX_LINE_CHARS);
+      if (cut < 0 && channel.buffer.length > MAX_LINE_CHARS) {
+        const space = channel.buffer.lastIndexOf(" ", MAX_LINE_CHARS);
+        cut = space > 0 ? space : MAX_LINE_CHARS;
+      }
       if (cut < 0) break;
       const line = channel.buffer.slice(0, cut).trim();
       channel.buffer = channel.buffer.slice(cut + 1);

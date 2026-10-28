@@ -34,15 +34,19 @@ describe("text streamer", () => {
     expect(lines).toEqual([]);
   });
 
-  it("streams reasoning on its own channel and splits very long lines", () => {
+  it("breaks very long commentary at a space, not in the middle of a word", () => {
     const { lines, streamer } = collect();
-    streamer.delta("reasoning", 1, "Considering the null case.");
-    streamer.turnEnd(1);
-    expect(lines).toEqual(["reasoning:Considering the null case."]);
     const long = `${"word ".repeat(100)}end`;
-    streamer.delta("reasoning", 2, long);
-    streamer.end();
-    expect(lines.length).toBeGreaterThan(2);
-    expect(lines.slice(1).every((line) => line.length < 260)).toBe(true);
+    streamer.delta("text", 1, long);
+    streamer.toolCall(1);
+    streamer.turnEnd(1);
+    expect(lines.length).toBeGreaterThan(1);
+    for (const line of lines)
+      expect(
+        line
+          .slice("text:".length)
+          .split(" ")
+          .every((word) => word === "word" || word === "end"),
+      ).toBe(true);
   });
 });

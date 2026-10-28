@@ -241,8 +241,6 @@ async function runAgent(
   try {
     for await (const event of stream) {
       if (event.type === "text_delta") streamer.delta("text", event.turn, event.delta);
-      else if (event.type === "reasoning_delta")
-        streamer.delta("reasoning", event.turn, event.delta);
       else if (event.type === "tool_call") streamer.toolCall(event.turn);
       else if (event.type === "turn_end") streamer.turnEnd(event.turn);
       if (
