@@ -92,7 +92,9 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
       tokens >= budget.maxTokens * WIND_DOWN_RATIO ||
       (costUsd !== null && costUsd >= budget.maxCostUsd * WIND_DOWN_RATIO) ||
       (reviewing && calls > softTurns);
-    return near ? { ...request, tools: [], providerTools: [] } : request;
+    // Changing the tool list mid-conversation invalidates signed thinking blocks (Anthropic 400),
+    // so keep it and forbid calls instead.
+    return near ? { ...request, toolChoice: "none" } : request;
   };
   const upstream = input.model as Partial<StreamingCompletionModel>;
   const model: CompletionModel = {

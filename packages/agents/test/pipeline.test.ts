@@ -219,7 +219,7 @@ it("falls back to a non-streaming run when the stream fails before any output", 
   expect(result.failed).toBe(false);
 });
 
-it("drops the tools near the budget so the model has to finish with the review", async () => {
+it("forbids tool calls near the budget but keeps the tool list unchanged", async () => {
   const request = input([]);
   const usage = {
     inputTokens: 10,
@@ -234,7 +234,7 @@ it("drops the tools near the budget so the model has to finish with the review",
     toolName: "checkout_pr",
     input: {},
   };
-  const seen: number[] = [];
+  const seen: Array<{ tools: number; toolChoice: unknown }> = [];
   const replies = [
     { choice: [toolCall], usage, finishReason: "tool-calls" as const, rawResponse: {} },
     {
@@ -247,13 +247,13 @@ it("drops the tools near the budget so the model has to finish with the review",
   request.model = {
     ...request.model,
     completion: vi.fn(async (call) => {
-      seen.push(call.tools.length);
+      seen.push({ tools: call.tools.length, toolChoice: call.toolChoice });
       return replies.shift()!;
     }),
   } as unknown as typeof request.model;
   request.config.max_tokens = 16;
   const result = await runReviewPipeline(request);
-  expect(seen[0]).toBeGreaterThan(0);
-  expect(seen[1]).toBe(0);
+  expect(seen[0]?.tools).toBeGreaterThan(0);
+  expect(seen[1]).toEqual({ tools: seen[0]?.tools, toolChoice: "none" });
   expect(result.findings).toHaveLength(1);
 });
