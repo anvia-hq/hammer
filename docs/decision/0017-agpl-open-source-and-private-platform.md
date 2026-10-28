@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. The refusal described below takes effect in v2.0.0. v1.11.1 restores the workflow-token fallback and the `bot-login` input so existing v1 users keep working.
+Accepted.
 
 ## Context
 

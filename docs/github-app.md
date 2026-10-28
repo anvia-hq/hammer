@@ -12,9 +12,9 @@ permissions:
   id-token: write
 ```
 
-Nothing else changes: you still pass only your model key. Hammer asks the Hammer platform for a short-lived token scoped to your repository ([0014](decision/0014-platform-token-broker.md)). If the permission or the installation is missing, or the platform is unreachable, Hammer logs the reason and posts as `github-actions[bot]`, so the review still happens. Fork PRs reviewed automatically do not get `id-token` and use the workflow token.
+Nothing else changes: you still pass only your model key. Hammer asks the Hammer platform for a short-lived token scoped to your repository ([0014](decision/0014-platform-token-broker.md)). Hammer reviews only repositories registered with the platform. If the repository is not registered, the App is not installed, or the platform is unreachable, the run fails with the reason and an install link. Fork PRs reviewed automatically do not get `id-token`, so they are refused too.
 
-Set `platform-url` to an empty string to disable the lookup, or to your own broker's URL.
+`platform-url` must not be empty. Leave it at the default.
 
 ## Use your own GitHub App
 
@@ -30,8 +30,5 @@ steps:
   - uses: anvia-hq/hammer@v1
     with:
       github-token: ${{ steps.app.outputs.token }}
-      bot-login: my-app[bot]
       # client, model and api-key as usual
 ```
-
-`bot-login` is the App's slug plus `[bot]`. It is required with your own App token: an installation token cannot look up its own login, and Hammer uses the login to find and update its earlier comments. Setting it also skips the platform lookup.
