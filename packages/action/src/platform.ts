@@ -21,7 +21,7 @@ export type PlatformResult = { ok: true; value: PlatformToken } | { ok: false; r
 export interface PlatformOptions {
   platformUrl: string;
   /** Per-repository key from the Hammer platform. When set, it replaces the OIDC exchange. */
-  apiKey?: string;
+  apiKey?: string | undefined;
   env: NodeJS.ProcessEnv;
   request: typeof globalThis.fetch;
   setSecret: (value: string) => void;
