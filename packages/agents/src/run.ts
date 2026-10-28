@@ -14,7 +14,7 @@ import {
   type ReviewBatch,
 } from "@anvia/hammer-core";
 import { buildPrDiff, renderCheckout, type PrDiff, type PrMeta } from "./diff";
-import { parseModelRefWithBase } from "./model";
+import { parseModelRefWithBase, promptCacheProviderOptions } from "./model";
 import { buildReviewPrompt, REVIEW_INSTRUCTIONS, type BuildReviewPromptInput } from "./prompt";
 import { SKILL_REVIEW_INSTRUCTIONS, type SkillSet } from "./skills";
 import { createTextStreamer, type StreamedTextSink } from "./stream";
@@ -297,10 +297,12 @@ export async function runSinglePassReview(
     return failure("generate_failed", "No model adapter provided for the single-pass run.");
   }
   let agent: Agent<string | ReviewBatch>;
+  const providerOptions = promptCacheProviderOptions(options.model.provider);
   try {
     agent = new Agent<string | ReviewBatch>({
       id: "hammer-pr-reviewer",
       model: options.model,
+      ...(providerOptions ? { providerOptions } : {}),
       instructions: options.skills
         ? `${REVIEW_INSTRUCTIONS}\n${SKILL_REVIEW_INSTRUCTIONS}`
         : REVIEW_INSTRUCTIONS,

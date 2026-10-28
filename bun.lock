@@ -55,7 +55,6 @@
       "name": "@anvia/hammer-agents",
       "version": "0.0.0",
       "dependencies": {
-        "@anthropic-ai/sdk": "0.133.0",
         "@anvia/anthropic": "^1.1.9",
         "@anvia/azure": "^0.1.7",
         "@anvia/core": "^1.17.0",

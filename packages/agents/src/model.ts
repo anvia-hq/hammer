@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { AnthropicClient } from "@anvia/anthropic";
 import { AzureOpenAIClient } from "@anvia/azure";
 import {
@@ -8,7 +7,6 @@ import {
 } from "@anvia/core/completion";
 import { GeminiClient } from "@anvia/gemini";
 import { OpenAIClient } from "@anvia/openai";
-import { withPromptCache } from "./anthropic-cache";
 
 export const SUPPORTED_MODEL_PROVIDERS = [
   "anthropic",
@@ -120,12 +118,19 @@ const ANTHROPIC_CONTROLS: CompletionModelControls = defineCompletionModelControl
   },
 });
 
+// Top-level cache_control makes Anthropic cache the request up to its last block, so each turn of an
+// agent loop reads the earlier turns from cache. Other providers do not accept the field.
+export function promptCacheProviderOptions(
+  provider: string,
+): { cache_control: { type: "ephemeral" } } | undefined {
+  return provider === "anthropic" ? { cache_control: { type: "ephemeral" } } : undefined;
+}
+
 export function createAnthropicModel(
   modelId: string,
   options: ModelClientOptions,
 ): CompletionModel {
-  const sdk = new Anthropic({ apiKey: options.apiKey, maxRetries: 0 });
-  const client = new AnthropicClient({ client: withPromptCache(sdk) });
+  const client = new AnthropicClient({ apiKey: options.apiKey });
   return client.completionModel({
     modelId,
     controls: ANTHROPIC_CONTROLS,
