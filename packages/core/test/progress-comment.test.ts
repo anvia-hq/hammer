@@ -25,12 +25,11 @@ describe("progress comment", () => {
     );
   });
 
-  it("tracks a single batch", () => {
+  it("tracks the review", () => {
     let state = initialProgress({ files: 2, verify: true });
     const events: ReviewEvent[] = [
-      { type: "plan", files: 2, batches: 1, batchList: [{ id: "single", files: 2 }] },
-      { type: "batch_start", batch: "single", files: 2 },
-      { type: "batch_end", batch: "single", ok: true, findings: 1 },
+      { type: "plan", files: 2 },
+      { type: "review_end", ok: true, findings: 1 },
       { type: "verify_start", findings: 1 },
       { type: "verify_end", kept: 1, dropped: 0 },
       { type: "done", inline: 1, notes: 0 },
@@ -43,28 +42,11 @@ describe("progress comment", () => {
     expect(body).toContain("- [ ] ⏳ Post the review");
   });
 
-  it("expands to one step per batch and marks failures", () => {
+  it("marks a failed review", () => {
     let state = initialProgress({ files: 5, verify: false });
-    state = applyProgressEvent(state, {
-      type: "plan",
-      files: 5,
-      batches: 2,
-      batchList: [
-        { id: "src", files: 3 },
-        { id: "doc`s", files: 2 },
-      ],
-    });
-    state = applyProgressEvent(state, { type: "batch_start", batch: "src", files: 3 });
-    state = applyProgressEvent(state, {
-      type: "batch_end",
-      batch: "doc`s",
-      ok: false,
-      findings: 0,
-      error: "x",
-    });
-    const body = renderProgressBody(state);
-    expect(body).toContain("- [ ] ⏳ Review batch `src` (3 files)");
-    expect(body).toContain("- [ ] ❌ Review batch `doc's` (2 files) (failed)");
-    expect(body).not.toContain("- [ ] Review 5 files");
+    state = applyProgressEvent(state, { type: "plan", files: 5 });
+    expect(renderProgressBody(state)).toContain("- [ ] ⏳ Review 5 files");
+    state = applyProgressEvent(state, { type: "review_end", ok: false, findings: 0, error: "x" });
+    expect(renderProgressBody(state)).toContain("- [ ] ❌ Review 5 files (failed)");
   });
 });

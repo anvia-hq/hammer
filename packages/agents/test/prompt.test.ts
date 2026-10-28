@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildReviewPrompt, MAX_GUIDANCE_TOKENS, type BuildReviewPromptInput } from "../src/index";
+import { buildPrDiff } from "../src/diff";
 import { type PullFileEntry } from "@anvia/hammer-core";
 import { parsePatch } from "@anvia/hammer-core";
 
@@ -39,9 +40,13 @@ const baseInput: BuildReviewPromptInput = {
   config: { rules: [], path_instructions: [], use_repo_guidelines: true },
 };
 
+function rendered(input: BuildReviewPromptInput): string {
+  return buildPrDiff(input.files, input.fileContents).read();
+}
+
 describe("buildReviewPrompt hunks", () => {
   it("numbers new-side lines exactly as parsePatch reports", () => {
-    const { prompt } = buildReviewPrompt(baseInput);
+    const prompt = rendered(baseInput);
     const hunks = parsePatch(MULTI_HUNK);
     const expectedNew = hunks
       .flatMap((h) => h.lines)
@@ -57,7 +62,7 @@ describe("buildReviewPrompt hunks", () => {
   });
 
   it("renders removed lines in an unnumbered __old hunk__ block", () => {
-    const { prompt } = buildReviewPrompt(baseInput);
+    const prompt = rendered(baseInput);
     const oldIndex = prompt.indexOf("__old hunk__");
     expect(oldIndex).toBeGreaterThan(-1);
     expect(prompt.slice(oldIndex)).toMatch(/^-old2/m);
@@ -68,7 +73,7 @@ describe("buildReviewPrompt hunks", () => {
     const target = Array.from({ length: 60 }, (_, i) => `  stmt${i};`);
     const body = ["function review() {", ...target, "}"].join("\n");
     const patch = ["@@ -1,2 +1,3 @@", " function review() {", "+added();", " stmt0;"].join("\n");
-    const { prompt } = buildReviewPrompt({
+    const prompt = rendered({
       ...baseInput,
       files: [file("src/app.ts", patch)],
       fileContents: { "src/app.ts": body },
@@ -81,7 +86,7 @@ describe("buildReviewPrompt hunks", () => {
   it("falls back to a fixed window when no brace scope exists and adds trailing context", () => {
     const lines = Array.from({ length: 60 }, (_, i) => `row${i + 1}: value`);
     const patch = ["@@ -30,2 +30,3 @@", " row30: value", "+added", " row31: value"].join("\n");
-    const { prompt } = buildReviewPrompt({
+    const prompt = rendered({
       ...baseInput,
       files: [file("config.yaml", patch)],
       fileContents: { "config.yaml": lines.join("\n") },
@@ -93,7 +98,7 @@ describe("buildReviewPrompt hunks", () => {
   });
 
   it("keeps the hunk as is when no enclosing scope is found", () => {
-    const { prompt } = buildReviewPrompt({
+    const prompt = rendered({
       ...baseInput,
       fileContents: { "src/big.ts": "const x = 1;\nconst y = 2;\n" },
     });
@@ -101,18 +106,22 @@ describe("buildReviewPrompt hunks", () => {
   });
 });
 
-describe("buildReviewPrompt other files", () => {
-  it("lists files from other batches as untrusted, capped", () => {
-    const others = Array.from({ length: 70 }, (_, i) => file(`pkg/f${i}.ts`, MULTI_HUNK));
-    const { prompt } = buildReviewPrompt({ ...baseInput, otherFiles: others });
-    expect(prompt).toContain("## Other files in this PR");
-    expect(prompt).toContain("- pkg/f0.ts (+");
-    expect(prompt).toContain("- ... and 10 more");
-    expect(prompt).not.toContain("pkg/f69.ts");
+describe("buildReviewPrompt diff delivery", () => {
+  it("inlines a small diff", () => {
+    const { prompt } = buildReviewPrompt(baseInput);
+    expect(prompt).toContain("### File: src/big.ts");
+    expect(prompt).not.toContain("too large to inline");
   });
 
-  it("omits the section when there are no other files", () => {
-    expect(buildReviewPrompt(baseInput).prompt).not.toContain("Other files in this PR");
+  it("points the agent at checkout_pr when the diff is large", () => {
+    const big = [
+      "@@ -1,0 +1,6000 @@",
+      ...Array.from({ length: 6000 }, (_, i) => `+line number ${i}`),
+    ].join("\n");
+    const { prompt } = buildReviewPrompt({ ...baseInput, files: [file("src/huge.ts", big)] });
+    expect(prompt).toContain("too large to inline");
+    expect(prompt).toContain("checkout_pr");
+    expect(prompt).not.toContain("### File:");
   });
 });
 

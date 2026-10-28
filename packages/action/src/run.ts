@@ -418,7 +418,7 @@ export async function runAction(
       failOn: config.fail_on,
       findings: published.findings,
       failOnError: inputs.fail_on_error,
-      errored: result.failedBatches.length > 0,
+      errored: result.failed,
     });
     if (gate.ok && gate.exitCode) runtime.setFailed(gate.reason);
   } catch (error) {

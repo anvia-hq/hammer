@@ -1,17 +1,11 @@
 import { redactSecrets } from "./github/sanitize";
 
 export type ReviewEvent =
-  | {
-      type: "plan";
-      files: number;
-      batches: number;
-      batchList?: Array<{ id: string; files: number }>;
-    }
-  | { type: "batch_start"; batch: string; files: number }
-  | { type: "tool"; batch: string; name: string; detail: string }
+  | { type: "plan"; files: number }
+  | { type: "tool"; name: string; detail: string }
   | { type: "turn"; tokens: number; costUsd: number | null }
-  | { type: "text"; batch: string; kind: "text" | "reasoning"; text: string }
-  | { type: "batch_end"; batch: string; ok: boolean; findings: number; error?: string }
+  | { type: "text"; kind: "text" | "reasoning"; text: string }
+  | { type: "review_end"; ok: boolean; findings: number; error?: string }
   | { type: "verify_start"; findings: number }
   | { type: "verify_end"; kept: number; dropped: number }
   | { type: "done"; inline: number; notes: number };
@@ -41,27 +35,23 @@ function plural(count: number, word: string): string {
 export function formatReviewEvent(event: ReviewEvent): string {
   switch (event.type) {
     case "plan":
-      return `[hammer] reviewing ${plural(event.files, "file")} in ${plural(event.batches, "batch")}`;
-    case "batch_start":
-      return `[hammer] batch ${oneLine(event.batch)}: started, ${plural(event.files, "file")}`;
+      return `[hammer] reviewing ${plural(event.files, "file")}`;
     case "tool": {
       const detail = oneLine(event.detail);
-      return `[hammer] batch ${oneLine(event.batch)}: ${oneLine(event.name)}${detail ? ` ${detail}` : ""}`;
+      return `[hammer] ${oneLine(event.name)}${detail ? ` ${detail}` : ""}`;
     }
     case "text": {
       const label = event.kind === "reasoning" ? "thinking" : "says";
-      return `[hammer] batch ${oneLine(event.batch)} ${label}: ${oneLine(redactSecrets(event.text), MAX_TEXT_CHARS)}`;
+      return `[hammer] ${label}: ${oneLine(redactSecrets(event.text), MAX_TEXT_CHARS)}`;
     }
     case "turn": {
       const cost = event.costUsd === null ? "" : `, $${event.costUsd.toFixed(4)}`;
       return `[hammer] model call done: ${event.tokens} tokens used so far${cost}`;
     }
-    case "batch_end": {
-      const batch = oneLine(event.batch);
+    case "review_end":
       return event.ok
-        ? `[hammer] batch ${batch}: done, ${plural(event.findings, "finding")}`
-        : `[hammer] batch ${batch}: failed${event.error ? `: ${oneLine(event.error)}` : ""}`;
-    }
+        ? `[hammer] review done, ${plural(event.findings, "finding")}`
+        : `[hammer] review failed${event.error ? `: ${oneLine(event.error)}` : ""}`;
     case "verify_start":
       return `[hammer] verifying ${plural(event.findings, "finding")}`;
     case "verify_end":
@@ -125,29 +115,15 @@ function setStep(
 
 export function applyProgressEvent(state: ProgressState, event: ReviewEvent): ProgressState {
   switch (event.type) {
-    case "plan": {
-      const done = setStep(state, "checkout", "done");
-      const list = event.batchList ?? [];
-      if (list.length <= 1) return done;
-      const batches: ProgressStep[] = list.map((batch) => ({
-        id: `batch:${batch.id}`,
-        label: `Review batch ${"`"}${oneLine(batch.id).replaceAll("`", "'")}${"`"} (${plural(batch.files, "file")})`,
-        status: "pending",
-      }));
-      return {
-        ...done,
-        steps: done.steps.flatMap((step) => (step.id === "review" ? batches : [step])),
-      };
-    }
-    case "batch_start":
-      return setStep(setStep(state, `batch:${event.batch}`, "running"), "review", "running");
-    case "batch_end": {
-      const detail = event.ok ? plural(event.findings, "finding") : "failed";
-      const id = state.steps.some((step) => step.id === `batch:${event.batch}`)
-        ? `batch:${event.batch}`
-        : "review";
-      return setStep(state, id, event.ok ? "done" : "failed", detail);
-    }
+    case "plan":
+      return setStep(setStep(state, "checkout", "done"), "review", "running");
+    case "review_end":
+      return setStep(
+        state,
+        "review",
+        event.ok ? "done" : "failed",
+        event.ok ? plural(event.findings, "finding") : "failed",
+      );
     case "verify_start":
       return setStep(state, "verify", "running");
     case "verify_end":

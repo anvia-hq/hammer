@@ -13,7 +13,7 @@ Accepted
 Split the agent code into `packages/agents` (`@anvia/hammer-agents`), consumed from `src/` like core:
 
 - `packages/agents`: model factory, review prompt, read-only tools, single-pass run, verifier and `runReviewPipeline`.
-- `packages/core`: everything else, including `schema.ts` (the `Finding` and `ReviewBatch` contract the agents produce and core validates and renders) and `DEFAULT_SINGLE_PASS_TOKENS`.
+- `packages/core`: everything else, including `schema.ts` (the `Finding` and `ReviewBatch` contract the agents produce and core validates and renders).
 
 Dependencies point one way: `action` and `eval` depend on `agents` and `core`, and `agents` depends on `core` through its `src/index.ts`. Core never imports `agents`, and the `@anvia/anthropic`, `@anvia/openai` and `@anvia/gemini` clients are dependencies of `agents` only.
 

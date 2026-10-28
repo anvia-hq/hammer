@@ -23,9 +23,8 @@ describe("progress reporter", () => {
   it("posts at start and coalesces rapid events into one update", async () => {
     const { reporter: r, write } = reporter();
     await r.start();
-    r.onEvent({ type: "plan", files: 1, batches: 1 });
-    r.onEvent({ type: "batch_start", batch: "single", files: 1 });
-    r.onEvent({ type: "batch_end", batch: "single", ok: true, findings: 0 });
+    r.onEvent({ type: "plan", files: 1 });
+    r.onEvent({ type: "review_end", ok: true, findings: 0 });
     expect(write).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1000);
     expect(write).toHaveBeenCalledTimes(2);
@@ -36,7 +35,7 @@ describe("progress reporter", () => {
   it("stops writing after settle so it cannot overwrite the final summary", async () => {
     const { reporter: r, write } = reporter();
     await r.start();
-    r.onEvent({ type: "plan", files: 1, batches: 1 });
+    r.onEvent({ type: "plan", files: 1 });
     await r.settle();
     await vi.advanceTimersByTimeAsync(5000);
     r.onEvent({ type: "done", inline: 0, notes: 0 });
@@ -50,7 +49,7 @@ describe("progress reporter", () => {
     });
     const { reporter: r, warn } = reporter(write);
     await r.start();
-    r.onEvent({ type: "plan", files: 1, batches: 1 });
+    r.onEvent({ type: "plan", files: 1 });
     await vi.advanceTimersByTimeAsync(5000);
     expect(warn).toHaveBeenCalledTimes(1);
     expect(write).toHaveBeenCalledTimes(1);

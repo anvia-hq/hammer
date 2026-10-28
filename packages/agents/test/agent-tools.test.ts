@@ -4,29 +4,16 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
-  getFileDiff,
+  buildReviewerTools,
   getPrDiscussion,
   listDir,
   MAX_TOOL_OUTPUT_CHARS,
   readFile,
   search,
 } from "../src/index";
-import type { PullFileEntry } from "@anvia/hammer-core";
 
 let root = "";
 let outside = "";
-
-function entry(filename: string, patch?: string): PullFileEntry {
-  return {
-    sha: "abc123",
-    filename,
-    status: "modified",
-    additions: 1,
-    deletions: 0,
-    changes: 1,
-    patch,
-  };
-}
 
 beforeEach(async () => {
   root = await mkdtemp(path.join(tmpdir(), "hammer-tools-root-"));
@@ -220,37 +207,6 @@ describe("search", () => {
   });
 });
 
-describe("getFileDiff", () => {
-  const files = [entry("src/a.ts", "@@ -1 +1 @@\n-old\n+new\n"), entry("src/b.ts")];
-
-  it("returns the patch for a known path", () => {
-    expect(getFileDiff(files, "src/a.ts")).toEqual({
-      ok: true,
-      path: "src/a.ts",
-      patch: "@@ -1 +1 @@\n-old\n+new\n",
-      truncated: false,
-    });
-  });
-
-  it("returns a coded error when missing", () => {
-    expect(getFileDiff(files, "src/missing.ts")).toEqual({
-      ok: false,
-      reason: "diff_not_found",
-    });
-    expect(getFileDiff(files, "src/b.ts")).toEqual({ ok: false, reason: "diff_not_found" });
-  });
-
-  it("truncates long patches", () => {
-    const long = [entry("src/long.ts", `${"y".repeat(100)}\n`.repeat(400))];
-    const result = getFileDiff(long, "src/long.ts");
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.patch.length).toBe(MAX_TOOL_OUTPUT_CHARS);
-      expect(result.truncated).toBe(true);
-    }
-  });
-});
-
 describe("getPrDiscussion", () => {
   it("wraps body and comments as untrusted", () => {
     const result = getPrDiscussion({
@@ -278,5 +234,19 @@ describe("getPrDiscussion", () => {
     const result = getPrDiscussion({ body: "z".repeat(MAX_TOOL_OUTPUT_CHARS + 100) });
     expect(result.truncated).toBe(true);
     expect(result.text.length).toBe(MAX_TOOL_OUTPUT_CHARS);
+  });
+});
+
+describe("repeated tool calls", () => {
+  it("answers an identical second call with a pointer to the first result", async () => {
+    const tools = buildReviewerTools({
+      checkoutRoot: root,
+      files: [],
+      discussion: { title: "t", body: "b", comments: [] },
+    });
+    const discussion = tools.find((tool) => tool.name === "get_pr_discussion")!;
+    const run = async (args: object) => discussion.call(args);
+    expect(JSON.stringify(await run({}))).toContain("untrusted");
+    expect(await run({})).toContain("already made this exact call");
   });
 });

@@ -20,6 +20,6 @@ Two things don't fit Hammer as written. The SDK's skill tools include `run_skill
 
 ## Consequences
 
-- Each batch costs one extra turn and a few thousand tokens to load the skill.
+- The review costs one extra turn and a few thousand tokens to load the skill.
 - Review quality changes with this decision. Run the evals with and without `--no-skills` before relying on it.
 - Adding a skill is a directory under `skills/`, a source and license note, and an eval run.

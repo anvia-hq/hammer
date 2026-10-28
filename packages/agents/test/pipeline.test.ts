@@ -80,13 +80,13 @@ describe("review pipeline", () => {
       expect(call.outputSchema).toBeUndefined();
     }
   });
-  it("accounts for invalid responses even when their batch fails", async () => {
+  it("accounts for invalid responses even when the review fails", async () => {
     const request = input([{ nope: true }, { nope: true }, { nope: true }], true);
     const result = await runReviewPipeline(request);
     expect(request.model.completion).toHaveBeenCalledTimes(3);
     expect(result.usage.tokens).toBe(45);
     expect(result.partial).toBe(true);
-    expect(result.failedBatches).toHaveLength(1);
+    expect(result.failed).toBe(true);
   });
   it("stops verification after a token cap and keeps completed findings", async () => {
     const request = input([batch]);
@@ -125,9 +125,8 @@ it("emits progress events through the review lifecycle", async () => {
   await runReviewPipeline(request);
   expect(events).toEqual([
     "plan",
-    "batch_start",
     "turn",
-    "batch_end",
+    "review_end",
     "verify_start",
     "turn",
     "verify_end",
@@ -164,8 +163,8 @@ it("streams model commentary but not the final JSON, and still accounts usage", 
         const call = {
           type: "tool-call" as const,
           toolCallId: "c1",
-          toolName: "get_file_diff",
-          input: { path: "a.ts" },
+          toolName: "checkout_pr",
+          input: {},
         };
         yield { type: "tool_call" as const, toolCall: call };
         yield {
@@ -217,5 +216,44 @@ it("falls back to a non-streaming run when the stream fails before any output", 
   request.model = failing as unknown as typeof request.model;
   const result = await runReviewPipeline(request);
   expect(result.findings).toHaveLength(1);
-  expect(result.failedBatches).toEqual([]);
+  expect(result.failed).toBe(false);
+});
+
+it("drops the tools near the budget so the model has to finish with the review", async () => {
+  const request = input([]);
+  const usage = {
+    inputTokens: 10,
+    outputTokens: 5,
+    totalTokens: 15,
+    cachedInputTokens: 0,
+    cacheCreationInputTokens: 0,
+  };
+  const toolCall = {
+    type: "tool-call" as const,
+    toolCallId: "c1",
+    toolName: "checkout_pr",
+    input: {},
+  };
+  const seen: number[] = [];
+  const replies = [
+    { choice: [toolCall], usage, finishReason: "tool-calls" as const, rawResponse: {} },
+    {
+      choice: [{ type: "text" as const, text: JSON.stringify(batch) }],
+      usage,
+      finishReason: "stop" as const,
+      rawResponse: {},
+    },
+  ];
+  request.model = {
+    ...request.model,
+    completion: vi.fn(async (call) => {
+      seen.push(call.tools.length);
+      return replies.shift()!;
+    }),
+  } as unknown as typeof request.model;
+  request.config.max_tokens = 16;
+  const result = await runReviewPipeline(request);
+  expect(seen[0]).toBeGreaterThan(0);
+  expect(seen[1]).toBe(0);
+  expect(result.findings).toHaveLength(1);
 });

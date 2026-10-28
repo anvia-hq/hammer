@@ -167,19 +167,19 @@ Commands from users without write access get a 👀 reaction and no run (§9, S1
 | F7 | **Size limits:** `max_files` (default 50) and `max_diff_lines` (default 3,000) after filtering. Above that, review the highest-priority files (source before tests, then by size of change) and say what was left out | Large-PR fixture produces a partial review with an explicit "not reviewed" list |
 | F8 | **Context:** each file's diff is shown as numbered hunks: a `__new hunk__` block with new-file line numbers on every line (`+` added, ` ` context), then an `__old hunk__` block with the removed lines, unnumbered. This way the model quotes real RIGHT-side line numbers. Context is widened to the enclosing function/class, max 40 lines. The agent can read more through tools (F10). PR title is inline; PR body and the latest 20 PR comments are returned only by a `get_pr_discussion` tool as untrusted data (§9) | Prompt snapshot test; line numbers in the prompt match the patch parser |
 | F9 | **Repo guidance:** load `rules` and `path_instructions` from config, plus `AGENTS.md`/`CLAUDE.md`/`CONTRIBUTING.md` at the repo root if `use_repo_guidelines: true` (default), capped at 8k tokens total | Rule ids from config appear in comments when cited |
-| F10 | **Agent tools (read-only):** `read_file(path, startLine?, endLine?)`, `list_dir(path)`, `search(pattern, glob?)` (regex, max 50 hits), `get_file_diff(path)`, `get_pr_discussion()` (PR body + latest 20 comments, wrapped as untrusted) | All paths resolved inside the PR-head checkout; outputs truncated to 20k chars; denylist applied (S4) |
-| F11 | **Structured output:** the agent returns JSON validated with Zod (§8.4). Invalid output → one repair retry, then fail the batch | Schema-violation fixture ends in a repair or a clean error |
-| F12 | **Batching:** if the filtered diff fits `single_pass_tokens` (default 60k), run one agent call. Otherwise group files by directory into batches of ≤ 40k tokens, run up to 3 at a time, then merge | 200-file fixture completes under caps; merge removes duplicates |
+| F10 | **Agent tools (read-only):** `read_file(path, startLine?, endLine?)`, `list_dir(path)`, `search(pattern, glob?)` (regex, max 50 hits), `checkout_pr()`, `read_diff(startLine?, endLine?)`, `get_pr_discussion()` (PR body + latest 20 comments, wrapped as untrusted) | All paths resolved inside the PR-head checkout; outputs truncated to 20k chars; denylist applied (S4) |
+| F11 | **Structured output:** the agent returns JSON validated with Zod (§8.4). Invalid output → one repair retry, then fail the review | Schema-violation fixture ends in a repair or a clean error |
+| F12 | **One agent per PR:** the whole filtered diff is reviewed by a single agent (see [0015](decision/0015-single-agent-checkout-pr.md)). The prompt carries the PR title, body and repo guidance; `checkout_pr` returns the metadata and a table of contents of the diff, and `read_diff` serves it in pages with new-file line numbers. `max_files` and `max_diff_lines` bound the size | 200-file fixture completes under caps; a finding in the last file of a large PR is reported |
 | F13 | **Finding validation (local, before any API call):** build the set of commentable RIGHT-side lines per file from the patch (added and context lines). A finding with `startLine..line` fully inside one hunk is posted inline. If only `line` is valid, it becomes a single-line comment and its `suggestion` is dropped. Otherwise it goes into the summary as a "general note". Findings are never remapped to a nearby hunk. Drop findings under `min_severity` or with `confidence < 0.6`; cap at `max_comments` (default 10), highest severity first | Unit tests for out-of-diff lines, cross-hunk ranges, multi-line ranges, deleted files |
 | F14 | **Dedupe:** each inline comment carries a hidden `<!-- hammer:fp=… -->` with two fingerprints: sha256(path + normalized body) and sha256(path + suggestion code). Line numbers are excluded so a finding survives code shifting. If either fingerprint matches a prior Hammer comment, the finding is a duplicate. Prior open findings (max 8k chars) are passed to the model with an instruction to restate a still-valid one word for word | Re-running on the same SHA posts 0 new inline comments; shifting code by 10 lines posts 0 duplicates |
 | F15 | **Posting:** one `POST /pulls/{n}/reviews` with `event: COMMENT`, `commit_id` = reviewed head SHA, and all inline comments; create or update the sticky summary comment. On GitHub's generic 422 "internal error", retry after 1 s and 3 s. On a 422 naming a bad anchor, move that comment to the summary and retry once. Never check anchors by creating and deleting pending reviews | No `APPROVE`/`REQUEST_CHANGES` ever sent; tested against a mocked API |
 | F16 | **Outputs and job summary:** action outputs `findings_count`, `high_count`, `review_url`, `result_path` (full JSON written to `$RUNNER_TEMP`), `tokens`, `cost_usd`. Markdown table written to `$GITHUB_STEP_SUMMARY` | Outputs readable in a later workflow step |
 | F17 | **Gate:** `fail_on: none\|high\|medium` (default `none`) sets the exit code from the posted findings | `fail_on: high` with 1 high finding → exit 1 |
 | F18 | **Clients:** separate `client` and `model` inputs (`model` is a bare model id). v1 clients: `anthropic`, `openai`, `gemini`, plus `openai-compatible` and `azure` with `base-url`. Uses `@anvia/anthropic`, `@anvia/openai`, `@anvia/gemini`, `@anvia/azure` | Smoke test per client in CI (nightly, real keys) |
-| F19 | **Caps:** `max_turns` (default 100 per batch), `max_tokens` (default 400k per run), `max_cost_usd` (default 1.00). Hitting a cap stops new batches, posts what is done, and labels the summary "partial" | Cap fixture yields a partial review, not a crash |
+| F19 | **Caps:** `max_turns` (default 100), `max_tokens` (default 400k per run), `max_cost_usd` (default 1.00). Near a cap the agent loses its tools and must finish with the review; hitting a cap posts what is done and labels the summary "partial" | Cap fixture yields a partial review, not a crash |
 | F20 | **Observability (optional):** `lens-endpoint` / `otel-endpoint` inputs attach `@anvia/lens` or `@anvia/otel` observers; trace URL is added to the job summary (not the PR) | Off by default; no outbound calls when unset |
 | F21 | **Runner portability:** works unchanged on GitHub-hosted, Blacksmith (x64 and arm64) and self-hosted Linux runners; no reliance on preinstalled tools or GitHub-hosted image specifics (§8.9) | Release CI runs the end-to-end suite on the runner matrix in §8.9 |
-| F22 | **Verification pass:** after merging batches, one extra agent call with the same read-only tools re-checks each candidate finding. It confirms the trigger scenario, re-locates the lines, and scores 0–10. Findings below `verify_threshold` (default 6) are dropped. If verification fails (error or cap), findings are kept with their original confidence and the summary notes "unverified". `verify: false` disables it | Eval: verification raises precision by ≥ 5 points at ≤ 30% extra cost, otherwise default flips to off before launch |
+| F22 | **Verification pass:** after the review, one extra agent call with the same read-only tools re-checks each candidate finding. It confirms the trigger scenario, re-locates the lines, and scores 0–10. Findings below `verify_threshold` (default 6) are dropped. If verification fails (error or cap), findings are kept with their original confidence and the summary notes "unverified". `verify: false` disables it | Eval: verification raises precision by ≥ 5 points at ≤ 30% extra cost, otherwise default flips to off before launch |
 | F23 | **Reasoning effort:** optional `reasoning-effort` input is forwarded as a `reasoningEffort` completion control on every agent call (review and verification). Models that don't support the requested value fail the run with a clear error rather than silently ignoring it | Unit test: unsupported value surfaces `generate_failed` with a message naming the client and model |
 
 ## 8. Technical design
@@ -215,9 +215,9 @@ event ──► 1 resolve ─ parse event, check trigger auth (F2), load config,
 3 checkout ─ git init in $RUNNER_TEMP/hammer-head; fetch head SHA (depth 1, plus
 base SHA if needed); no hooks, no submodules, no LFS smudge
 4 filter ─ ignores, include, size limits (F6, F7) → review plan
-5 review ─ per batch: build prompt → Agent.generate() with read-only tools
+5 review ─ build prompt → one Agent.generate() with read-only tools
 and outputSchema → validate (F11–F13)
-6 merge ─ dedupe across batches and against prior comments (F14)
+6 dedupe ─ against prior comments (F14)
 6b verify ─ one verification call scores and filters findings (F22)
 7 publish ─ PR review + sticky summary (F15), outputs + job summary (F16)
 8 exit ─ code from fail_on / fail_on_error (F17)
@@ -233,12 +233,12 @@ const reviewer = new Agent({
   id: "hammer-pr-reviewer",
   model,                      // from provider adapter per F18
   instructions: buildSystemPrompt(config),   // §8.5
-  tools: [readFile, listDir, search, getFileDiff],  // createTool + zod, read-only
+  tools: [checkoutPr, readDiff, readFile, listDir, search],  // createTool + zod, read-only
   outputSchema: ReviewBatchSchema,
   maxTurns: config.maxTurns,
   lifecycle: { onToolStart, onToolFinish, onStepFinish }, // budget accounting, logging
 });
-const res = await reviewer.generate({ prompt: buildBatchPrompt(batch) });
+const res = await reviewer.generate({ prompt: buildReviewPrompt(input) });
 if (res.type !== "response") throw new UnexpectedOutcomeError(res.type); // no approval tools in v1
 ````
 
@@ -269,7 +269,7 @@ const Finding = z.object({
   confidence: z.number().min(0).max(1),
 });
 const ReviewBatchSchema = z.object({
-  summary: z.string().max(600), // what the changes in this batch do
+  summary: z.string().max(600), // what the changes in this PR do
   findings: z.array(Finding).max(25),
   generalNotes: z.array(z.string().max(300)).max(5),
 });
@@ -347,7 +347,7 @@ packages/
       config.ts              # load + zod-validate + merge
       github/                # octokit client, diff fetch, patch parser, publish, sticky comment
       git/checkout.ts        # read-only head fetch (git, or API tarball fallback)
-      plan.ts                # filtering, prioritising, batching
+      plan.ts                # filtering, prioritising
       agent/                 # model factory, tools, prompts/, schema, run + merge, verify
       validate.ts            # anchor validation, thresholds, dedupe, fingerprints
       render.ts              # markdown for summary, inline comments, job summary
@@ -426,8 +426,8 @@ Threat model: PR content and repo files are attacker-controlled (forks, compromi
 | Case                        | Behaviour                                                                                                                        |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Missing/invalid API key     | Exit per `fail_on_error`; summary comment says "API key missing or rejected" (except on fork PRs, where we post nothing; see S1) |
-| Provider 429/5xx            | Retry ×2 with backoff; then the batch fails, other batches continue, and the summary is marked partial                           |
-| Cap reached (F19)           | Stop scheduling batches; publish what's done; summary is marked partial with the reason                                          |
+| Provider 429/5xx            | Retry ×2 with backoff; then the review fails and the summary says so                                                             |
+| Cap reached (F19)           | Remove the tools, ask for the final review; publish what's done; summary is marked partial with the reason                       |
 | Inline anchor 422           | Retry the review without the bad comments; move them into summary general notes                                                  |
 | GitHub secondary rate limit | Octokit throttling plugin; at most 1 review POST per run                                                                         |
 | Run cancelled (newer push)  | `concurrency` cancels the run; nothing partial is posted because publishing is the last step                                     |
@@ -448,12 +448,12 @@ Threat model: PR content and repo files are attacker-controlled (forks, compromi
 
 ## 12. Milestones
 
-| Milestone                     | Scope                                                                                                                                                                                            | Exit criteria                                                                                                                                        |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **M0 · Skeleton**             | `action.yml`, bundling, event parsing, trigger auth, config loader, diff fetch + patch parser, sticky comment with static content                                                                | Action runs on a sandbox repo and posts a "files in scope" summary; unit tests green                                                                 |
-| **M1 · Core review**          | Read-only checkout, tools, agent + schema, single-pass review, anchor validation, posting, Anthropic + OpenAI providers, job summary, eval harness + first 30 cases                              | End-to-end review on sandbox PRs; eval precision ≥ 70%                                                                                               |
-| **M2 · Production hardening** | Incremental review, dedupe, batching for large PRs, caps and cost, all security items S1–S9, `/hammer review` incl. fork PRs, Gemini + openai-compatible, full eval set, runner matrix CI (§8.9) | All F/S items' acceptance criteria met; end-to-end green on every "tested" runner in §8.9; adversarial set 100% pass; metrics at launch targets (§3) |
-| **M3 · Launch**               | README and docs page on docs.anvia.dev, example configs, Marketplace listing, `v1` tag, 5 external beta repos                                                                                    | Install to first review ≤ 5 min with beta testers; no P0/P1 bugs open for 7 days                                                                     |
+| Milestone                     | Scope                                                                                                                                                                    | Exit criteria                                                                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **M0 · Skeleton**             | `action.yml`, bundling, event parsing, trigger auth, config loader, diff fetch + patch parser, sticky comment with static content                                        | Action runs on a sandbox repo and posts a "files in scope" summary; unit tests green                                                                 |
+| **M1 · Core review**          | Read-only checkout, tools, agent + schema, single-pass review, anchor validation, posting, Anthropic + OpenAI providers, job summary, eval harness + first 30 cases      | End-to-end review on sandbox PRs; eval precision ≥ 70%                                                                                               |
+| **M2 · Production hardening** | Incremental review, dedupe, caps and cost, all security items S1–S9, `/hammer review` incl. fork PRs, Gemini + openai-compatible, full eval set, runner matrix CI (§8.9) | All F/S items' acceptance criteria met; end-to-end green on every "tested" runner in §8.9; adversarial set 100% pass; metrics at launch targets (§3) |
+| **M3 · Launch**               | README and docs page on docs.anvia.dev, example configs, Marketplace listing, `v1` tag, 5 external beta repos                                                            | Install to first review ≤ 5 min with beta testers; no P0/P1 bugs open for 7 days                                                                     |
 
 ## 13. After v1 (designed for, not built)
 
@@ -469,7 +469,7 @@ Threat model: PR content and repo files are attacker-controlled (forks, compromi
 | Noisy reviews get the action uninstalled                                  | Default `min_severity: medium`, `max_comments: 10`, confidence threshold, precision gate in eval |
 | Prompt injection makes the bot post misleading or harmful text            | Read-only design; S6/S7 output filtering; adversarial eval cases; bot never approves             |
 | Crowded market (CodeRabbit, Copilot review, Claude Code Action, Pullfrog) | Free, BYOK, any provider, runs on your runner; a clear path to custom Anvia reviewers (§13)      |
-| Cost spikes on huge PRs                                                   | Size limits, batching caps, `max_cost_usd`, cost shown on every run                              |
+| Cost spikes on huge PRs                                                   | Size limits, `max_cost_usd`, tool removal near the cap, cost shown on every run                  |
 | Runner provider differences (images, proxies, missing tools, arm64)       | Portability rules and release-gating runner matrix in §8.9; Blacksmith test account in CI        |
 | GitHub API changes or limits (3,000-file cap, truncated patches)          | Partial review with explicit "not reviewed" list; fixtures for these cases                       |
 
@@ -494,7 +494,7 @@ Engineers should read these before building the matching part. Sources were chec
 | Fork PRs             | `pull_request_target`, API-only diff, no checkout                               | GitHub App → `workflow_dispatch` on default branch; secrets via OIDC | Hosted; old action used `pull_request_target`                    | No auto-review; `/hammer review` from a maintainer, read-only fetch |
 | Diff format to model | `__new hunk__` (numbered) / `__old hunk__`                                      | Diff file with `OLD \| NEW \| TYPE` table + TOC                      | `---new_hunk---` / `---old_hunk---` _(fork)_                     | PR-Agent style (F8)                                                 |
 | Invalid anchors      | Fallback to file-level comment, then single-line retry, then drop               | Validated locally; dropped with a note in the review body            | Remapped to the hunk that overlaps most _(fork)_                 | Validated locally; move to summary (F13)                            |
-| Large PRs            | Token budget by language + size; overflow files listed by name; opt-in chunking | No truncation; agent reads the diff via tools                        | `max_files=150` _(fork)_                                         | Budget + batches + "not reviewed" list (F7, F12)                    |
+| Large PRs            | Token budget by language + size; overflow files listed by name; opt-in chunking | No truncation; agent reads the diff via tools                        | `max_files=150` _(fork)_                                         | Budget + "not reviewed" list (F7, F12)                              |
 | Incremental          | `/review -i`; findings state JSON in hidden comment                             | Per-push mode; `git range-diff` handles rebases                      | `commit_ids_reviewed` marker _(fork)_; `auto_incremental_review` | `lastSha` in marker; full review on force-push (F5)                 |
 | Dedupe               | sha256 fingerprints in hidden comments (opt-in)                                 | Review metadata block with SHAs                                      | Not documented                                                   | Fingerprints on by default (F14)                                    |
 | Noise control        | Max 3 findings; "empty list is fine"; reflection scoring pass on `/improve`     | Parallel reviewer subagents + orchestrator re-check; defects only    | Profiles `chill` / `assertive`; separate verification agent      | Caps, thresholds, verification pass (F13, F22)                      |

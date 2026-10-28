@@ -12,6 +12,7 @@ export const MAX_HUNK_RENDER_LINES = 40;
 export const FALLBACK_PREFIX_LINES = 15;
 export const SUFFIX_LINES = 10;
 export const MAX_BODY_CHARS = 1500;
+export const MAX_INLINE_DIFF_TOKENS = 20000;
 // Tokens are approximated as characters/4 throughout this module.
 export const CHARS_PER_TOKEN = 4;
 
@@ -32,7 +33,6 @@ export interface BuildReviewPromptInput {
   title: string;
   body?: string | null;
   files: PullFileEntry[];
-  otherFiles?: PullFileEntry[];
   config: PromptConfig;
   guidelines?: PromptGuidelines;
   fileContents?: Record<string, string>;
@@ -138,7 +138,7 @@ function renderHunk(hunk: PatchHunk, prefix: PrefixLine[], suffix: PrefixLine[])
   return out.join("\n");
 }
 
-function renderPromptFile(file: PullFileEntry, contents?: Record<string, string>): string {
+export function renderPromptFile(file: PullFileEntry, contents?: Record<string, string>): string {
   const out: string[] = [`### File: ${file.filename}`];
   const hunks = parsePatch(file.patch ?? "");
   if (hunks.length === 0) {
@@ -218,43 +218,36 @@ export const REVIEW_INSTRUCTIONS = [
   'Return only JSON: {"summary":"what this PR does (max 600 chars)","changes":["short past-tense bullet"],"findings":[{"path":"file","line":1,"startLine":1,"severity":"high|medium|low","category":"correctness|security|performance|reliability|maintainability|tests|rule","title":"max 120 chars","body":"problem and blast radius, at most 3 sentences (max 1500 chars)","details":"optional technical details (max 1200 chars)","confidence":0.9,"suggestion":"optional replacement code","ruleId":"optional configured id"}],"generalNotes":[]}. changes, startLine, details, suggestion and ruleId are optional. At most 25 findings and 5 general notes (300 chars each). An empty findings array is valid.',
 ].join("\n");
 
-export const MAX_OTHER_FILES = 60;
-
-function renderOtherFiles(files: PullFileEntry[]): string[] {
-  if (files.length === 0) return [];
-  const shown = files.slice(0, MAX_OTHER_FILES);
-  const lines = shown.map((file) => `- ${file.filename} (+${file.additions} -${file.deletions})`);
-  if (files.length > shown.length) lines.push(`- ... and ${files.length - shown.length} more`);
-  return [
-    "",
-    "## Other files in this PR (reviewed in separate batches; read them with tools if a change here depends on them)",
-    untrusted(lines.join("\n")),
-  ];
-}
-
 export function buildReviewPrompt(input: BuildReviewPromptInput): ReviewPrompt {
   const guidance = buildGuidance(input);
   const title = input.title.replace(/\s+/g, " ").trim();
   const body = (input.body ?? "").trim().slice(0, MAX_BODY_CHARS);
+  const inline =
+    approxTokens(
+      input.files.map((file) => renderPromptFile(file, input.fileContents)).join("\n"),
+    ) <= MAX_INLINE_DIFF_TOKENS;
   const parts: string[] = [
-    "You are reviewing a pull request diff. Report specific problems only: bugs, security issues, and violations of the listed rules.",
-    "Quote new-file (RIGHT side) line numbers exactly as shown in each __new hunk__ block.",
+    "You are reviewing a pull request. Report specific problems only: bugs, security issues, and violations of the listed rules.",
+    "Quote new-file (RIGHT side) line numbers exactly as shown in each __new hunk__ block that read_diff returns.",
     "When a finding violates a configured rule, cite its rule id.",
     "The PR title and the start of its body (the author's stated intent) are inline below. Compare the diff against that intent; use the get_pr_discussion tool for the full body and comments.",
+    ...(inline
+      ? [
+          "The whole diff is inline below. checkout_pr and read_diff return the same diff if you need to look again.",
+        ]
+      : [
+          "The diff is too large to inline. Start with checkout_pr: it returns the PR metadata and a table of contents with the diff line range of each file. Then read the entire diff with read_diff, using the ranges as a checklist, before you write the review. Read each range once; the output stays in the conversation. Once you have read the diff and traced the risky paths, reply with the JSON review instead of re-reading.",
+        ]),
     "",
     untrusted(`PR title: ${title}`),
     untrusted(`PR body: ${body === "" ? "(empty)" : body}`),
     "",
-    "## Changed files",
+    `## Changed files: ${input.files.length}`,
   ];
-  if (input.files.length === 0) {
-    parts.push("(no files in scope)");
-  } else {
-    for (const file of input.files) {
+  if (inline) {
+    for (const file of input.files)
       parts.push(untrusted(renderPromptFile(file, input.fileContents)));
-    }
   }
-  parts.push(...renderOtherFiles(input.otherFiles ?? []));
   if (guidance.text !== "") {
     parts.push("", "## Repo guidance", guidance.text);
   }

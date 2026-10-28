@@ -25,10 +25,11 @@ describe("S3 no code execution", () => {
   it("read-only agent tool names are exactly the allowlist", () => {
     const tools = buildReviewerTools({ checkoutRoot: "/tmp/x", files: [], discussion: {} });
     expect(tools.map((t) => t.name)).toEqual([
+      "checkout_pr",
+      "read_diff",
       "read_file",
       "list_dir",
       "search",
-      "get_file_diff",
       "get_pr_discussion",
     ]);
   });
