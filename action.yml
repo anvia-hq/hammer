@@ -32,9 +32,6 @@ inputs:
     description: Hammer platform that issues a short-lived GitHub App token. It is required, because Hammer reviews only repositories registered with the platform. Needs the id-token write permission in the workflow and the Hammer App installed on the repository. The run fails with an install link otherwise.
     required: false
     default: https://hammer-platform.me-063.workers.dev
-  bot-login:
-    description: Login of the GitHub App that owns github-token, such as hammer[bot]. Installation tokens cannot look up their own login, so set this when github-token comes from a GitHub App; Hammer uses it to find and update its own comments.
-    required: false
   github-token:
     description: Token used to read the PR and post the review.
     required: false

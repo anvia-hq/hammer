@@ -127,7 +127,6 @@ Each run is bounded. Defaults: 50 files, 3,000 diff lines, 100 agent turns, 400,
 | `pricing`                                  | JSON of per-million-token USD prices, to enforce `max_cost_usd`.                                |
 | `github-token`                             | Defaults to the workflow token.                                                                 |
 | `platform-url`                             | Required. Hammer platform that issues the bot token; only registered repositories are reviewed. |
-| `bot-login`                                | Login of your own GitHub App behind `github-token`.                                             |
 | `config-path`                              | Config file path. Default `.github/hammer.yml`.                                                 |
 | `min_severity`, `max_comments`, `fail_on`  | Override the matching config keys.                                                              |
 | `review_drafts`, `ignore`, `include`       | Override the matching config keys. Lists are newline-separated.                                 |

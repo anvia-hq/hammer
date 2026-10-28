@@ -343,11 +343,11 @@ describe("Action review flow", () => {
     expect(f.posted).toHaveLength(0);
     expect(f.outputs.findings_count).toBe("1");
   });
-  it("uses bot-login as its identity without looking the token up", async () => {
-    const f = await fixture({ "bot-login": "hammer[bot]" });
+  it("uses the platform login as its identity", async () => {
+    const f = await fixture();
     f.comments.push({
       id: 5,
-      user: { login: "hammer[bot]", type: "Bot" },
+      user: { login: "anvia-hammer[bot]", type: "Bot" },
       body: "<!-- hammer:summary -->",
     });
     await f.run();
@@ -394,14 +394,6 @@ describe("Action review flow", () => {
     expect(f.runtime.setFailed).toHaveBeenCalledWith(
       expect.stringContaining("not registered with the Hammer platform"),
     );
-  });
-  it("skips the platform when bot-login is set or platform-url is empty", async () => {
-    const platformToken = vi.fn(async () => ({ ok: false as const, reason: "unused" }));
-    const withLogin = await fixture({ "platform-url": "https://p.example", "bot-login": "x[bot]" });
-    await withLogin.run({ platformToken });
-    const disabled = await fixture({ "platform-url": "" });
-    await disabled.run({ platformToken });
-    expect(platformToken).not.toHaveBeenCalled();
   });
   it("does not overwrite an attacker comment containing the sticky marker", async () => {
     const f = await fixture();

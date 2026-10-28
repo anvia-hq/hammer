@@ -30,8 +30,5 @@ steps:
   - uses: anvia-hq/hammer@v1
     with:
       github-token: ${{ steps.app.outputs.token }}
-      bot-login: my-app[bot]
       # client, model and api-key as usual
 ```
-
-`bot-login` is the App's slug plus `[bot]`. It is required with your own App token: an installation token cannot look up its own login, and Hammer uses the login to find and update its earlier comments. Setting it also skips the platform lookup.

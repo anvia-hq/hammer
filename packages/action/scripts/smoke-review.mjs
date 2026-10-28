@@ -34,6 +34,13 @@ const server = createServer(async (request, response) => {
       response.end(JSON.stringify(value));
     };
     const repo = { full_name: "acme/sandbox", clone_url: `${origin}/acme/sandbox.git` };
+    if (path === "/oidc") return json({ value: "smoke-oidc-token" });
+    if (path === "/api/token")
+      return json({
+        token: "bundle-installation-token",
+        expiresAt: "2099-01-01T00:00:00Z",
+        botLogin: "anvia-hammer[bot]",
+      });
     if (path === "/user") return json({ login: "github-actions[bot]", type: "Bot" });
     if (path === "/repos/acme/sandbox/pulls/7")
       return json({
@@ -174,7 +181,9 @@ const env = {
   "INPUT_NATIVE-JSON-SCHEMA": "false",
   "INPUT_API-KEY": "bundle-test-model-key",
   "INPUT_GITHUB-TOKEN": "bundle-test-github-token",
-  "INPUT_BOT-LOGIN": "github-actions[bot]",
+  "INPUT_PLATFORM-URL": origin,
+  ACTIONS_ID_TOKEN_REQUEST_URL: `${origin}/oidc`,
+  ACTIONS_ID_TOKEN_REQUEST_TOKEN: "smoke-request-token",
   INPUT_VERIFY: "false",
   INPUT_FAIL_ON_ERROR: "true",
 };
