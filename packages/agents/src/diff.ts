@@ -54,11 +54,19 @@ export function buildPrDiff(files: PullFileEntry[], contents?: Record<string, st
       );
       if (lines.length === 0) return untrusted("(no files in scope)");
       if (start > lines.length) return `Diff has ${lines.length} lines; ${start} is past the end.`;
-      for (let line = start; line <= last; line += 1) seen.add(line);
+      let fresh = false;
+      for (let line = start; line <= last; line += 1) {
+        if (!seen.has(line)) fresh = true;
+        seen.add(line);
+      }
+      if (!fresh) {
+        return `Diff lines ${start}-${last} were already returned earlier in this review; use that output instead of reading them again.`;
+      }
+      const done = seen.size === lines.length;
       const next =
         last < lines.length
           ? `\n(diff lines ${start}-${last} of ${lines.length}; call read_diff with startLine ${last + 1} for the rest)`
-          : `\n(diff lines ${start}-${last} of ${lines.length}; end of diff)`;
+          : `\n(diff lines ${start}-${last} of ${lines.length}; end of diff${done ? ". You have now read the whole diff. Do not read it again: investigate the surrounding code if needed, then reply with the JSON review" : ""})`;
       return untrusted(lines.slice(start - 1, last).join("\n")) + next;
     },
     coverage() {

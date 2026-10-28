@@ -13,7 +13,7 @@ import {
   type ReviewEventSink,
 } from "@anvia/hammer-core";
 import { COMPLETION_TIMEOUT_MS, createIdleSignal, STREAM_IDLE_MS } from "./idle-signal";
-import { buildPrDiff, type PrMeta } from "./diff";
+import { buildPrDiff, DIFF_PAGE_LINES, type PrMeta } from "./diff";
 import type { BuildReviewPromptInput } from "./prompt";
 import { buildReviewerTools, runSinglePassReview, type SinglePassRunOptions } from "./run";
 import type { SkillSet } from "./skills";
@@ -38,6 +38,7 @@ export interface ReviewPipelineInput extends BuildReviewPromptInput {
 
 const MAX_VERIFY_DIFF_CHARS = 16_000;
 const WIND_DOWN_RATIO = 0.85;
+const SOFT_TURNS = 12;
 
 function buildDiffContext(findings: Array<{ path: string }>, files: PullFileEntry[]): string {
   const paths = new Set(findings.map((finding) => finding.path));
@@ -78,11 +79,17 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     const { tokens, costUsd } = budget.summary();
     emit({ type: "turn", tokens, costUsd });
   };
+  const diff = buildPrDiff(input.files, input.fileContents);
+  const softTurns = SOFT_TURNS + 2 * Math.ceil(diff.totalLines / DIFF_PAGE_LINES);
+  let reviewing = true;
+  let calls = 0;
   const windDown = <T extends Parameters<CompletionModel["completion"]>[0]>(request: T): T => {
     const { tokens, costUsd } = budget.summary();
+    calls += 1;
     const near =
       tokens >= budget.maxTokens * WIND_DOWN_RATIO ||
-      (costUsd !== null && costUsd >= budget.maxCostUsd * WIND_DOWN_RATIO);
+      (costUsd !== null && costUsd >= budget.maxCostUsd * WIND_DOWN_RATIO) ||
+      (reviewing && calls > softTurns);
     return near ? { ...request, tools: [], providerTools: [] } : request;
   };
   const upstream = input.model as Partial<StreamingCompletionModel>;
@@ -122,7 +129,6 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
   };
   const context = input.prior?.length ? buildPriorFindingsContext(input.prior) : "";
   const promptInput = { ...input, priorFindings: context };
-  const diff = buildPrDiff(input.files, input.fileContents);
   emit({ type: "plan", files: input.files.length });
   let review: { ok: true; batch: ReviewBatch } | { ok: false; error: string };
   if (!budget.canStartBatch().ok) {
@@ -157,6 +163,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
       emit({ type: "review_end", ok: false, findings: 0, error });
     }
   }
+  reviewing = false;
   const merged = {
     summaries: review.ok ? [review.batch.summary] : [],
     changes: review.ok ? (review.batch.changes ?? []) : [],
@@ -182,7 +189,6 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
           files: input.files,
           fileContents: input.fileContents ?? {},
           pr: { title: input.title, ...input.pr },
-          diff,
           discussion: input.discussion,
           onToolCall: (name, detail) => emit({ type: "tool", name: `verify ${name}`, detail }),
         }),

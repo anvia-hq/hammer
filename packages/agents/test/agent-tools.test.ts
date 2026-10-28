@@ -3,7 +3,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { getPrDiscussion, listDir, MAX_TOOL_OUTPUT_CHARS, readFile, search } from "../src/index";
+import {
+  buildReviewerTools,
+  getPrDiscussion,
+  listDir,
+  MAX_TOOL_OUTPUT_CHARS,
+  readFile,
+  search,
+} from "../src/index";
 
 let root = "";
 let outside = "";
@@ -227,5 +234,19 @@ describe("getPrDiscussion", () => {
     const result = getPrDiscussion({ body: "z".repeat(MAX_TOOL_OUTPUT_CHARS + 100) });
     expect(result.truncated).toBe(true);
     expect(result.text.length).toBe(MAX_TOOL_OUTPUT_CHARS);
+  });
+});
+
+describe("repeated tool calls", () => {
+  it("answers an identical second call with a pointer to the first result", async () => {
+    const tools = buildReviewerTools({
+      checkoutRoot: root,
+      files: [],
+      discussion: { title: "t", body: "b", comments: [] },
+    });
+    const discussion = tools.find((tool) => tool.name === "get_pr_discussion")!;
+    const run = async (args: object) => discussion.call(args);
+    expect(JSON.stringify(await run({}))).toContain("untrusted");
+    expect(await run({})).toContain("already made this exact call");
   });
 });

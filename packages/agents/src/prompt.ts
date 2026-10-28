@@ -223,7 +223,7 @@ export function buildReviewPrompt(input: BuildReviewPromptInput): ReviewPrompt {
   const body = (input.body ?? "").trim().slice(0, MAX_BODY_CHARS);
   const parts: string[] = [
     "You are reviewing a pull request. Report specific problems only: bugs, security issues, and violations of the listed rules.",
-    "Start with checkout_pr: it returns the PR metadata and a table of contents with the diff line range of each file. Then read the entire diff with read_diff, using the ranges as a checklist, before you write the review.",
+    "Start with checkout_pr: it returns the PR metadata and a table of contents with the diff line range of each file. Then read the entire diff with read_diff, using the ranges as a checklist, before you write the review. Read each range once; the output stays in the conversation. Once you have read the diff and traced the risky paths, reply with the JSON review instead of re-reading.",
     "Quote new-file (RIGHT side) line numbers exactly as shown in each __new hunk__ block that read_diff returns.",
     "When a finding violates a configured rule, cite its rule id.",
     "The PR title and the start of its body (the author's stated intent) are inline below. Compare the diff against that intent; use the get_pr_discussion tool for the full body and comments.",

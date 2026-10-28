@@ -85,6 +85,9 @@ type DiscussionSource =
   | PrDiscussionSource
   | (() => PrDiscussionSource | Promise<PrDiscussionSource>);
 
+const REPEATED_CALL =
+  "You already made this exact call in this review and its result is in the conversation above. Use that result: investigate something new, or reply with the JSON review.";
+
 const ZERO_USAGE: SinglePassUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 
 function failure(error: SinglePassErrorCode, message: string, path = "(run)"): SinglePassFailure {
@@ -133,6 +136,17 @@ export function buildReviewerTools(options: {
   onToolCall?: (name: string, detail: string) => void;
 }): AnyTool[] {
   const diff = options.diff ?? buildPrDiff(options.files, options.fileContents);
+  const answered = new Set<string>();
+  const once = async <T>(
+    name: string,
+    args: unknown,
+    run: () => Promise<T> | T,
+  ): Promise<T | string> => {
+    const key = `${name}:${JSON.stringify(args)}`;
+    if (answered.has(key)) return REPEATED_CALL;
+    answered.add(key);
+    return run();
+  };
   const readFileTool = createTool({
     name: "read_file",
     description: "Read lines from a file inside the PR-head checkout.",
@@ -144,7 +158,9 @@ export function buildReviewerTools(options: {
     execute: async (args) => {
       const range = args.startLine === undefined ? "" : `:${args.startLine}-${args.endLine ?? ""}`;
       options.onToolCall?.("read_file", `${args.path}${range}`);
-      return readFile(options.checkoutRoot, args.path, args.startLine, args.endLine);
+      return once("read_file", args, () =>
+        readFile(options.checkoutRoot, args.path, args.startLine, args.endLine),
+      );
     },
   });
   const listDirTool = createTool({
@@ -153,7 +169,7 @@ export function buildReviewerTools(options: {
     inputSchema: z.object({ path: z.string() }),
     execute: async (args) => {
       options.onToolCall?.("list_dir", args.path);
-      return listDir(options.checkoutRoot, args.path);
+      return once("list_dir", args, () => listDir(options.checkoutRoot, args.path));
     },
   });
   const searchTool = createTool({
@@ -165,7 +181,7 @@ export function buildReviewerTools(options: {
     }),
     execute: async (args) => {
       options.onToolCall?.("search", `/${args.pattern}/${args.glob ? ` in ${args.glob}` : ""}`);
-      return search(options.checkoutRoot, args.pattern, args.glob);
+      return once("search", args, () => search(options.checkoutRoot, args.pattern, args.glob));
     },
   });
   const checkoutPrTool = createTool({
@@ -175,7 +191,7 @@ export function buildReviewerTools(options: {
     inputSchema: z.object({}),
     execute: async () => {
       options.onToolCall?.("checkout_pr", "");
-      return renderCheckout(options.pr ?? { title: "" }, diff);
+      return once("checkout_pr", {}, () => renderCheckout(options.pr ?? { title: "" }, diff));
     },
   });
   const readDiffTool = createTool({
@@ -199,7 +215,9 @@ export function buildReviewerTools(options: {
     inputSchema: z.object({}),
     execute: async () => {
       options.onToolCall?.("get_pr_discussion", "");
-      return getPrDiscussion(await resolveDiscussion(options.discussion));
+      return once("get_pr_discussion", {}, async () =>
+        getPrDiscussion(await resolveDiscussion(options.discussion)),
+      );
     },
   });
   return [checkoutPrTool, readDiffTool, readFileTool, listDirTool, searchTool, getPrDiscussionTool];
