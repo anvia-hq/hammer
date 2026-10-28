@@ -235,16 +235,6 @@ describe("runSinglePassReview", () => {
     }
   });
 
-  it("returns needs_batching with zero calls when oversized", async () => {
-    const generate = vi.fn(() => validBatch());
-    const result = await runSinglePassReview(baseInput(), {
-      generate,
-      singlePassTokens: 1,
-    });
-    expect(result).toMatchObject({ ok: false, error: "needs_batching" });
-    expect(generate).not.toHaveBeenCalled();
-  });
-
   it("rejects unknown providers before calling generate", async () => {
     const generate = vi.fn(() => validBatch());
     const result = await runSinglePassReview(baseInput("cohere/command-r"), {

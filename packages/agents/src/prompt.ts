@@ -32,7 +32,6 @@ export interface BuildReviewPromptInput {
   title: string;
   body?: string | null;
   files: PullFileEntry[];
-  otherFiles?: PullFileEntry[];
   config: PromptConfig;
   guidelines?: PromptGuidelines;
   fileContents?: Record<string, string>;
@@ -218,43 +217,22 @@ export const REVIEW_INSTRUCTIONS = [
   'Return only JSON: {"summary":"what this PR does (max 600 chars)","changes":["short past-tense bullet"],"findings":[{"path":"file","line":1,"startLine":1,"severity":"high|medium|low","category":"correctness|security|performance|reliability|maintainability|tests|rule","title":"max 120 chars","body":"problem and blast radius, at most 3 sentences (max 1500 chars)","details":"optional technical details (max 1200 chars)","confidence":0.9,"suggestion":"optional replacement code","ruleId":"optional configured id"}],"generalNotes":[]}. changes, startLine, details, suggestion and ruleId are optional. At most 25 findings and 5 general notes (300 chars each). An empty findings array is valid.',
 ].join("\n");
 
-export const MAX_OTHER_FILES = 60;
-
-function renderOtherFiles(files: PullFileEntry[]): string[] {
-  if (files.length === 0) return [];
-  const shown = files.slice(0, MAX_OTHER_FILES);
-  const lines = shown.map((file) => `- ${file.filename} (+${file.additions} -${file.deletions})`);
-  if (files.length > shown.length) lines.push(`- ... and ${files.length - shown.length} more`);
-  return [
-    "",
-    "## Other files in this PR (reviewed in separate batches; read them with tools if a change here depends on them)",
-    untrusted(lines.join("\n")),
-  ];
-}
-
 export function buildReviewPrompt(input: BuildReviewPromptInput): ReviewPrompt {
   const guidance = buildGuidance(input);
   const title = input.title.replace(/\s+/g, " ").trim();
   const body = (input.body ?? "").trim().slice(0, MAX_BODY_CHARS);
   const parts: string[] = [
-    "You are reviewing a pull request diff. Report specific problems only: bugs, security issues, and violations of the listed rules.",
-    "Quote new-file (RIGHT side) line numbers exactly as shown in each __new hunk__ block.",
+    "You are reviewing a pull request. Report specific problems only: bugs, security issues, and violations of the listed rules.",
+    "Start with checkout_pr: it returns the PR metadata and a table of contents with the diff line range of each file. Then read the entire diff with read_diff, using the ranges as a checklist, before you write the review.",
+    "Quote new-file (RIGHT side) line numbers exactly as shown in each __new hunk__ block that read_diff returns.",
     "When a finding violates a configured rule, cite its rule id.",
     "The PR title and the start of its body (the author's stated intent) are inline below. Compare the diff against that intent; use the get_pr_discussion tool for the full body and comments.",
     "",
     untrusted(`PR title: ${title}`),
     untrusted(`PR body: ${body === "" ? "(empty)" : body}`),
     "",
-    "## Changed files",
+    `## Changed files: ${input.files.length}`,
   ];
-  if (input.files.length === 0) {
-    parts.push("(no files in scope)");
-  } else {
-    for (const file of input.files) {
-      parts.push(untrusted(renderPromptFile(file, input.fileContents)));
-    }
-  }
-  parts.push(...renderOtherFiles(input.otherFiles ?? []));
   if (guidance.text !== "") {
     parts.push("", "## Repo guidance", guidance.text);
   }

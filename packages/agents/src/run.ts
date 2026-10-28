@@ -7,7 +7,6 @@ import { z } from "zod";
 import {
   buildRepairPrompt,
   DEFAULT_MAX_TURNS,
-  DEFAULT_SINGLE_PASS_TOKENS,
   ReviewBatchSchema,
   runWithRepair,
   validateBatchOutput,
@@ -32,7 +31,6 @@ export type SinglePassErrorCode =
   | "invalid_model"
   | "unsupported_provider"
   | "missing_base_url"
-  | "needs_batching"
   | "schema_violation"
   | "generate_failed"
   | "unexpected_outcome";
@@ -63,7 +61,8 @@ export interface SinglePassRunInput extends BuildReviewPromptInput {
 }
 
 export interface SinglePassRunOptions {
-  singlePassTokens?: number;
+  pr?: Omit<PrMeta, "title">;
+  diff?: PrDiff;
   checkoutRoot?: string;
   files?: PullFileEntry[];
   discussion?: PrDiscussionInput | DiscussionSource;
@@ -264,13 +263,6 @@ export async function runSinglePassReview(
     };
   }
   const reviewed = buildReviewPrompt(input);
-  const limit = options.singlePassTokens ?? DEFAULT_SINGLE_PASS_TOKENS;
-  if (reviewed.approxTokens > limit) {
-    return failure(
-      "needs_batching",
-      `Prompt is about ${reviewed.approxTokens} tokens, above the single-pass limit of ${limit}; batching is required.`,
-    );
-  }
   if (options.generate !== undefined) {
     const repaired = await runWithRepair({
       prompt: reviewed.prompt,
@@ -299,10 +291,13 @@ export async function runSinglePassReview(
       ...(options.skills ? { skills: options.skills } : {}),
       ...(options.model.capabilities.outputSchema ? { outputSchema: ReviewBatchSchema } : {}),
       retries: { maxAttempts: 3 },
-      maxTokens: 8192,
+      maxTokens: 16384,
       tools: buildReviewerTools({
         checkoutRoot: options.checkoutRoot ?? "",
-        files: options.files ?? [],
+        files: options.files ?? input.files,
+        fileContents: input.fileContents ?? {},
+        pr: { title: input.title, ...options.pr },
+        ...(options.diff ? { diff: options.diff } : {}),
         discussion: options.discussion,
         ...(options.onToolCall ? { onToolCall: options.onToolCall } : {}),
       }),

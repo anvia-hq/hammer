@@ -3,23 +3,18 @@ import { Agent } from "@anvia/core/agent";
 import {
   buildPriorFindingsContext,
   createBudget,
-  DEFAULT_BATCH_TOKENS,
-  DEFAULT_MAX_CONCURRENT,
-  DEFAULT_SINGLE_PASS_TOKENS,
   filterDuplicates,
-  mergeBatchResults,
-  planBatches,
-  runBatches,
   validateFindings,
   type EffectiveConfig,
-  type FileBatch,
+  type ReviewBatch,
   type PriorFinding,
   type PullFileEntry,
   type PricingFn,
   type ReviewEventSink,
 } from "@anvia/hammer-core";
 import { COMPLETION_TIMEOUT_MS, createIdleSignal, STREAM_IDLE_MS } from "./idle-signal";
-import { buildReviewPrompt, approxTokens, type BuildReviewPromptInput } from "./prompt";
+import { buildPrDiff, type PrMeta } from "./diff";
+import type { BuildReviewPromptInput } from "./prompt";
 import { buildReviewerTools, runSinglePassReview, type SinglePassRunOptions } from "./run";
 import type { SkillSet } from "./skills";
 import { applyVerification, VERIFICATION_INSTRUCTIONS } from "./verify";
@@ -28,6 +23,7 @@ export interface ReviewPipelineInput extends BuildReviewPromptInput {
   modelRef: string;
   anchorFiles?: BuildReviewPromptInput["files"];
   baseUrl?: string;
+  pr?: Omit<PrMeta, "title">;
   config: EffectiveConfig;
   checkoutRoot: string;
   discussion: SinglePassRunOptions["discussion"];
@@ -41,6 +37,7 @@ export interface ReviewPipelineInput extends BuildReviewPromptInput {
 }
 
 const MAX_VERIFY_DIFF_CHARS = 16_000;
+const WIND_DOWN_RATIO = 0.85;
 
 function buildDiffContext(findings: Array<{ path: string }>, files: PullFileEntry[]): string {
   const paths = new Set(findings.map((finding) => finding.path));
@@ -81,6 +78,13 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     const { tokens, costUsd } = budget.summary();
     emit({ type: "turn", tokens, costUsd });
   };
+  const windDown = <T extends Parameters<CompletionModel["completion"]>[0]>(request: T): T => {
+    const { tokens, costUsd } = budget.summary();
+    const near =
+      tokens >= budget.maxTokens * WIND_DOWN_RATIO ||
+      (costUsd !== null && costUsd >= budget.maxCostUsd * WIND_DOWN_RATIO);
+    return near ? { ...request, tools: [], providerTools: [] } : request;
+  };
   const upstream = input.model as Partial<StreamingCompletionModel>;
   const model: CompletionModel = {
     provider: input.model.provider,
@@ -88,7 +92,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     capabilities: input.model.capabilities,
     ...(input.model.controls ? { controls: input.model.controls } : {}),
     async completion(request, options) {
-      const response = await input.model.completion(request, guarded(options));
+      const response = await input.model.completion(windDown(request), guarded(options));
       record(response.usage);
       return response;
     },
@@ -101,7 +105,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
             if (!budget.canStartBatch().ok) throw new Error("Review budget reached.");
             const idle = createIdleSignal(STREAM_IDLE_MS, options?.abortSignal);
             try {
-              for await (const event of upstream.streamCompletion!(request, {
+              for await (const event of upstream.streamCompletion!(windDown(request), {
                 ...options,
                 abortSignal: idle.signal,
               })) {
@@ -118,76 +122,48 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
   };
   const context = input.prior?.length ? buildPriorFindingsContext(input.prior) : "";
   const promptInput = { ...input, priorFindings: context };
-  const overhead = buildReviewPrompt({
-    ...promptInput,
-    files: [],
-    otherFiles: input.files,
-  }).approxTokens;
-  const planned = planBatches({
-    files: input.files,
-    estimateFileTokens: (file) => approxTokens(file.patch ?? "") + 200,
-    singlePassTokens: Math.max(1, DEFAULT_SINGLE_PASS_TOKENS - overhead),
-    batchTokens: Math.max(1, DEFAULT_BATCH_TOKENS - overhead),
-  });
-  const batches: FileBatch[] =
-    planned.mode === "single"
-      ? [
-          {
-            id: "single",
-            dir: ".",
-            files: input.files,
-            tokens: buildReviewPrompt(promptInput).approxTokens,
-          },
-        ]
-      : planned.batches;
-  emit({
-    type: "plan",
-    files: input.files.length,
-    batches: batches.length,
-    batchList: batches.map((batch) => ({ id: batch.id, files: batch.files.length })),
-  });
-  const results = await runBatches({
-    batches,
-    maxConcurrent: DEFAULT_MAX_CONCURRENT,
-    runBatch: async (batch) => {
-      if (!budget.canStartBatch().ok) return { ok: false, error: "Review budget reached." };
-      emit({ type: "batch_start", batch: batch.id, files: batch.files.length });
-      const outcome = await runSinglePassReview(
-        {
-          ...promptInput,
-          files: batch.files,
-          otherFiles:
-            batches.length > 1 ? input.files.filter((file) => !batch.files.includes(file)) : [],
-          model: input.modelRef,
-          ...(input.baseUrl ? { baseUrl: input.baseUrl } : {}),
-        },
-        {
-          model,
-          checkoutRoot: input.checkoutRoot,
-          files: batch.files,
-          discussion: input.discussion ?? {},
-          maxTurns: budget.maxTurns,
-          ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
-          onToolCall: (name, detail) => emit({ type: "tool", batch: batch.id, name, detail }),
-          onText: (kind, text) => emit({ type: "text", batch: batch.id, kind, text }),
-          ...(input.skills ? { skills: input.skills } : {}),
-        },
-      );
-      if (outcome.ok) {
-        emit({
-          type: "batch_end",
-          batch: batch.id,
-          ok: true,
-          findings: outcome.batch.findings.length,
-        });
-        return outcome;
-      }
+  const diff = buildPrDiff(input.files, input.fileContents);
+  emit({ type: "plan", files: input.files.length });
+  let review: { ok: true; batch: ReviewBatch } | { ok: false; error: string };
+  if (!budget.canStartBatch().ok) {
+    review = { ok: false, error: "Review budget reached." };
+  } else {
+    const outcome = await runSinglePassReview(
+      {
+        ...promptInput,
+        model: input.modelRef,
+        ...(input.baseUrl ? { baseUrl: input.baseUrl } : {}),
+      },
+      {
+        model,
+        checkoutRoot: input.checkoutRoot,
+        files: input.files,
+        diff,
+        ...(input.pr ? { pr: input.pr } : {}),
+        discussion: input.discussion ?? {},
+        maxTurns: budget.maxTurns,
+        ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
+        onToolCall: (name, detail) => emit({ type: "tool", name, detail }),
+        onText: (kind, text) => emit({ type: "text", kind, text }),
+        ...(input.skills ? { skills: input.skills } : {}),
+      },
+    );
+    if (outcome.ok) {
+      review = { ok: true, batch: outcome.batch };
+      emit({ type: "review_end", ok: true, findings: outcome.batch.findings.length });
+    } else {
       const error = outcome.issues.map((issue) => issue.message).join("; ");
-      emit({ type: "batch_end", batch: batch.id, ok: false, findings: 0, error });
-      return { ok: false, error };
-    },
-  });
-  const merged = mergeBatchResults(results.results);
+      review = { ok: false, error };
+      emit({ type: "review_end", ok: false, findings: 0, error });
+    }
+  }
+  const merged = {
+    summaries: review.ok ? [review.batch.summary] : [],
+    changes: review.ok ? (review.batch.changes ?? []) : [],
+    findings: review.ok ? review.batch.findings : [],
+    generalNotes: review.ok ? review.batch.generalNotes : [],
+    partial: !review.ok,
+  };
   const verifying = input.config.verify && merged.findings.length > 0;
   if (verifying) emit({ type: "verify_start", findings: merged.findings.length });
   const verification = await applyVerification({
@@ -204,8 +180,11 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
         tools: buildReviewerTools({
           checkoutRoot: input.checkoutRoot,
           files: input.files,
+          fileContents: input.fileContents ?? {},
+          pr: { title: input.title, ...input.pr },
+          diff,
           discussion: input.discussion,
-          onToolCall: (name, detail) => emit({ type: "tool", batch: "verify", name, detail }),
+          onToolCall: (name, detail) => emit({ type: "tool", name: `verify ${name}`, detail }),
         }),
         maxTurns: input.config.max_turns,
         maxTokens: 4096,
@@ -250,20 +229,14 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     single: validated.single.filter((entry) => kept.has(entry.finding)),
     generalNotes: [
       ...merged.generalNotes,
-      ...results.results.flatMap((entry) =>
-        entry.status === "failed"
-          ? [`Batch ${entry.id} failed: ${entry.error.slice(0, 1000)}`]
-          : [],
-      ),
+      ...(review.ok ? [] : [`The review failed: ${review.error.slice(0, 1000)}`]),
       ...validated.generalNotes.map(
         ({ finding }) => `${finding.path}:${finding.line}: ${finding.body}`,
       ),
     ],
     usage: budget.summary(),
     partial: merged.partial || budget.summary().partial,
-    failedBatches: results.results
-      .filter((entry) => entry.status === "failed" && entry.error !== "Review budget reached.")
-      .map((entry) => entry.id),
+    failed: !review.ok && review.error !== "Review budget reached.",
     unverified: verification.status === "unverified",
     duplicates: deduped.duplicates.length,
   };
