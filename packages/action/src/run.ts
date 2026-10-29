@@ -7,8 +7,11 @@ import {
   buildReviewPlan,
   decideEvent,
   decideExitCode,
+  cancelsInProgress,
   decideSkip,
   extractLastSha,
+  isProgressBody,
+  renderInterruptedBody,
   type PriceCatalog,
   fetchGatewayCatalog,
   fetchPullFiles,
@@ -94,7 +97,50 @@ export async function runAction(
     }
     return redactSecrets(message);
   };
+  const clearStaleProgress = async (reason: string): Promise<void> => {
+    if (!github || !target || !identity || progress) return;
+    const stale = comments.find(
+      (comment) =>
+        comment.user?.login === identity &&
+        comment.body?.includes(SUMMARY_MARKER) &&
+        isProgressBody(comment.body),
+    );
+    if (!stale) return;
+    try {
+      await writeProgress(
+        github,
+        target,
+        comments,
+        identity,
+        renderInterruptedBody({ reason, lastSha: extractLastSha(stale.body ?? "") }),
+        [runtime.getInput("api-key"), runtime.getInput("github-token"), githubToken],
+      );
+    } catch (error) {
+      runtime.warning(`Could not clear the stale progress comment: ${cleanError(error)}`);
+    }
+  };
+  const warnWithoutCancel = async (owner: string, repo: string): Promise<void> => {
+    const path = env.GITHUB_WORKFLOW_REF?.split("@", 1)[0]?.split("/").slice(2).join("/");
+    const sha = env.GITHUB_WORKFLOW_SHA;
+    if (
+      !github ||
+      !path ||
+      !sha ||
+      env.GITHUB_WORKFLOW_REF?.startsWith(`${owner}/${repo}/`) !== true
+    )
+      return;
+    try {
+      const workflow = await github.content(owner, repo, path, sha);
+      if (workflow !== undefined && cancelsInProgress(workflow) === false)
+        runtime.warning(
+          "[hammer] The workflow has no concurrency group with cancel-in-progress: true. Overlapping pushes run in parallel and spend tokens on reviews that are discarded.",
+        );
+    } catch {
+      return;
+    }
+  };
   const skip = async (reason: string): Promise<void> => {
+    await clearStaleProgress(reason);
     runtime.notice(`[hammer] ${reason}`);
     await runtime.summary(renderJobSummaryMarkdown({ skipped: { reason } }));
     for (const [key, value] of Object.entries(buildActionOutputs({ findings: [] })))
@@ -149,6 +195,7 @@ export async function runAction(
       return;
     }
     const { owner, repo, prNumber } = decision;
+    await warnWithoutCancel(owner, repo);
     const pr = await github.pull(owner, repo, prNumber);
     if (pr.state !== "open") {
       await skip("pull request is closed");
@@ -207,6 +254,7 @@ export async function runAction(
       isMergeFromBase: mergeFromBase,
       remainingFileCount: 1,
       ignoreAuthors: config.ignore_authors,
+      reviewBotPushes: config.review_bot_pushes,
     });
     if (skipped.skip) {
       await skip(skipped.reason ?? "review skipped");

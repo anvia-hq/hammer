@@ -64,6 +64,14 @@ describe("decideSkip", () => {
     }
   });
 
+  it("reviews bot senders when reviewBotPushes is on", () => {
+    const sender = { login: "github-actions[bot]", type: "Bot" };
+    expect(decideSkip(baseInput({ sender, reviewBotPushes: true }))).toEqual({ skip: false });
+    expect(
+      decideSkip(baseInput({ sender, reviewBotPushes: true, authorLogin: "dependabot[bot]" })).skip,
+    ).toBe(true);
+  });
+
   it("skips merge commits from the base branch", () => {
     const result = decideSkip(baseInput({ isMergeFromBase: true }));
     expect(result.skip).toBe(true);

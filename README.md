@@ -100,6 +100,7 @@ ignore:
 ignore_authors:
   - dependabot[bot]
   - renovate[bot]
+review_bot_pushes: false # true: also review pushes made by bots (remove them from ignore_authors for bot-authored PRs)
 rules:
   - id: no-raw-sql
     text: Queries must go through the db helper, never string-built SQL.

@@ -150,10 +150,6 @@ function decidePullRequest(payload: Record<string, unknown>, reviewDrafts: boole
   if (repo === null) {
     return skip("invalid_payload", "pull_request payload has no repository");
   }
-  const sender = readSender(payload);
-  if (sender !== null && isBot(sender.login, sender.type)) {
-    return skip("bot_sender", `ignoring pull_request event from bot "${sender.login}"`);
-  }
   if (pullRequest.draft === true && !reviewDrafts) {
     return skip(
       "draft_pull_request",
