@@ -40,7 +40,7 @@ jobs:
       github.event_name == 'pull_request' ||
       (github.event.issue.pull_request && startsWith(github.event.comment.body, '/hammer'))
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: anvia-hq/hammer@v1
         with:

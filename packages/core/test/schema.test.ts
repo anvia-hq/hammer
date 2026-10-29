@@ -38,16 +38,31 @@ describe("validateBatchOutput", () => {
     if (result.ok) expect(result.value.summary).toContain("null handling");
   });
 
-  it("rejects a title of 121 chars", () => {
-    expect(
-      validateBatchOutput(validBatch({ findings: [validFinding({ title: "t".repeat(121) })] })).ok,
-    ).toBe(false);
+  it("trims a title of 121 chars instead of rejecting the batch", () => {
+    const result = validateBatchOutput(
+      validBatch({ findings: [validFinding({ title: "t".repeat(121) })] }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.findings[0]?.title).toBe(`${"t".repeat(119)}…`);
   });
 
-  it("rejects a body of 1501 chars", () => {
-    expect(
-      validateBatchOutput(validBatch({ findings: [validFinding({ body: "b".repeat(1501) })] })).ok,
-    ).toBe(false);
+  it("trims a body of 1501 chars", () => {
+    const result = validateBatchOutput(
+      validBatch({ findings: [validFinding({ body: "b".repeat(1501) })] }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.findings[0]?.body).toHaveLength(1500);
+  });
+
+  it("trims a general note of 301 chars and a change of 161 chars", () => {
+    const result = validateBatchOutput(
+      validBatch({ generalNotes: ["n".repeat(301)], changes: ["c".repeat(161)] }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.generalNotes[0]).toHaveLength(300);
+      expect(result.value.changes?.[0]).toHaveLength(160);
+    }
   });
 
   it("rejects 26 findings", () => {
@@ -66,8 +81,10 @@ describe("validateBatchOutput", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("rejects a summary of 601 chars", () => {
-    expect(validateBatchOutput(validBatch({ summary: "s".repeat(601) })).ok).toBe(false);
+  it("trims a summary of 601 chars", () => {
+    const result = validateBatchOutput(validBatch({ summary: "s".repeat(601) }));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.summary).toHaveLength(600);
   });
 
   it("rejects confidence above 1", () => {
@@ -179,11 +196,11 @@ describe("details and changes", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("rejects oversized details and too many changes", () => {
+  it("trims oversized details but still rejects too many changes", () => {
     expect(
       validateBatchOutput(validBatch({ findings: [validFinding({ details: "x".repeat(1201) })] }))
         .ok,
-    ).toBe(false);
+    ).toBe(true);
     expect(validateBatchOutput(validBatch({ changes: Array(7).fill("Changed a thing") })).ok).toBe(
       false,
     );
@@ -211,7 +228,7 @@ describe("runWithRepair", () => {
   });
 
   it("repairs once and uses the second result, with issue text in the repair prompt", async () => {
-    const bad = validBatch({ summary: "s".repeat(601) });
+    const bad = validBatch({ findings: [validFinding({ confidence: 5 })] });
     const good = validBatch();
     const prompts: string[] = [];
     const generate = vi.fn((prompt: string) => {
@@ -227,7 +244,7 @@ describe("runWithRepair", () => {
   });
 
   it("returns schema_violation after a failed repair without throwing", async () => {
-    const bad = validBatch({ summary: "s".repeat(601) });
+    const bad = validBatch({ findings: [validFinding({ confidence: 5 })] });
     const generate = vi.fn(() => bad);
     const result = await runWithRepair({ prompt: "review this", generate });
     expect(generate).toHaveBeenCalledTimes(2);

@@ -126,8 +126,9 @@ Reviewed 7 files at `a1b2c3d` · skipped 2 (lockfile, generated) · claude-sonne
 **Inline comments**, posted as one PR review with `event: COMMENT`:
 
 ````
-🔴 **High · correctness** — POST is retried without an idempotency key, so a timeout after the
-server committed will deliver the webhook twice.
+> [!CAUTION]
+> **High · correctness** — POST is retried without an idempotency key, so a timeout after the
+> server committed will deliver the webhook twice.
 
 Pass the existing `deliveryId` as `Idempotency-Key`, or only retry on connection errors before
 the request was sent.

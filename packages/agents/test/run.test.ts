@@ -259,7 +259,7 @@ describe("runSinglePassReview", () => {
   });
 
   it("repairs schema-invalid output once", async () => {
-    const bad = validBatch({ summary: "s".repeat(601) });
+    const bad = validBatch({ findings: [validFinding({ confidence: 5 })] });
     const good = validBatch();
     const generate = vi.fn((prompt: string) =>
       generate.mock.calls.length === 1 && prompt.length > 0 ? bad : good,
@@ -270,7 +270,7 @@ describe("runSinglePassReview", () => {
   });
 
   it("returns schema_violation when repair fails", async () => {
-    const bad = validBatch({ summary: "s".repeat(601) });
+    const bad = validBatch({ findings: [validFinding({ confidence: 5 })] });
     const generate = vi.fn(() => bad);
     const result = await runSinglePassReview(baseInput(), { generate });
     expect(result).toMatchObject({ ok: false, error: "schema_violation" });

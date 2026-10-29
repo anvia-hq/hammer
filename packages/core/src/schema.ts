@@ -63,6 +63,42 @@ function describeUnparsable(text: string): string {
   return `Output is not valid JSON (${trimmed.length} chars, ${ending}).`;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function clip(value: unknown, max: number): unknown {
+  return typeof value === "string" && value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}
+
+function clipAll(value: unknown, max: number): unknown {
+  return Array.isArray(value) ? value.map((entry) => clip(entry, max)) : value;
+}
+
+// A model that runs a few characters over a text limit should not cost the whole review.
+function trimOverlong(candidate: unknown): unknown {
+  if (!isRecord(candidate)) return candidate;
+  const findings = Array.isArray(candidate.findings)
+    ? candidate.findings.map((finding: unknown) =>
+        isRecord(finding)
+          ? {
+              ...finding,
+              title: clip(finding.title, 120),
+              body: clip(finding.body, 1500),
+              ...(finding.details !== undefined ? { details: clip(finding.details, 1200) } : {}),
+            }
+          : finding,
+      )
+    : candidate.findings;
+  return {
+    ...candidate,
+    summary: clip(candidate.summary, 600),
+    ...(candidate.changes !== undefined ? { changes: clipAll(candidate.changes, 160) } : {}),
+    findings,
+    generalNotes: clipAll(candidate.generalNotes, 300),
+  };
+}
+
 export function validateBatchOutput(raw: unknown): BatchValidationResult {
   let candidate: unknown = raw;
   if (typeof raw === "string") {
@@ -76,7 +112,7 @@ export function validateBatchOutput(raw: unknown): BatchValidationResult {
       }
     }
   }
-  const parsed = ReviewBatchSchema.safeParse(candidate);
+  const parsed = ReviewBatchSchema.safeParse(trimOverlong(candidate));
   if (parsed.success) return { ok: true, value: parsed.data };
   return { ok: false, issues: toIssues(parsed.error) };
 }

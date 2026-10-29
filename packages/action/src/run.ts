@@ -441,7 +441,7 @@ export async function runAction(
     }
     const published = await publishReview(
       github,
-      target,
+      { ...target, ...(runUrl ? { runUrl } : {}) },
       comments,
       identity,
       plan,
