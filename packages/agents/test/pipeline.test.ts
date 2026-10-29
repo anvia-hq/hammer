@@ -88,6 +88,19 @@ describe("review pipeline", () => {
     expect(result.partial).toBe(true);
     expect(result.failed).toBe(true);
   });
+  it("keeps findings as unverified when verification runs out of time", async () => {
+    const request = input([batch, { scores: [{ id: "f1", score: 8 }] }]);
+    request.config.verify = true;
+    let now = 1_700_000_000_000;
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => (now += 600_000));
+    try {
+      const result = await runReviewPipeline(request);
+      expect(result.findings).toHaveLength(1);
+      expect(result.unverified).toBe(true);
+    } finally {
+      clock.mockRestore();
+    }
+  });
   it("applies no token or cost limit unless the config sets one", async () => {
     const request = input([batch]);
     const original = request.model.completion;

@@ -47,7 +47,7 @@ describe("renderSummaryBody", () => {
       confidence: 0.8,
     };
     expect(renderSummaryBody({ files, findings: [finding], unverified: true })).toContain(
-      "> Not verified: the verifier could not run",
+      "> Not verified: the verifier did not finish",
     );
     expect(renderSummaryBody({ files, findings: [], unverified: true })).not.toContain(
       "Not verified",
