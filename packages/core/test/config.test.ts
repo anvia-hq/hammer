@@ -164,8 +164,8 @@ describe("resolveConfig", () => {
     expect(effective.max_files).toBe(DEFAULT_CAPS.max_files);
     expect(effective.max_diff_lines).toBe(DEFAULT_CAPS.max_diff_lines);
     expect(effective.max_turns).toBe(DEFAULT_CAPS.max_turns);
-    expect(effective.max_tokens).toBe(DEFAULT_CAPS.max_tokens);
-    expect(effective.max_cost_usd).toBe(DEFAULT_CAPS.max_cost_usd);
+    expect(effective.max_tokens).toBeUndefined();
+    expect(effective.max_cost_usd).toBeUndefined();
   });
 
   it("lets action inputs override shared config values", () => {

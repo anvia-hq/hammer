@@ -30,6 +30,7 @@ export interface RenderSummaryOptions {
   costUsd?: number | null;
   partial?: boolean;
   unverified?: boolean;
+  reviewError?: string;
   error?: string;
   runUrl?: string;
   repoUrl?: string;
@@ -87,7 +88,16 @@ function detailsBlock(summary: string, entries: string[]): string[] {
 
 export function renderSummaryBody(options: RenderSummaryOptions): string {
   const lines: string[] = [SUMMARY_MARKER, "### Hammer Review", ""];
-  if (options.findings !== undefined) {
+  const incomplete = options.reviewError !== undefined;
+  if (options.reviewError !== undefined) {
+    lines.push(
+      "> [!WARNING]",
+      `> **Not reviewed.** ${sanitizeSummaryText(options.reviewError).replace(/\s+/g, " ").trim()}`,
+      "> Hammer could not finish reviewing this PR, so having no findings does not mean the code is clean.",
+      "",
+    );
+  }
+  if (options.findings !== undefined && !incomplete) {
     const high = options.findings.filter((finding) => finding.severity === "high").length;
     lines.push(
       `${options.findings.length} findings (${high} high)${options.partial ? " · partial" : ""}`,
@@ -121,14 +131,21 @@ export function renderSummaryBody(options: RenderSummaryOptions): string {
       options.runUrl ? `Run: ${options.runUrl}` : "",
       "",
     );
-  if (options.unverified) lines.push("Verification: unverified.", "");
+  if (options.unverified && !incomplete && (options.findings?.length ?? 0) > 0)
+    lines.push(
+      "> [!NOTE]",
+      "> Not verified: the verifier could not run, so these findings were not double-checked.",
+      "",
+    );
   if (options.generalNotes?.length)
     lines.push("General notes:", "", ...options.generalNotes.map((note) => `- ${note}`), "");
   const files = options.files;
   const skipped = options.skipped ?? [];
   const notReviewed = options.notReviewed ?? [];
   const footer: string[] = [
-    `Reviewed ${files.length} file${files.length === 1 ? "" : "s"}${options.headSha ? ` at \`${options.headSha.slice(0, 7)}\`` : ""}`,
+    incomplete
+      ? `Not reviewed: ${files.length} file${files.length === 1 ? "" : "s"} in scope`
+      : `Reviewed ${files.length} file${files.length === 1 ? "" : "s"}${options.headSha ? ` at \`${options.headSha.slice(0, 7)}\`` : ""}`,
   ];
   if (skipped.length > 0) footer.push(`skipped ${skipped.length}`);
   if (notReviewed.length > 0) footer.push(`not reviewed ${notReviewed.length}`);

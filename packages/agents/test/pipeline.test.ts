@@ -88,6 +88,21 @@ describe("review pipeline", () => {
     expect(result.partial).toBe(true);
     expect(result.failed).toBe(true);
   });
+  it("applies no token or cost limit unless the config sets one", async () => {
+    const request = input([batch]);
+    const original = request.model.completion;
+    request.model.completion = (async (...args: Parameters<typeof original>) => {
+      const response = await original(...args);
+      return {
+        ...response,
+        usage: { ...response.usage, inputTokens: 5_000_000, totalTokens: 5_000_000 },
+      };
+    }) as typeof original;
+    const result = await runReviewPipeline(request);
+    expect(result.partial).toBe(false);
+    expect(result.reviewError).toBeUndefined();
+    expect(result.findings).toHaveLength(1);
+  });
   it("stops verification after a token cap and keeps completed findings", async () => {
     const request = input([batch]);
     request.config.verify = true;
