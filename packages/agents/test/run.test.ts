@@ -141,6 +141,31 @@ describe("parseModelRef", () => {
   });
 });
 
+describe("reasoning effort for models the client does not list", () => {
+  const efforts = (model: unknown) =>
+    (model as { controls?: { reasoningEffort?: { options: string[] } } }).controls?.reasoningEffort
+      ?.options;
+
+  it("keeps the client's own options for a model it knows", () => {
+    expect(efforts(createOpenAIModel("o3", { apiKey: "k" }))).toEqual(["low", "medium", "high"]);
+    expect(efforts(createGeminiModel("gemini-3-pro-preview", { apiKey: "k" }))).toEqual([
+      "low",
+      "high",
+    ]);
+  });
+
+  it("accepts any effort for a model it does not know, so the provider decides", () => {
+    const any = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+    expect(efforts(createOpenAIModel("gpt-6-sol", { apiKey: "k" }))).toEqual(any);
+    expect(efforts(createGeminiModel("gemini-pro-latest", { apiKey: "k" }))).toEqual(any);
+    expect(
+      efforts(
+        createAzureModel("gpt-6-sol", { apiKey: "k", baseUrl: "https://acme.openai.azure.com" }),
+      ),
+    ).toEqual(any);
+  });
+});
+
 describe("provider factory", () => {
   it("builds completion models without network calls", () => {
     const anthropic = createAnthropicModel("claude-sonnet-4-5", { apiKey: "test-key" });

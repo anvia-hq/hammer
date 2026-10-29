@@ -129,14 +129,44 @@ export function createAnthropicModel(
   }) as unknown as CompletionModel;
 }
 
+const ANY_EFFORT_CONTROLS: CompletionModelControls = defineCompletionModelControls({
+  reasoningEffort: {
+    type: "select",
+    label: "Reasoning effort",
+    options: ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+  },
+});
+
+// The client knows the effort values of the models it ships with. A newer model it has not
+// listed yet would reject every effort, so the provider is left to judge the value instead.
+function withEffortFallback<M extends CompletionModel>(
+  build: (controls?: CompletionModelControls) => M,
+): M {
+  const model = build();
+  const controls = (model as { controls?: Record<string, unknown> }).controls;
+  return controls?.reasoningEffort ? model : build(ANY_EFFORT_CONTROLS);
+}
+
 export function createOpenAIModel(modelId: string, options: ModelClientOptions): CompletionModel {
   const client = new OpenAIClient({ apiKey: options.apiKey });
-  return client.completionModel({ modelId }) as unknown as CompletionModel;
+  return withEffortFallback(
+    (controls) =>
+      client.completionModel({
+        modelId,
+        ...(controls ? { controls } : {}),
+      }) as unknown as CompletionModel,
+  );
 }
 
 export function createGeminiModel(modelId: string, options: ModelClientOptions): CompletionModel {
   const client = new GeminiClient({ apiKey: options.apiKey });
-  return client.completionModel({ modelId }) as unknown as CompletionModel;
+  return withEffortFallback(
+    (controls) =>
+      client.completionModel({
+        modelId,
+        ...(controls ? { controls } : {}),
+      }) as unknown as CompletionModel,
+  );
 }
 
 const OPENAI_COMPATIBLE_CONTROLS: CompletionModelControls = defineCompletionModelControls({
@@ -169,9 +199,15 @@ export function createAzureModel(modelId: string, options: ModelClientOptions): 
     throw new Error('Missing base URL for the azure provider: pass "base-url" as an action input.');
   }
   const client = new AzureOpenAIClient({ apiKey: options.apiKey, endpoint: baseUrl });
-  const model = client.completionModel({ modelId });
+  const model = withEffortFallback(
+    (controls) =>
+      client.completionModel({
+        modelId,
+        ...(controls ? { controls } : {}),
+      }) as unknown as CompletionModel,
+  );
   if (options.nativeJsonSchema === false) model.capabilities.outputSchema = false;
-  return model as unknown as CompletionModel;
+  return model;
 }
 
 export function createCompletionModel(

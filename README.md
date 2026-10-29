@@ -82,7 +82,7 @@ native-json-schema: "false" # only if the endpoint lacks native JSON-schema outp
 api-key: ${{ secrets.GATEWAY_API_KEY }}
 ```
 
-Models that support it accept `reasoning-effort` (`low`, `medium` or `high`). The run fails with a clear error if the model doesn't support the value.
+Models that support it accept `reasoning-effort`, with the values the provider documents for that model (for example `low`, `medium`, `high`, and on some models `none`, `minimal`, `xhigh` or `max`). For a model Hammer's client does not list yet, the value is passed to the provider, which rejects it if the model does not support it. For a listed model the run fails with a clear error before any call.
 
 ## Configuration
 
@@ -124,7 +124,7 @@ Each run is bounded by 50 files, 3,000 diff lines and 100 agent turns; change th
 | `client`, `model`, `api-key`               | Required. Model client, model id and API key.                         |
 | `base-url`                                 | Gateway URL (`openai-compatible`) or endpoint (`azure`).              |
 | `native-json-schema`                       | Set `"false"` for endpoints without native JSON-schema output.        |
-| `reasoning-effort`                         | `low`, `medium` or `high`, for models that support it.                |
+| `reasoning-effort`                         | Reasoning effort, for models that support it.                         |
 | `pricing`                                  | JSON of per-million-token USD prices, to enforce `max_cost_usd`.      |
 | `github-token`                             | Defaults to the workflow token.                                       |
 | `hammer-api-key`                           | Repository key from hammer.anvia.dev, so Hammer posts as the bot.     |
