@@ -6,9 +6,18 @@ export const SEVERITY_ICON: Record<Finding["severity"], string> = {
   low: "🔵",
 };
 
+const SEVERITY_ALERT: Record<Finding["severity"], string> = {
+  high: "CAUTION",
+  medium: "WARNING",
+  low: "NOTE",
+};
+
 export interface ReviewBodyInput {
   findings: readonly Finding[];
   changes?: readonly string[];
+  summary?: string | undefined;
+  model?: string | undefined;
+  runUrl?: string | undefined;
 }
 
 function plural(count: number, noun: string): string {
@@ -31,7 +40,7 @@ export function formatInlineBody(finding: Finding, suggestion?: string): string 
   const detailsBlock = details
     ? `\n\n<details>\n<summary>Technical details</summary>\n\n${closeOpenFence(details)}\n\n</details>`
     : "";
-  return `${SEVERITY_ICON[finding.severity]} **${severity} · ${finding.category}** — ${finding.title}\n\n${finding.body}${suggestionBlock}${detailsBlock}\n\n<sub>${attribution}</sub>`;
+  return `> [!${SEVERITY_ALERT[finding.severity]}]\n> **${severity} · ${finding.category}** — ${finding.title}\n\n${finding.body}${suggestionBlock}${detailsBlock}\n\n<sub>${attribution}</sub>`;
 }
 
 export function renderReviewBody(input: ReviewBodyInput): string {
@@ -50,15 +59,23 @@ export function renderReviewBody(input: ReviewBodyInput): string {
   const changes = (input.changes ?? [])
     .map((change) => change.replace(/\s+/g, " ").trim())
     .filter((change) => change !== "");
-  if (changes.length > 0) {
-    blocks.push(["**Reviewed changes**", "", ...changes.map((change) => `- ${change}`)].join("\n"));
+  const intro = input.summary?.replace(/\s+/g, " ").trim() ?? "";
+  if (changes.length > 0 || intro !== "") {
+    blocks.push(
+      [
+        "**Reviewed changes**",
+        ...(intro !== "" ? ["", intro] : []),
+        ...(changes.length > 0 ? ["", ...changes.map((change) => `- ${change}`)] : []),
+      ].join("\n"),
+    );
   }
   const counts = (["high", "medium", "low"] as const)
     .map((severity) => (count(severity) > 0 ? `${count(severity)} ${severity}` : ""))
     .filter((part) => part !== "")
     .join(", ");
-  blocks.push(
-    `🔨 **Hammer** — ${plural(input.findings.length, "finding")} (${counts}). Details in the summary comment.`,
-  );
+  const footer = ["🔨 **Hammer**", `${plural(input.findings.length, "finding")} (${counts})`];
+  if (input.runUrl) footer.push(`[View workflow run](${input.runUrl})`);
+  if (input.model) footer.push(`Using \`${input.model.replace(/`/g, "")}\``);
+  blocks.push(footer.join(" | "));
   return blocks.join("\n\n");
 }

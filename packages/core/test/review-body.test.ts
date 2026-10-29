@@ -41,15 +41,42 @@ describe("renderReviewBody", () => {
     expect(body).toContain("**Reviewed changes**\n\n- Added retry with jitter\n- Dropped cache");
   });
 
+  it("puts the summary under the heading before the bullets", () => {
+    const body = renderReviewBody({
+      findings: [finding()],
+      summary: "Reviewed the\nfull diff.",
+      changes: ["Added retry"],
+    });
+    expect(body).toContain("**Reviewed changes**\n\nReviewed the full diff.\n\n- Added retry");
+  });
+
+  it("ends with a footer linking the run and naming the model", () => {
+    const body = renderReviewBody({
+      findings: [finding()],
+      model: "anthropic/claude-sonnet-5-5",
+      runUrl: "https://github.com/acme/app/actions/runs/1",
+    });
+    expect(
+      body.endsWith(
+        "🔨 **Hammer** | 1 finding (1 medium) | [View workflow run](https://github.com/acme/app/actions/runs/1) | Using `anthropic/claude-sonnet-5-5`",
+      ),
+    ).toBe(true);
+  });
+
   it("omits the changes block when there are none", () => {
     expect(renderReviewBody({ findings: [finding()] })).not.toContain("Reviewed changes");
   });
 });
 
 describe("formatInlineBody", () => {
+  it("maps severity to a GitHub alert", () => {
+    expect(formatInlineBody(finding({ severity: "high" }))).toMatch(/^> \[!CAUTION\]\n/);
+    expect(formatInlineBody(finding({ severity: "low" }))).toMatch(/^> \[!NOTE\]\n/);
+  });
+
   it("renders severity, title, body and attribution without details", () => {
     const body = formatInlineBody(finding());
-    expect(body).toContain("🟡 **Medium · reliability** — No backoff");
+    expect(body.startsWith("> [!WARNING]\n> **Medium · reliability** — No backoff\n\n")).toBe(true);
     expect(body).toContain("<sub>Hammer</sub>");
     expect(body).not.toContain("<details>");
   });
