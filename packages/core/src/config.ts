@@ -92,8 +92,8 @@ export interface EffectiveConfig {
   max_files: number;
   max_diff_lines: number;
   max_turns: number;
-  max_tokens: number;
-  max_cost_usd: number;
+  max_tokens?: number | undefined;
+  max_cost_usd?: number | undefined;
   verify: boolean;
   verify_threshold: number;
 }
@@ -107,8 +107,6 @@ export const DEFAULT_CAPS = {
   max_files: 50,
   max_diff_lines: 3000,
   max_turns: 100,
-  max_tokens: 400000,
-  max_cost_usd: 1,
 } as const;
 
 const KNOWN_KEYS = new Set(Object.keys(repoConfigSchema.shape));
@@ -190,6 +188,14 @@ function clampCap(
   return Math.min(repoValue ?? inputValue, inputValue);
 }
 
+function clampOptionalCap(
+  repoValue: number | undefined,
+  inputValue: number | undefined,
+): number | undefined {
+  if (inputValue === undefined) return repoValue;
+  return Math.min(repoValue ?? inputValue, inputValue);
+}
+
 export function resolveConfig(
   config: RepoConfig,
   inputs: ConfigInputOverrides = {},
@@ -213,8 +219,8 @@ export function resolveConfig(
       DEFAULT_CAPS.max_diff_lines,
     ),
     max_turns: clampCap(config.max_turns, inputs.max_turns, DEFAULT_CAPS.max_turns),
-    max_tokens: clampCap(config.max_tokens, inputs.max_tokens, DEFAULT_CAPS.max_tokens),
-    max_cost_usd: clampCap(config.max_cost_usd, inputs.max_cost_usd, DEFAULT_CAPS.max_cost_usd),
+    max_tokens: clampOptionalCap(config.max_tokens, inputs.max_tokens),
+    max_cost_usd: clampOptionalCap(config.max_cost_usd, inputs.max_cost_usd),
     verify: inputs.verify ?? config.verify,
     verify_threshold: inputs.verify_threshold ?? config.verify_threshold,
   };

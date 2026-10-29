@@ -19,6 +19,44 @@ describe("renderSummaryBody", () => {
     expect(body).toContain("Files in scope");
   });
 
+  it("says not reviewed instead of reporting a clean result when the review did not finish", () => {
+    const body = renderSummaryBody({
+      files: [{ path: "src/app.ts", status: "modified" }],
+      findings: [],
+      partial: true,
+      unverified: true,
+      reviewError: "Review budget reached.",
+    });
+    expect(body).toContain("> [!WARNING]\n> **Not reviewed.** Review budget reached.");
+    expect(body).toContain("Not reviewed: 1 file in scope");
+    expect(body).not.toContain("No issues found");
+    expect(body).not.toContain("findings (");
+    expect(body).not.toContain("Not verified");
+    expect(body).not.toContain("Reviewed 1 file");
+  });
+
+  it("notes unverified findings plainly and only when there are findings", () => {
+    const files = [{ path: "src/app.ts", status: "modified" as const }];
+    const finding = {
+      path: "src/app.ts",
+      line: 1,
+      severity: "low" as const,
+      category: "reliability" as const,
+      title: "t",
+      body: "b",
+      confidence: 0.8,
+    };
+    expect(renderSummaryBody({ files, findings: [finding], unverified: true })).toContain(
+      "> Not verified: the verifier could not run",
+    );
+    expect(renderSummaryBody({ files, findings: [], unverified: true })).not.toContain(
+      "Not verified",
+    );
+    expect(renderSummaryBody({ files, findings: [finding], unverified: true })).not.toContain(
+      "Verification: unverified",
+    );
+  });
+
   it("omits the last-sha line when no sha is given", () => {
     const body = renderSummaryBody({ files: [{ path: "src/app.ts", status: "added" }] });
     expect(body).toContain(SUMMARY_MARKER);

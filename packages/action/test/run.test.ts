@@ -398,7 +398,9 @@ describe("Action review flow", () => {
     vi.mocked(f.model.completion).mockRejectedValue(new Error("model unavailable"));
     await f.run();
     expect(f.posted).toHaveLength(0);
-    expect(f.summaries.at(-1)).toContain("partial");
+    expect(f.summaries.at(-1)).toContain("**Not reviewed.**");
+    expect(f.summaries.at(-1)).toContain("model unavailable");
+    expect(f.summaries.at(-1)).not.toContain("No issues found");
     expect(f.summaries.at(-1)).not.toContain("hammer:last-sha=");
     expect(f.runtime.setFailed).not.toHaveBeenCalled();
   });
@@ -504,6 +506,6 @@ it("publishes a partial result without treating a zero-cost cap as an action err
   });
   await f.run();
   expect(f.model.completion).not.toHaveBeenCalled();
-  expect(f.summaries.at(-1)).toContain("partial");
+  expect(f.summaries.at(-1)).toContain("**Not reviewed.** Review budget reached.");
   expect(f.runtime.setFailed).not.toHaveBeenCalled();
 });

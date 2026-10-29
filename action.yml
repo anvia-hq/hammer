@@ -77,13 +77,11 @@ inputs:
     required: false
     default: "100"
   max_tokens:
-    description: Maximum tokens per run.
+    description: Maximum tokens per run. No limit unless set here or in the repo config.
     required: false
-    default: "400000"
   max_cost_usd:
-    description: Maximum model cost per run in USD.
+    description: Maximum model cost per run in USD. No limit unless set here or in the repo config.
     required: false
-    default: "1.00"
   verify:
     description: Run the verification pass on findings.
     required: false
