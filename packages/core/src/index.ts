@@ -231,5 +231,8 @@ export {
   applyProgressEvent,
   formatReviewEvent,
   initialProgress,
+  isProgressBody,
+  renderInterruptedBody,
   renderProgressBody,
 } from "./progress";
+export { cancelsInProgress } from "./workflow";

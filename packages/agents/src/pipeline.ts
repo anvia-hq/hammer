@@ -131,9 +131,12 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
         }
       : {}),
   };
-  const context = input.prior?.length ? buildPriorFindingsContext(input.prior) : "";
+  const focusPaths = new Set(input.files.map((file) => file.filename));
+  const context = input.prior?.length
+    ? buildPriorFindingsContext(input.prior, undefined, focusPaths)
+    : "";
   const resolvedContext = input.resolved?.length
-    ? buildResolvedFindingsContext(input.resolved)
+    ? buildResolvedFindingsContext(input.resolved, undefined, focusPaths)
     : "";
   const promptInput = { ...input, priorFindings: context, resolvedFindings: resolvedContext };
   emit({ type: "plan", files: input.files.length });

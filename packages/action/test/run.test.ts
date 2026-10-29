@@ -305,6 +305,51 @@ describe("Action review flow", () => {
     expect(f.posted).toHaveLength(0);
     expect(f.summaries.every((body) => body.includes("Review in progress"))).toBe(true);
   });
+  it("rewrites a stale progress comment when the new push is skipped", async () => {
+    const f = await fixture();
+    f.pr.title = "Update [skip review]";
+    f.github.pull.mockResolvedValue(structuredClone(f.pr));
+    f.comments.push({
+      id: 12,
+      body: `<!-- hammer:summary -->\n### Hammer Review\n\nReview in progress. This comment updates.\n\n<!-- hammer:last-sha=${base} -->\n`,
+      user: { login: "github-actions[bot]", type: "Bot" },
+    });
+    await f.run();
+    expect(f.github.updateSummary).toHaveBeenCalledTimes(1);
+    expect(f.summaries[0]).not.toContain("Review in progress");
+    expect(f.summaries[0]).toContain("[skip review]");
+    expect(f.summaries[0]).toContain(`hammer:last-sha=${base}`);
+  });
+  it("leaves a completed summary alone when the push is skipped", async () => {
+    const f = await fixture();
+    f.pr.title = "Update [skip review]";
+    f.github.pull.mockResolvedValue(structuredClone(f.pr));
+    f.comments.push({
+      id: 12,
+      body: `<!-- hammer:summary -->\n### Hammer Review\n\n0 findings\n\n<!-- hammer:last-sha=${base} -->\n`,
+      user: { login: "github-actions[bot]", type: "Bot" },
+    });
+    await f.run();
+    expect(f.github.updateSummary).not.toHaveBeenCalled();
+  });
+  it("warns when the workflow cannot cancel an in-progress review", async () => {
+    const f = await fixture();
+    f.github.content.mockImplementation(async (_o, _r, path) =>
+      path === ".github/workflows/hammer.yml" ? "jobs:\n  review:\n    runs-on: x\n" : undefined,
+    );
+    await runAction(
+      f.runtime,
+      {
+        ...f.env,
+        GITHUB_WORKFLOW_REF: "acme/sandbox/.github/workflows/hammer.yml@refs/pull/7/merge",
+        GITHUB_WORKFLOW_SHA: head,
+      },
+      { github: f.github, model: f.model, checkout: f.checkout },
+    );
+    expect(f.runtime.warning).toHaveBeenCalledWith(
+      expect.stringContaining("cancel-in-progress: true"),
+    );
+  });
   it("publishes a sanitized error and obeys fail_on_error", async () => {
     const f = await fixture({ fail_on_error: "true" });
     f.github.content.mockRejectedValue(

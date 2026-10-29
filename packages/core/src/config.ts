@@ -46,6 +46,7 @@ const repoConfigSchema = z.object({
   ignore: stringListSchema.default([]),
   include: stringListSchema.default([]),
   ignore_authors: stringListSchema.default(["dependabot[bot]", "renovate[bot]"]),
+  review_bot_pushes: z.boolean().default(false),
   use_repo_guidelines: z.boolean().default(true),
   language: z.string().min(1).default("en"),
   rules: z.array(ruleSchema).default([]),
@@ -85,6 +86,7 @@ export interface EffectiveConfig {
   ignore: string[];
   include: string[];
   ignore_authors: string[];
+  review_bot_pushes: boolean;
   use_repo_guidelines: boolean;
   language: string;
   rules: ConfigRule[];
@@ -202,6 +204,7 @@ export function resolveConfig(
     ignore: inputs.ignore ?? config.ignore,
     include: inputs.include ?? config.include,
     ignore_authors: config.ignore_authors,
+    review_bot_pushes: config.review_bot_pushes,
     use_repo_guidelines: config.use_repo_guidelines,
     language: config.language,
     rules: config.rules,

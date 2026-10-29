@@ -19,5 +19,5 @@ A review can run for minutes. The job log streams progress ([0010](0010-stream-r
 
 ## Consequences
 
-- One extra comment write at start and a few edits per run. A cancelled run leaves "Review in progress" until the next run rewrites it.
+- One extra comment write at start and a few edits per run. A cancelled run leaves "Review in progress" until the next run rewrites it. If that next run skips the push (a bot sender, a merge from base, `hammer:skip`, a draft), it rewrites the stale comment to an "interrupted" note that keeps the last-sha marker.
 - The sticky comment is created earlier, so it is added to the in-memory comment list to prevent a second one from being created at the end.

@@ -18,7 +18,7 @@ export interface PriorFinding {
   body: string;
 }
 
-export const MAX_PRIOR_FINDINGS_CHARS = 8000;
+export const MAX_PRIOR_FINDINGS_CHARS = 16000;
 const PRIOR_BODY_SNIPPET_CHARS = 500;
 
 function normalize(value: string): string {
@@ -87,21 +87,37 @@ function renderFindingLines(
   priorFindings: PriorFinding[],
   lines: string[],
   maxChars: number,
+  focusPaths: ReadonlySet<string>,
 ): string {
-  for (const prior of priorFindings) {
+  const ordered = [
+    ...priorFindings.filter((prior) => focusPaths.has(prior.path)),
+    ...priorFindings.filter((prior) => !focusPaths.has(prior.path)),
+  ];
+  const kept = [...lines];
+  let length = kept.join("\n").length + 1;
+  let omitted = 0;
+  for (const prior of ordered) {
     const snippet =
       prior.body.length > PRIOR_BODY_SNIPPET_CHARS
         ? `${prior.body.slice(0, PRIOR_BODY_SNIPPET_CHARS)}…`
         : prior.body;
-    lines.push(`- ${prior.path}:${prior.line} — ${prior.title}: ${snippet}`);
+    const line = `- ${prior.path}:${prior.line} — ${prior.title}: ${snippet}`;
+    if (length + line.length + 1 > maxChars) {
+      omitted += 1;
+      continue;
+    }
+    kept.push(line);
+    length += line.length + 1;
   }
-  const full = `${lines.join("\n")}\n`;
+  if (omitted > 0) kept.push(`- ${omitted} more earlier findings omitted to save space.`);
+  const full = `${kept.join("\n")}\n`;
   return full.length > maxChars ? full.slice(0, maxChars) : full;
 }
 
 export function buildResolvedFindingsContext(
   resolvedFindings: PriorFinding[],
   maxChars: number = MAX_PRIOR_FINDINGS_CHARS,
+  focusPaths: ReadonlySet<string> = new Set(),
 ): string {
   return renderFindingLines(
     resolvedFindings,
@@ -109,15 +125,17 @@ export function buildResolvedFindingsContext(
       "Findings from earlier Hammer reviews that a person marked resolved. Do not raise them again, reworded or not, unless the current code reintroduces the problem:",
     ],
     maxChars,
+    focusPaths,
   );
 }
 
 export function buildPriorFindingsContext(
   priorFindings: PriorFinding[],
   maxChars: number = MAX_PRIOR_FINDINGS_CHARS,
+  focusPaths: ReadonlySet<string> = new Set(),
 ): string {
   const lines = [
     "Previously posted open Hammer findings. If a finding below is still valid, restate it word for word instead of posting a reworded duplicate:",
   ];
-  return renderFindingLines(priorFindings, lines, maxChars);
+  return renderFindingLines(priorFindings, lines, maxChars, focusPaths);
 }

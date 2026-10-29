@@ -77,22 +77,12 @@ describe("pull_request triggers", () => {
     });
   });
 
-  it("denies pull_request events from bots", async () => {
-    for (const sender of [
-      { login: "dependabot[bot]", type: "Bot" },
-      { login: "renovate[bot]", type: "Bot" },
-      { login: "some-bot[bot]", type: "User" },
-    ]) {
-      const decision = await decideEvent({
-        eventName: "pull_request",
-        payload: pullRequestEvent({ sender }),
-      });
-
-      expect(decision.run).toBe(false);
-      if (!decision.run) {
-        expect(decision.reason).toBe("bot_sender");
-      }
-    }
+  it("passes bot pull_request events on so config can decide", async () => {
+    const decision = await decideEvent({
+      eventName: "pull_request",
+      payload: pullRequestEvent({ sender: { login: "some-bot[bot]", type: "Bot" } }),
+    });
+    expect(decision.run).toBe(true);
   });
 });
 

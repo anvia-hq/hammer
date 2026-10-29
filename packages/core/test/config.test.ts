@@ -63,6 +63,7 @@ path_instructions:
       ignore: ["**/*.generated.ts", "docs/**"],
       include: [],
       ignore_authors: ["dependabot[bot]", "renovate[bot]"],
+      review_bot_pushes: false,
       use_repo_guidelines: true,
       language: "en",
       rules: [

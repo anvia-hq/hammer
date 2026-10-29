@@ -135,7 +135,20 @@ describe("parsePriorFingerprints", () => {
 });
 
 describe("buildPriorFindingsContext", () => {
-  it("truncates at 8000 chars", () => {
+  it("lists findings in the touched files first and says how many were left out", () => {
+    const priorFindings = Array.from({ length: 40 }, (_, index) => ({
+      path: `src/file-${index}.ts`,
+      line: index + 1,
+      title: `Finding ${index}`,
+      body: "x".repeat(1000),
+    }));
+    const context = buildPriorFindingsContext(priorFindings, 4000, new Set(["src/file-39.ts"]));
+    expect(context.length).toBeLessThanOrEqual(4000);
+    expect(context.indexOf("src/file-39.ts")).toBeLessThan(context.indexOf("src/file-0.ts"));
+    expect(context).toMatch(/\d+ more earlier findings omitted/);
+  });
+
+  it("truncates at 16000 chars", () => {
     const priorFindings = Array.from({ length: 40 }, (_, index) => ({
       path: `src/file-${index}.ts`,
       line: index + 1,
@@ -143,9 +156,9 @@ describe("buildPriorFindingsContext", () => {
       body: "x".repeat(1000),
     }));
     const context = buildPriorFindingsContext(priorFindings);
-    expect(context.length).toBeLessThanOrEqual(8000);
+    expect(context.length).toBeLessThanOrEqual(16000);
     const untruncated = buildPriorFindingsContext(priorFindings, Number.MAX_SAFE_INTEGER);
-    expect(untruncated.length).toBeGreaterThan(8000);
+    expect(untruncated.length).toBeGreaterThan(16000);
   });
 });
 
