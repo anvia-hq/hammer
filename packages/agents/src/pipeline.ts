@@ -58,9 +58,9 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     } catch {}
   };
   const budget = createBudget({
-    maxTokens: input.config.max_tokens,
     maxTurns: input.config.max_turns,
-    maxCostUsd: input.config.max_cost_usd,
+    ...(input.config.max_tokens !== undefined ? { maxTokens: input.config.max_tokens } : {}),
+    ...(input.config.max_cost_usd !== undefined ? { maxCostUsd: input.config.max_cost_usd } : {}),
     ...(input.pricing ? { pricing: input.pricing } : {}),
   });
   const guarded = <T extends { abortSignal?: AbortSignal | undefined }>(options: T | undefined) => {
@@ -245,7 +245,6 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     single: validated.single.filter((entry) => kept.has(entry.finding)),
     generalNotes: [
       ...merged.generalNotes,
-      ...(review.ok ? [] : [`The review failed: ${review.error.slice(0, 1000)}`]),
       ...validated.generalNotes.map(
         ({ finding }) => `${finding.path}:${finding.line}: ${finding.body}`,
       ),
@@ -254,6 +253,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     partial: merged.partial || budget.summary().partial,
     failed: !review.ok && review.error !== "Review budget reached.",
     unverified: verification.status === "unverified",
+    ...(review.ok ? {} : { reviewError: review.error.slice(0, 1000) }),
     duplicates: deduped.duplicates.length,
   };
 }

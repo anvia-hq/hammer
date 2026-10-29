@@ -35,8 +35,8 @@ const schema = z.object({
   max_files: count.default(DEFAULT_CAPS.max_files),
   max_diff_lines: count.default(DEFAULT_CAPS.max_diff_lines),
   max_turns: count.default(DEFAULT_CAPS.max_turns),
-  max_tokens: count.default(DEFAULT_CAPS.max_tokens),
-  max_cost_usd: z.coerce.number().nonnegative().default(DEFAULT_CAPS.max_cost_usd),
+  max_tokens: optional(count),
+  max_cost_usd: optional(z.coerce.number().nonnegative()),
   verify: optional(bool),
   verify_threshold: optional(z.coerce.number().int().min(0).max(10)),
   fail_on_error: bool.default(false),
@@ -53,8 +53,6 @@ export function readInputs(getInput: (name: string) => string): ActionInputs {
         "max_files",
         "max_diff_lines",
         "max_turns",
-        "max_tokens",
-        "max_cost_usd",
         "fail_on_error",
       ].includes(key);
       return [key, value === "" && defaulted ? undefined : value];

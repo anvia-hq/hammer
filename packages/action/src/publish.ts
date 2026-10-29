@@ -138,6 +138,7 @@ export async function publishReview(
       costUsd: result.usage.costUsd,
       partial: result.partial || plan.partial,
       unverified: result.unverified,
+      ...(result.reviewError !== undefined ? { reviewError: result.reviewError } : {}),
     },
     secrets,
   );
