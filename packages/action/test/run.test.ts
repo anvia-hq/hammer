@@ -208,7 +208,9 @@ describe("Action review flow", () => {
     });
     expect(f.posted[0]?.comments[0]?.body).toContain("<!-- hammer:fp=");
     expect(f.posted[0]?.body.startsWith("> [!CAUTION]\n> 1 high-severity finding")).toBe(true);
-    expect(f.posted[0]?.body).toContain("**Reviewed changes**\n\n- Reworked the user lookup");
+    expect(f.posted[0]?.body).toContain(
+      "**Reviewed changes**\n\nChanges user lookup\n\n- Reworked the user lookup",
+    );
     const inline = f.posted[0]?.comments[0]?.body ?? "";
     expect(inline).toContain("<details>\n<summary>Technical details</summary>");
     expect(inline).toContain("`packages/core/src/github/sanitize.ts:2`");
