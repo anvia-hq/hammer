@@ -134,7 +134,7 @@ export function renderSummaryBody(options: RenderSummaryOptions): string {
   if (options.unverified && !incomplete && (options.findings?.length ?? 0) > 0)
     lines.push(
       "> [!NOTE]",
-      "> Not verified: the verifier could not run, so these findings were not double-checked.",
+      "> Not verified: the verifier did not finish, so these findings were not double-checked.",
       "",
     );
   if (options.generalNotes?.length)

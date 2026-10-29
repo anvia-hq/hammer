@@ -20,6 +20,9 @@ import { buildReviewerTools, runSinglePassReview, type SinglePassRunOptions } fr
 import type { SkillSet } from "./skills";
 import { applyVerification, VERIFICATION_INSTRUCTIONS } from "./verify";
 
+const VERIFY_MAX_TURNS = 15;
+const VERIFY_TIME_LIMIT_MS = 240_000;
+
 export interface ReviewPipelineInput extends BuildReviewPromptInput {
   modelRef: string;
   anchorFiles?: BuildReviewPromptInput["files"];
@@ -63,8 +66,11 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     ...(input.config.max_cost_usd !== undefined ? { maxCostUsd: input.config.max_cost_usd } : {}),
     ...(input.pricing ? { pricing: input.pricing } : {}),
   });
+  let verifyDeadline: number | undefined;
   const guarded = <T extends { abortSignal?: AbortSignal | undefined }>(options: T | undefined) => {
     if (!budget.canStartBatch().ok) throw new Error("Review budget reached.");
+    if (verifyDeadline !== undefined && Date.now() > verifyDeadline)
+      throw new Error("Verification time limit reached.");
     const timeout = AbortSignal.timeout(COMPLETION_TIMEOUT_MS);
     return {
       ...options,
@@ -179,6 +185,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     partial: !review.ok,
   };
   const verifying = input.config.verify && merged.findings.length > 0;
+  if (verifying) verifyDeadline = Date.now() + VERIFY_TIME_LIMIT_MS;
   if (verifying) emit({ type: "verify_start", findings: merged.findings.length });
   const verification = await applyVerification({
     findings: merged.findings,
@@ -199,7 +206,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
           discussion: input.discussion,
           onToolCall: (name, detail) => emit({ type: "tool", name: `verify ${name}`, detail }),
         }),
-        maxTurns: input.config.max_turns,
+        maxTurns: Math.min(input.config.max_turns, VERIFY_MAX_TURNS),
         maxTokens: 4096,
         retries: { maxAttempts: 3 },
         ...(input.reasoningEffort ? { controls: { reasoningEffort: input.reasoningEffort } } : {}),
