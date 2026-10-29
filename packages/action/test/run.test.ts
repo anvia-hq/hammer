@@ -211,7 +211,11 @@ describe("Action review flow", () => {
     expect(f.posted[0]?.body).toContain(
       "**Reviewed changes**\n\nChanges user lookup\n\n- Reworked the user lookup",
     );
+    expect(f.posted[0]?.body).toContain(
+      "[View workflow run](https://github.com/acme/sandbox/actions/runs/123) | Using `openai/gpt-4o`",
+    );
     const inline = f.posted[0]?.comments[0]?.body ?? "";
+    expect(inline.startsWith("> [!CAUTION]\n> **High · correctness**")).toBe(true);
     expect(inline).toContain("<details>\n<summary>Technical details</summary>");
     expect(inline).toContain("`packages/core/src/github/sanitize.ts:2`");
     expect(inline).not.toContain("[redacted]");
