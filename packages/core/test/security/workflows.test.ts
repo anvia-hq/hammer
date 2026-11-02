@@ -21,9 +21,27 @@ describe("workflows", () => {
     }
   });
 
-  it("no workflow uses pull_request_target", () => {
+  it("no live workflow uses pull_request_target; fork auto-review is opt-in only", async () => {
     for (const file of workflows()) {
       expect(read(`.github/workflows/${file}`), file).not.toContain("pull_request_target");
+    }
+    expect(() => read("docs/examples/hammer-fork-review.yml")).not.toThrow();
+  });
+
+  it("PR-triggered workflows never check out PR head code", () => {
+    const texts = [
+      read("docs/examples/hammer-fork-review.yml"),
+      read(".github/workflows/hammer-review.yml"),
+    ];
+    for (const text of texts) {
+      const doc = parseYaml(text) as {
+        jobs?: Record<string, { steps?: { uses?: string; run?: string }[] }>;
+      };
+      for (const job of Object.values(doc.jobs ?? {})) {
+        for (const step of job.steps ?? []) {
+          expect(step.uses ?? "", "checkout of PR head code").not.toContain("actions/checkout");
+        }
+      }
     }
   });
 
