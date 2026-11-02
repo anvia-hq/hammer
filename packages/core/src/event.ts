@@ -7,6 +7,10 @@ export const PULL_REQUEST_TRIGGER_ACTIONS = [
 
 export type PullRequestTriggerAction = (typeof PULL_REQUEST_TRIGGER_ACTIONS)[number];
 
+export const PULL_REQUEST_EVENT_NAMES = ["pull_request", "pull_request_target"] as const;
+
+export type PullRequestEventName = (typeof PULL_REQUEST_EVENT_NAMES)[number];
+
 const RUN_PERMISSIONS = new Set(["admin", "maintain", "write"]);
 
 export type EventSkipReason =
@@ -33,6 +37,7 @@ export type GetCollaboratorPermission = (query: PermissionQuery) => Promise<stri
 export interface PullRequestRun {
   run: true;
   kind: "pull_request";
+  source: PullRequestEventName;
   owner: string;
   repo: string;
   prNumber: number;
@@ -132,11 +137,15 @@ function readSender(payload: Record<string, unknown>): Sender | null {
   return { login: sender.login, type: sender.type };
 }
 
-function decidePullRequest(payload: Record<string, unknown>, reviewDrafts: boolean): EventDecision {
+function decidePullRequest(
+  payload: Record<string, unknown>,
+  reviewDrafts: boolean,
+  source: PullRequestEventName,
+): EventDecision {
   const rawAction = payload.action;
   if (typeof rawAction !== "string" || !isTriggerAction(rawAction)) {
     const label = typeof rawAction === "string" ? rawAction : "unknown";
-    return skip("unsupported_action", `pull_request action "${label}" is not a review trigger`);
+    return skip("unsupported_action", `${source} action "${label}" is not a review trigger`);
   }
   const pullRequest = payload.pull_request;
   if (!isRecord(pullRequest)) {
@@ -161,12 +170,13 @@ function decidePullRequest(payload: Record<string, unknown>, reviewDrafts: boole
   return {
     run: true,
     kind: "pull_request",
+    source,
     owner: repo.owner,
     repo: repo.repo,
     prNumber,
     action: rawAction,
     headSha,
-    log: `[hammer] trigger: pull_request "${rawAction}" on ${repo.owner}/${repo.repo}#${prNumber}`,
+    log: `[hammer] trigger: ${source} "${rawAction}" on ${repo.owner}/${repo.repo}#${prNumber}`,
   };
 }
 
@@ -280,8 +290,8 @@ export async function decideEvent(options: DecideEventOptions): Promise<EventDec
   if (!isRecord(payload)) {
     return skip("invalid_payload", `unsupported payload for event "${eventName}"`);
   }
-  if (eventName === "pull_request") {
-    return decidePullRequest(payload, options.reviewDrafts ?? false);
+  if (eventName === "pull_request" || eventName === "pull_request_target") {
+    return decidePullRequest(payload, options.reviewDrafts ?? false, eventName);
   }
   if (eventName === "issue_comment") {
     return decideComment(payload, options.getPermission);
