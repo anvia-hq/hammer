@@ -254,6 +254,21 @@ describe("Action review flow", () => {
       expect.stringContaining("maintainer's /hammer review"),
     );
   });
+  it("reviews a fork PR end-to-end via pull_request_target with the same read-only path", async () => {
+    const f = await fixture();
+    f.pr.head.repo = { ...repository, full_name: "fork/sandbox" };
+    f.env.GITHUB_EVENT_NAME = "pull_request_target";
+    await writeFile(f.eventPath, JSON.stringify(f.payload));
+    await f.run();
+    expect(f.github.content).toHaveBeenCalled();
+    expect(f.checkout).toHaveBeenCalled();
+    expect(f.github.content.mock.calls.every((call) => call[3] === base)).toBe(true);
+    expect(f.posted).toHaveLength(1);
+    expect(f.posted[0]).toMatchObject({ event: "COMMENT", commit_id: head });
+    expect(f.runtime.notice).not.toHaveBeenCalledWith(
+      expect.stringContaining("maintainer's /hammer review"),
+    );
+  });
   it("denies an unauthorized command before reading repository data and adds an eyes reaction", async () => {
     const f = await fixture();
     f.env.GITHUB_EVENT_NAME = "issue_comment";

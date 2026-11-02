@@ -147,7 +147,11 @@ export async function runAction(
       runtime.setOutput(key, value);
   };
   try {
-    if (env.GITHUB_EVENT_NAME !== "pull_request" && env.GITHUB_EVENT_NAME !== "issue_comment") {
+    if (
+      env.GITHUB_EVENT_NAME !== "pull_request" &&
+      env.GITHUB_EVENT_NAME !== "pull_request_target" &&
+      env.GITHUB_EVENT_NAME !== "issue_comment"
+    ) {
       await skip(`event ${env.GITHUB_EVENT_NAME ?? "unknown"} is not a review trigger`);
       return;
     }
@@ -202,7 +206,8 @@ export async function runAction(
       return;
     }
     const fork = pr.head.repo?.full_name !== pr.base.repo.full_name;
-    if (decision.kind === "pull_request" && fork) {
+    const viaTarget = decision.kind === "pull_request" && decision.source === "pull_request_target";
+    if (decision.kind === "pull_request" && fork && !viaTarget) {
       await skip(
         "Fork PRs are reviewed on a maintainer's /hammer review command; no automatic review is run.",
       );

@@ -190,9 +190,10 @@ export type {
   PermissionQuery,
   PullRequestRun,
   PullRequestTriggerAction,
+  PullRequestEventName,
   SkipDecision,
 } from "./event";
-export { decideEvent, PULL_REQUEST_TRIGGER_ACTIONS } from "./event";
+export { decideEvent, PULL_REQUEST_EVENT_NAMES, PULL_REQUEST_TRIGGER_ACTIONS } from "./event";
 export type {
   ConfigInputOverrides,
   ConfigRule,

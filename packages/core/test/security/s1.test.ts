@@ -73,6 +73,19 @@ describe("S1 comment trigger permission", () => {
       payload: (await import("../fixtures/index")).pullRequestEvent({}),
     });
     expect(decision.run).toBe(true);
-    expect(decision.run && decision.kind === "pull_request").toBe(true);
+    expect(decision).toMatchObject({ kind: "pull_request", source: "pull_request" });
+  });
+
+  it("runs pull_request_target fork payloads as pull_request runs", async () => {
+    const decision = await decideEvent({
+      eventName: "pull_request_target",
+      payload: (await import("../fixtures/index")).pullRequestEvent({ action: "synchronize" }),
+    });
+    expect(decision.run).toBe(true);
+    expect(decision).toMatchObject({
+      kind: "pull_request",
+      source: "pull_request_target",
+      action: "synchronize",
+    });
   });
 });
