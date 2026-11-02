@@ -61,7 +61,12 @@ Comment on a pull request. Commands need write access to the repository.
 | `/hammer review <instruction>` | Review with a focus, e.g. `/hammer review security` |
 | `/hammer help`                 | Show the commands                                   |
 
-Pull requests from forks are not reviewed automatically, because the workflow would run with the base repository's secrets. A maintainer can run `/hammer review` on them instead.
+Pull requests from forks are not reviewed automatically by the default
+workflow, because it would run with the base repository's secrets. A
+maintainer can run `/hammer review` on them instead. To opt in to automatic
+fork reviews, copy `docs/examples/hammer-fork-review.yml` (a pinned
+`pull_request_target` workflow with abuse controls) into `.github/workflows`;
+see [0018](docs/decision/0018-opt-in-fork-auto-review.md).
 
 ## Models
 

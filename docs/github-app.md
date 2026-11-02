@@ -20,7 +20,7 @@ steps:
       hammer-api-key: ${{ secrets.HAMMER_API_KEY }}
 ```
 
-You still pass your model key. Hammer asks the Hammer platform for a short-lived token scoped to your repository ([0014](decision/0014-platform-token-broker.md), [0016](decision/0016-platform-registration.md)). If the key, the registration or the installation is missing, or the platform is unreachable, Hammer logs the reason and posts as `github-actions[bot]`, so the review still happens. Fork PRs do not receive repository secrets and use the workflow token.
+You still pass your model key. Hammer asks the Hammer platform for a short-lived token scoped to your repository ([0014](decision/0014-platform-token-broker.md), [0016](decision/0016-platform-registration.md)). If the key, the registration or the installation is missing, or the platform is unreachable, Hammer logs the reason and posts as `github-actions[bot]`, so the review still happens. Fork PRs do not receive repository secrets and use the workflow token, except in the opt-in `pull_request_target` workflow ([0018](decision/0018-opt-in-fork-auto-review.md)), which runs in base-repo context.
 
 Without `hammer-api-key`, Hammer falls back to a GitHub OIDC token when the workflow grants `id-token: write`.
 
