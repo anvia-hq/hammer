@@ -30,6 +30,8 @@ export interface RenderSummaryOptions {
   costUsd?: number | null;
   partial?: boolean;
   unverified?: boolean;
+  filtered?: SkippedSummaryFile[];
+  duplicates?: number;
   reviewError?: string;
   finishReason?: string;
   outputChars?: number;
@@ -134,7 +136,11 @@ export function renderSummaryBody(options: RenderSummaryOptions): string {
       );
     if (options.findings.length === 0 && !options.error)
       lines.push(
-        options.partial ? "No issues found in the completed portion." : "No issues found.",
+        options.partial
+          ? "No issues found in the completed portion."
+          : (options.filtered?.length ?? 0) > 0
+            ? "No issues at or above the configured severity. The findings below were filtered out."
+            : "No issues found.",
         "",
       );
     if (options.summary) lines.push(`**What this PR does:** ${options.summary}`, "");
@@ -172,6 +178,7 @@ export function renderSummaryBody(options: RenderSummaryOptions): string {
   ];
   if (skipped.length > 0) footer.push(`skipped ${skipped.length}`);
   if (notReviewed.length > 0) footer.push(`not reviewed ${notReviewed.length}`);
+  if ((options.duplicates ?? 0) > 0) footer.push(`already reported ${options.duplicates}`);
   if (options.model) footer.push(options.model);
   if (options.tokens !== undefined) footer.push(formatTokens(options.tokens));
   if (options.costUsd != null) footer.push(`$${options.costUsd.toFixed(4)}`);
@@ -196,6 +203,19 @@ export function renderSummaryBody(options: RenderSummaryOptions): string {
       ...detailsBlock(
         `Not reviewed (${notReviewed.length})`,
         notReviewed.map(
+          (entry) =>
+            `- \`${sanitizeSummaryText(entry.path)}\` — ${sanitizeSummaryText(entry.reason)}`,
+        ),
+      ),
+    );
+  }
+  const filtered = options.filtered ?? [];
+  if (filtered.length > 0) {
+    lines.push(
+      "",
+      ...detailsBlock(
+        `Filtered findings (${filtered.length})`,
+        filtered.map(
           (entry) =>
             `- \`${sanitizeSummaryText(entry.path)}\` — ${sanitizeSummaryText(entry.reason)}`,
         ),

@@ -310,6 +310,19 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     input.priorFingerprints ?? new Set(),
   );
   const kept = new Set(deduped.kept);
+  const belowSeverity = validated.dropped.filter(
+    (entry) => entry.reason === "below_min_severity",
+  ).length;
+  const lowConfidence = validated.dropped.filter(
+    (entry) => entry.reason === "low_confidence",
+  ).length;
+  if (belowSeverity + lowConfidence + deduped.duplicates.length > 0)
+    emit({
+      type: "filtered",
+      belowSeverity,
+      lowConfidence,
+      duplicates: deduped.duplicates.length,
+    });
   const findings = [...validated.inline, ...validated.single]
     .map((entry) => entry.finding)
     .concat(validated.generalNotes.map((entry) => entry.finding));

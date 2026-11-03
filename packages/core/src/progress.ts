@@ -16,6 +16,12 @@ export type ReviewEvent =
     }
   | { type: "verify_start"; findings: number }
   | { type: "verify_end"; kept: number; dropped: number; unverified?: string }
+  | {
+      type: "filtered";
+      belowSeverity: number;
+      lowConfidence: number;
+      duplicates: number;
+    }
   | { type: "done"; inline: number; notes: number };
 
 export type ReviewEventSink = (event: ReviewEvent) => void;
@@ -75,6 +81,15 @@ export function formatReviewEvent(event: ReviewEvent): string {
       return event.unverified === undefined
         ? `[hammer] verification kept ${event.kept}, dropped ${event.dropped}`
         : `[hammer] verification did not finish (${oneLine(event.unverified)}); keeping ${plural(event.kept, "finding")} unverified`;
+    case "filtered": {
+      const parts = [
+        event.belowSeverity > 0 ? `${event.belowSeverity} below min severity` : null,
+        event.lowConfidence > 0 ? `${event.lowConfidence} low confidence` : null,
+        event.duplicates > 0 ? `${event.duplicates} already reported` : null,
+      ].filter((part): part is string => part !== null);
+      const total = event.belowSeverity + event.lowConfidence + event.duplicates;
+      return `[hammer] filtered ${plural(total, "finding")}: ${parts.join(", ")}`;
+    }
     case "done":
       return `[hammer] review ready: ${plural(event.inline, "inline comment")}, ${plural(event.notes, "general note")}`;
   }

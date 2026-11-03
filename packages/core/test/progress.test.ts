@@ -14,6 +14,15 @@ describe("formatReviewEvent", () => {
     );
   });
 
+  it("reports why findings were filtered so a silent re-review is visible", () => {
+    expect(
+      formatReviewEvent({ type: "filtered", belowSeverity: 1, lowConfidence: 0, duplicates: 0 }),
+    ).toBe("[hammer] filtered 1 finding: 1 below min severity");
+    expect(
+      formatReviewEvent({ type: "filtered", belowSeverity: 0, lowConfidence: 2, duplicates: 1 }),
+    ).toBe("[hammer] filtered 3 findings: 2 low confidence, 1 already reported");
+  });
+
   it("says when verification did not finish", () => {
     expect(formatReviewEvent({ type: "verify_end", kept: 1, dropped: 0 })).toBe(
       "[hammer] verification kept 1, dropped 0",
