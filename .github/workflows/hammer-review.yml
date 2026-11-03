@@ -24,9 +24,8 @@ jobs:
     steps:
       - uses: anvia-hq/hammer@v1
         with:
-          client: openai-compatible
-          model: ${{ vars.OPENAI_COMPATIBLE_MODEL || secrets.OPENAI_COMPATIBLE_MODEL }}
-          base-url: ${{ vars.OPENAI_COMPATIBLE_BASEURL || secrets.OPENAI_COMPATIBLE_BASEURL }}
+          client: anthropic
+          model: claude-sonnet-5-5
           native-json-schema: "false"
           fail_on_error: "true"
-          api-key: ${{ secrets.OPENAI_COMPATIBLE_API_KEY }}
+          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
