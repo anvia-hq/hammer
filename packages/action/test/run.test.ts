@@ -507,6 +507,38 @@ describe("Action review flow", () => {
     expect(f.github.updateSummary.mock.calls.every((call) => call[2] !== 5)).toBe(true);
     expect(f.github.createSummary).toHaveBeenCalled();
   });
+  it("lists a filtered finding instead of claiming a clean re-review", async () => {
+    const f = await fixture();
+    vi.mocked(f.model.completion).mockResolvedValue({
+      choice: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            summary: "Changes user lookup",
+            findings: [{ ...finding, severity: "low", title: "Low-severity nit" }],
+            generalNotes: [],
+          }),
+        },
+      ],
+      usage: {
+        inputTokens: 20,
+        outputTokens: 10,
+        totalTokens: 30,
+        cachedInputTokens: 0,
+        cacheCreationInputTokens: 0,
+      },
+      rawResponse: {},
+    });
+    await f.run();
+    expect(f.posted).toHaveLength(0);
+    expect(f.summaries.at(-1)).toContain("No issues at or above the configured severity");
+    expect(f.summaries.at(-1)).toContain("Filtered findings (1)");
+    expect(f.summaries.at(-1)).toContain("Low-severity nit");
+    expect(f.runtime.info).toHaveBeenCalledWith(
+      expect.stringContaining("[hammer] filtered 1 finding: 1 below min severity"),
+    );
+  });
+
   it("reports partial model failures without advancing incremental state", async () => {
     const f = await fixture();
     vi.mocked(f.model.completion).mockRejectedValue(new Error("model unavailable"));

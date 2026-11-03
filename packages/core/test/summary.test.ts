@@ -57,6 +57,28 @@ describe("renderSummaryBody", () => {
     );
   });
 
+  it("lists filtered findings instead of claiming a clean result", () => {
+    const body = renderSummaryBody({
+      files: [{ path: "src/app.ts", status: "modified" }],
+      findings: [],
+      filtered: [{ path: "src/app.ts:12", reason: "below min severity: Retry has no cap" }],
+    });
+    expect(body).toContain("No issues at or above the configured severity");
+    expect(body).not.toContain("No issues found.");
+    expect(body).toContain("Filtered findings (1)");
+    expect(body).toContain("`src/app.ts:12` — below min severity: Retry has no cap");
+  });
+
+  it("reports already-reported findings in the footer", () => {
+    const body = renderSummaryBody({
+      files: [{ path: "src/app.ts", status: "modified" }],
+      findings: [],
+      duplicates: 2,
+    });
+    expect(body).toContain("already reported 2");
+    expect(body).toContain("No issues found.");
+  });
+
   it("omits the last-sha line when no sha is given", () => {
     const body = renderSummaryBody({ files: [{ path: "src/app.ts", status: "added" }] });
     expect(body).toContain(SUMMARY_MARKER);

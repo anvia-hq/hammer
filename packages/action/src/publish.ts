@@ -132,6 +132,20 @@ export async function publishReview(
       })),
       skipped: plan.skippedFiles,
       notReviewed: plan.notReviewed,
+      ...(result.dropped.length > 0
+        ? {
+            filtered: result.dropped
+              .filter(
+                (entry) =>
+                  entry.reason === "below_min_severity" || entry.reason === "low_confidence",
+              )
+              .map((entry) => ({
+                path: `${entry.finding.path}:${entry.finding.line}`,
+                reason: `${entry.reason === "below_min_severity" ? "below min severity" : "low confidence"}: ${entry.finding.title}`,
+              })),
+          }
+        : {}),
+      ...(result.duplicates > 0 ? { duplicates: result.duplicates } : {}),
       ...(result.partial || plan.partial ? {} : { headSha: target.headSha }),
       ...(target.repoUrl !== undefined ? { repoUrl: target.repoUrl } : {}),
       findings,
