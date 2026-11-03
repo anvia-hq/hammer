@@ -7,8 +7,11 @@ import {
   buildReviewPlan,
   decideEvent,
   decideExitCode,
+  cancelsInProgress,
   decideSkip,
   extractLastSha,
+  isProgressBody,
+  renderInterruptedBody,
   type PriceCatalog,
   fetchGatewayCatalog,
   fetchPullFiles,
@@ -94,44 +97,87 @@ export async function runAction(
     }
     return redactSecrets(message);
   };
+  const clearStaleProgress = async (reason: string): Promise<void> => {
+    if (!github || !target || !identity || progress) return;
+    const stale = comments.find(
+      (comment) =>
+        comment.user?.login === identity &&
+        comment.body?.includes(SUMMARY_MARKER) &&
+        isProgressBody(comment.body),
+    );
+    if (!stale) return;
+    try {
+      await writeProgress(
+        github,
+        target,
+        comments,
+        identity,
+        renderInterruptedBody({ reason, lastSha: extractLastSha(stale.body ?? "") }),
+        [runtime.getInput("api-key"), runtime.getInput("github-token"), githubToken],
+      );
+    } catch (error) {
+      runtime.warning(`Could not clear the stale progress comment: ${cleanError(error)}`);
+    }
+  };
+  const warnWithoutCancel = async (owner: string, repo: string): Promise<void> => {
+    const path = env.GITHUB_WORKFLOW_REF?.split("@", 1)[0]?.split("/").slice(2).join("/");
+    const sha = env.GITHUB_WORKFLOW_SHA;
+    if (
+      !github ||
+      !path ||
+      !sha ||
+      env.GITHUB_WORKFLOW_REF?.startsWith(`${owner}/${repo}/`) !== true
+    )
+      return;
+    try {
+      const workflow = await github.content(owner, repo, path, sha);
+      if (workflow !== undefined && cancelsInProgress(workflow) === false)
+        runtime.warning(
+          "[hammer] The workflow has no concurrency group with cancel-in-progress: true. Overlapping pushes run in parallel and spend tokens on reviews that are discarded.",
+        );
+    } catch {
+      return;
+    }
+  };
   const skip = async (reason: string): Promise<void> => {
+    await clearStaleProgress(reason);
     runtime.notice(`[hammer] ${reason}`);
     await runtime.summary(renderJobSummaryMarkdown({ skipped: { reason } }));
     for (const [key, value] of Object.entries(buildActionOutputs({ findings: [] })))
       runtime.setOutput(key, value);
   };
   try {
-    if (env.GITHUB_EVENT_NAME !== "pull_request" && env.GITHUB_EVENT_NAME !== "issue_comment") {
+    if (
+      env.GITHUB_EVENT_NAME !== "pull_request" &&
+      env.GITHUB_EVENT_NAME !== "pull_request_target" &&
+      env.GITHUB_EVENT_NAME !== "issue_comment"
+    ) {
       await skip(`event ${env.GITHUB_EVENT_NAME ?? "unknown"} is not a review trigger`);
       return;
     }
-    for (const name of ["api-key", "github-token"]) {
+    for (const name of ["api-key", "github-token", "hammer-api-key"]) {
       const secret = runtime.getInput(name);
       if (secret) runtime.setSecret(secret);
     }
     inputs = readInputs(runtime.getInput);
     githubToken = inputs["github-token"];
-    if (!inputs["platform-url"]) {
-      runtime.setFailed(
-        "[hammer] platform-url must be set: Hammer reviews only registered repositories.",
-      );
-      return;
+    let botLogin = inputs["bot-login"];
+    if (!botLogin && inputs["platform-url"]) {
+      const platform = await (dependencies.platformToken ?? requestPlatformToken)({
+        platformUrl: inputs["platform-url"],
+        apiKey: inputs["hammer-api-key"] || undefined,
+        env,
+        request: proxiedFetch,
+        setSecret: runtime.setSecret,
+      });
+      if (platform.ok) {
+        githubToken = platform.value.token;
+        botLogin = platform.value.login;
+        runtime.info(`[hammer] posting as ${botLogin}`);
+      } else {
+        runtime.info(`[hammer] posting as the workflow token: ${platform.reason}`);
+      }
     }
-    const platform = await (dependencies.platformToken ?? requestPlatformToken)({
-      platformUrl: inputs["platform-url"],
-      env,
-      request: proxiedFetch,
-      setSecret: runtime.setSecret,
-    });
-    if (!platform.ok) {
-      runtime.setFailed(
-        `[hammer] This repository is not registered with the Hammer platform: ${platform.reason}`,
-      );
-      return;
-    }
-    githubToken = platform.value.token;
-    const botLogin = platform.value.login;
-    runtime.info(`[hammer] posting as ${botLogin}`);
     const eventPath = z.string().min(1).parse(env.GITHUB_EVENT_PATH);
     const payload = eventSchema.parse(JSON.parse(await readFile(eventPath, "utf8")));
     github = dependencies.github ?? new GitHub(githubToken, z.url().parse(env.GITHUB_API_URL));
@@ -153,13 +199,15 @@ export async function runAction(
       return;
     }
     const { owner, repo, prNumber } = decision;
+    await warnWithoutCancel(owner, repo);
     const pr = await github.pull(owner, repo, prNumber);
     if (pr.state !== "open") {
       await skip("pull request is closed");
       return;
     }
     const fork = pr.head.repo?.full_name !== pr.base.repo.full_name;
-    if (decision.kind === "pull_request" && fork) {
+    const viaTarget = decision.kind === "pull_request" && decision.source === "pull_request_target";
+    if (decision.kind === "pull_request" && fork && !viaTarget) {
       await skip(
         "Fork PRs are reviewed on a maintainer's /hammer review command; no automatic review is run.",
       );
@@ -176,7 +224,7 @@ export async function runAction(
       headSha: pr.head.sha,
       repoUrl: `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${owner}/${repo}`,
     };
-    identity = botLogin;
+    identity = botLogin || (await github.identity());
     comments = await github.comments(owner, repo, prNumber);
     if (
       decision.kind === "comment" &&
@@ -211,6 +259,7 @@ export async function runAction(
       isMergeFromBase: mergeFromBase,
       remainingFileCount: 1,
       ignoreAuthors: config.ignore_authors,
+      reviewBotPushes: config.review_bot_pushes,
     });
     if (skipped.skip) {
       await skip(skipped.reason ?? "review skipped");
@@ -397,7 +446,7 @@ export async function runAction(
     }
     const published = await publishReview(
       github,
-      target,
+      { ...target, ...(runUrl ? { runUrl } : {}) },
       comments,
       identity,
       plan,

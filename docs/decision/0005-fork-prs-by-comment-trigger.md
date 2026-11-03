@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [0018](0018-opt-in-fork-auto-review.md).
 
 ## Context
 

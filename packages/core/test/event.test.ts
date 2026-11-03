@@ -27,6 +27,50 @@ describe("pull_request triggers", () => {
     });
   }
 
+  it("runs on pull_request_target with the same triggers and a pull_request run", async () => {
+    for (const action of ["opened", "synchronize", "reopened", "ready_for_review"]) {
+      const decision = await decideEvent({
+        eventName: "pull_request_target",
+        payload: pullRequestEvent({ action }),
+      });
+
+      expect(decision).toMatchObject({
+        run: true,
+        kind: "pull_request",
+        source: "pull_request_target",
+        owner: "anvia-hq",
+        repo: "hammer",
+        prNumber: 7,
+        action,
+        headSha: "9f2c1cd9e3d0c2b7d63f6e57eac0e1d4a51c3b6f",
+      });
+    }
+  });
+
+  it("marks pull_request events with the pull_request source", async () => {
+    const decision = await decideEvent({
+      eventName: "pull_request",
+      payload: pullRequestEvent({ action: "opened" }),
+    });
+
+    expect(decision).toMatchObject({ run: true, kind: "pull_request", source: "pull_request" });
+  });
+
+  it("skips non-trigger pull_request_target actions with a coded reason", async () => {
+    for (const action of ["closed", "labeled", "assigned", "edited"]) {
+      const decision: EventDecision = await decideEvent({
+        eventName: "pull_request_target",
+        payload: pullRequestEvent({ action }),
+      });
+
+      expect(decision.run).toBe(false);
+      if (!decision.run) {
+        expect(decision.reason).toBe("unsupported_action");
+        expect(decision.message).toContain("pull_request_target");
+      }
+    }
+  });
+
   it("skips non-trigger actions with a coded reason", async () => {
     for (const action of ["closed", "labeled", "assigned", "edited"]) {
       const decision: EventDecision = await decideEvent({
@@ -77,22 +121,12 @@ describe("pull_request triggers", () => {
     });
   });
 
-  it("denies pull_request events from bots", async () => {
-    for (const sender of [
-      { login: "dependabot[bot]", type: "Bot" },
-      { login: "renovate[bot]", type: "Bot" },
-      { login: "some-bot[bot]", type: "User" },
-    ]) {
-      const decision = await decideEvent({
-        eventName: "pull_request",
-        payload: pullRequestEvent({ sender }),
-      });
-
-      expect(decision.run).toBe(false);
-      if (!decision.run) {
-        expect(decision.reason).toBe("bot_sender");
-      }
-    }
+  it("passes bot pull_request events on so config can decide", async () => {
+    const decision = await decideEvent({
+      eventName: "pull_request",
+      payload: pullRequestEvent({ sender: { login: "some-bot[bot]", type: "Bot" } }),
+    });
+    expect(decision.run).toBe(true);
   });
 });
 

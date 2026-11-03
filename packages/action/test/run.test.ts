@@ -47,7 +47,6 @@ async function fixture(overrides: Record<string, string> = {}) {
     model: "gpt-4o",
     "api-key": "test-model-key",
     "github-token": "test-github-token",
-    "platform-url": "https://platform.example",
     verify: "false",
     ...overrides,
   };
@@ -193,16 +192,7 @@ async function fixture(overrides: Record<string, string> = {}) {
     checkout,
     env,
     run: (extra: Partial<Parameters<typeof runAction>[2]> = {}) =>
-      runAction(runtime, env, {
-        github,
-        model,
-        checkout,
-        platformToken: async () => ({
-          ok: true as const,
-          value: { token: "installation-token", login: "anvia-hammer[bot]" },
-        }),
-        ...extra,
-      }),
+      runAction(runtime, env, { github, model, checkout, ...extra }),
   };
 }
 
@@ -218,8 +208,14 @@ describe("Action review flow", () => {
     });
     expect(f.posted[0]?.comments[0]?.body).toContain("<!-- hammer:fp=");
     expect(f.posted[0]?.body.startsWith("> [!CAUTION]\n> 1 high-severity finding")).toBe(true);
-    expect(f.posted[0]?.body).toContain("**Reviewed changes**\n\n- Reworked the user lookup");
+    expect(f.posted[0]?.body).toContain(
+      "**Reviewed changes**\n\nChanges user lookup\n\n- Reworked the user lookup",
+    );
+    expect(f.posted[0]?.body).toContain(
+      "[View workflow run](https://github.com/acme/sandbox/actions/runs/123) | Using `openai/gpt-4o`",
+    );
     const inline = f.posted[0]?.comments[0]?.body ?? "";
+    expect(inline.startsWith("> [!CAUTION]\n> **High · correctness**")).toBe(true);
     expect(inline).toContain("<details>\n<summary>Technical details</summary>");
     expect(inline).toContain("`packages/core/src/github/sanitize.ts:2`");
     expect(inline).not.toContain("[redacted]");
@@ -255,6 +251,21 @@ describe("Action review flow", () => {
     expect(f.summaries).toHaveLength(0);
     expect(f.runtime.setFailed).not.toHaveBeenCalled();
     expect(f.runtime.notice).toHaveBeenCalledWith(
+      expect.stringContaining("maintainer's /hammer review"),
+    );
+  });
+  it("reviews a fork PR end-to-end via pull_request_target with the same read-only path", async () => {
+    const f = await fixture();
+    f.pr.head.repo = { ...repository, full_name: "fork/sandbox" };
+    f.env.GITHUB_EVENT_NAME = "pull_request_target";
+    await writeFile(f.eventPath, JSON.stringify(f.payload));
+    await f.run();
+    expect(f.github.content).toHaveBeenCalled();
+    expect(f.checkout).toHaveBeenCalled();
+    expect(f.github.content.mock.calls.every((call) => call[3] === base)).toBe(true);
+    expect(f.posted).toHaveLength(1);
+    expect(f.posted[0]).toMatchObject({ event: "COMMENT", commit_id: head });
+    expect(f.runtime.notice).not.toHaveBeenCalledWith(
       expect.stringContaining("maintainer's /hammer review"),
     );
   });
@@ -315,6 +326,51 @@ describe("Action review flow", () => {
     expect(f.posted).toHaveLength(0);
     expect(f.summaries.every((body) => body.includes("Review in progress"))).toBe(true);
   });
+  it("rewrites a stale progress comment when the new push is skipped", async () => {
+    const f = await fixture();
+    f.pr.title = "Update [skip review]";
+    f.github.pull.mockResolvedValue(structuredClone(f.pr));
+    f.comments.push({
+      id: 12,
+      body: `<!-- hammer:summary -->\n### Hammer Review\n\nReview in progress. This comment updates.\n\n<!-- hammer:last-sha=${base} -->\n`,
+      user: { login: "github-actions[bot]", type: "Bot" },
+    });
+    await f.run();
+    expect(f.github.updateSummary).toHaveBeenCalledTimes(1);
+    expect(f.summaries[0]).not.toContain("Review in progress");
+    expect(f.summaries[0]).toContain("[skip review]");
+    expect(f.summaries[0]).toContain(`hammer:last-sha=${base}`);
+  });
+  it("leaves a completed summary alone when the push is skipped", async () => {
+    const f = await fixture();
+    f.pr.title = "Update [skip review]";
+    f.github.pull.mockResolvedValue(structuredClone(f.pr));
+    f.comments.push({
+      id: 12,
+      body: `<!-- hammer:summary -->\n### Hammer Review\n\n0 findings\n\n<!-- hammer:last-sha=${base} -->\n`,
+      user: { login: "github-actions[bot]", type: "Bot" },
+    });
+    await f.run();
+    expect(f.github.updateSummary).not.toHaveBeenCalled();
+  });
+  it("warns when the workflow cannot cancel an in-progress review", async () => {
+    const f = await fixture();
+    f.github.content.mockImplementation(async (_o, _r, path) =>
+      path === ".github/workflows/hammer.yml" ? "jobs:\n  review:\n    runs-on: x\n" : undefined,
+    );
+    await runAction(
+      f.runtime,
+      {
+        ...f.env,
+        GITHUB_WORKFLOW_REF: "acme/sandbox/.github/workflows/hammer.yml@refs/pull/7/merge",
+        GITHUB_WORKFLOW_SHA: head,
+      },
+      { github: f.github, model: f.model, checkout: f.checkout },
+    );
+    expect(f.runtime.warning).toHaveBeenCalledWith(
+      expect.stringContaining("cancel-in-progress: true"),
+    );
+  });
   it("publishes a sanitized error and obeys fail_on_error", async () => {
     const f = await fixture({ fail_on_error: "true" });
     f.github.content.mockRejectedValue(
@@ -335,7 +391,7 @@ describe("Action review flow", () => {
         path: finding.path,
         line: 2,
         original_line: 2,
-        user: { login: "anvia-hammer[bot]", type: "Bot" },
+        user: { login: "github-actions[bot]", type: "Bot" },
         body: `${finding.body}\n${formatFingerprintComment(fingerprints(finding.path, finding.body))}`,
       },
     ] as never);
@@ -343,11 +399,11 @@ describe("Action review flow", () => {
     expect(f.posted).toHaveLength(0);
     expect(f.outputs.findings_count).toBe("1");
   });
-  it("uses the platform login as its identity", async () => {
-    const f = await fixture();
+  it("uses bot-login as its identity without looking the token up", async () => {
+    const f = await fixture({ "bot-login": "hammer[bot]" });
     f.comments.push({
       id: 5,
-      user: { login: "anvia-hammer[bot]", type: "Bot" },
+      user: { login: "hammer[bot]", type: "Bot" },
       body: "<!-- hammer:summary -->",
     });
     await f.run();
@@ -374,26 +430,23 @@ describe("Action review flow", () => {
     expect(f.github.updateSummary.mock.calls.some((call) => call[2] === 5)).toBe(true);
     expect(f.runtime.info).toHaveBeenCalledWith("[hammer] posting as anvia-hammer[bot]");
   });
-  it("refuses to review when platform-url is empty", async () => {
-    const f = await fixture({ "platform-url": "" });
-    await f.run();
-    expect(f.posted).toHaveLength(0);
-    expect(f.runtime.setFailed).toHaveBeenCalledWith(
-      expect.stringContaining("platform-url must be set"),
+  it("falls back to the workflow token when the platform cannot issue one", async () => {
+    const f = await fixture({ "platform-url": "https://platform.example" });
+    const platformToken = vi.fn(async () => ({ ok: false as const, reason: "no id-token" }));
+    await f.run({ platformToken });
+    expect(f.github.identity).toHaveBeenCalled();
+    expect(f.posted).toHaveLength(1);
+    expect(f.runtime.info).toHaveBeenCalledWith(
+      "[hammer] posting as the workflow token: no id-token",
     );
   });
-  it("refuses to review when the platform cannot issue a token", async () => {
-    const f = await fixture({ "platform-url": "https://platform.example" });
-    const platformToken = vi.fn(async () => ({
-      ok: false as const,
-      reason: "the Hammer GitHub App is not installed on this repository (https://install.example)",
-    }));
-    await f.run({ platformToken });
-    expect(f.posted).toHaveLength(0);
-    expect(f.model.completion).not.toHaveBeenCalled();
-    expect(f.runtime.setFailed).toHaveBeenCalledWith(
-      expect.stringContaining("not registered with the Hammer platform"),
-    );
+  it("skips the platform when bot-login is set or platform-url is empty", async () => {
+    const platformToken = vi.fn(async () => ({ ok: false as const, reason: "unused" }));
+    const withLogin = await fixture({ "platform-url": "https://p.example", "bot-login": "x[bot]" });
+    await withLogin.run({ platformToken });
+    const disabled = await fixture({ "platform-url": "" });
+    await disabled.run({ platformToken });
+    expect(platformToken).not.toHaveBeenCalled();
   });
   it("does not overwrite an attacker comment containing the sticky marker", async () => {
     const f = await fixture();
@@ -411,7 +464,9 @@ describe("Action review flow", () => {
     vi.mocked(f.model.completion).mockRejectedValue(new Error("model unavailable"));
     await f.run();
     expect(f.posted).toHaveLength(0);
-    expect(f.summaries.at(-1)).toContain("partial");
+    expect(f.summaries.at(-1)).toContain("**Not reviewed.**");
+    expect(f.summaries.at(-1)).toContain("model unavailable");
+    expect(f.summaries.at(-1)).not.toContain("No issues found");
     expect(f.summaries.at(-1)).not.toContain("hammer:last-sha=");
     expect(f.runtime.setFailed).not.toHaveBeenCalled();
   });
@@ -452,7 +507,7 @@ it("retains the severity gate for a deduplicated finding", async () => {
       path: finding.path,
       line: 2,
       original_line: 2,
-      user: { login: "anvia-hammer[bot]", type: "Bot" },
+      user: { login: "github-actions[bot]", type: "Bot" },
       body: formatFingerprintComment(fingerprints(finding.path, finding.body)),
     },
   ]);
@@ -470,7 +525,7 @@ it("tells the reviewer which earlier findings were resolved and dedupes them", a
       path: finding.path,
       line: 2,
       original_line: 2,
-      user: { login: "anvia-hammer[bot]", type: "Bot" },
+      user: { login: "github-actions[bot]", type: "Bot" },
       body: formatFingerprintComment(fingerprints(finding.path, finding.body)),
     },
   ]);
@@ -517,6 +572,6 @@ it("publishes a partial result without treating a zero-cost cap as an action err
   });
   await f.run();
   expect(f.model.completion).not.toHaveBeenCalled();
-  expect(f.summaries.at(-1)).toContain("partial");
+  expect(f.summaries.at(-1)).toContain("**Not reviewed.** Review budget reached.");
   expect(f.runtime.setFailed).not.toHaveBeenCalled();
 });

@@ -1,0 +1,61 @@
+# Opt-in automatic review of fork PRs via pull_request_target.
+#
+# Copy this file to .github/workflows/hammer-fork-review.yml ONLY if you want
+# fork PRs reviewed automatically. KEEP .github/workflows/hammer-review.yml:
+# this file reviews fork PRs ONLY (the `if:` gate below skips same-repo PRs by
+# design), so replacing hammer-review.yml with this file removes same-repo
+# reviews silently. The default install (hammer-review.yml) uses `pull_request`
+# + `issue_comment` and never sees fork code with secrets.
+#
+# SAFETY: this workflow runs in base-repo context (pull_request_target checks
+# out the BASE ref by default), so secrets are available. Hammer keeps it safe
+# the same way it keeps `issue_comment` runs safe:
+# - NEVER add `actions/checkout` of the PR head, a build step, or any step
+#   that runs code from the PR. The only step is the pinned Hammer action.
+# - Hammer fetches the PR head read-only (depth 1, no submodules, no LFS,
+#   hooks disabled, tarball fallback), reads config and guidance from the base
+#   SHA, posts only COMMENT reviews, and filters every comment for secrets.
+# - `fork` PRs from this event are still reported against the same caps,
+#   concurrency group and first-time-contributor flow below.
+#
+# ABUSE CONTROLS:
+# - concurrency cancel-in-progress: overlapping pushes do not each spend model
+#   budget; only the latest run posts.
+# - max_cost_usd caps spend per run; fail_on_error "false" keeps a Hammer or
+#   model failure from failing the PR's checks.
+# - The `if:` gate reviews fork PRs only; same-repo PRs stay on
+#   hammer-review.yml. Do not merge the two triggers into one file.
+# - No `id-token: write` here by design: fork reviews always post as
+#   `github-actions[bot]` via the workflow token. Grant it only if you want the
+#   Hammer App identity (`hammer-api-key` path, see docs/github-app.md).
+# - First-time contributors still need approval before ANY job runs: keep the
+#   repository's "Require approval for first-time contributors" setting on
+#   (Settings > Actions > General). With it on, this workflow does not start
+#   for a new contributor's PR until a maintainer approves the run.
+name: Hammer Fork Review
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    concurrency:
+      group: hammer-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    if: github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # Pin to a full commit SHA instead of the moving tag for maximum safety.
+      - uses: anvia-hq/hammer@v1
+        with:
+          client: openai-compatible
+          model: ${{ vars.OPENAI_COMPATIBLE_MODEL || secrets.OPENAI_COMPATIBLE_MODEL }}
+          api-key: ${{ secrets.OPENAI_COMPATIBLE_API_KEY }}
+          max_cost_usd: "1"
+          fail_on_error: "false"

@@ -141,6 +141,31 @@ describe("parseModelRef", () => {
   });
 });
 
+describe("reasoning effort for models the client does not list", () => {
+  const efforts = (model: unknown) =>
+    (model as { controls?: { reasoningEffort?: { options: string[] } } }).controls?.reasoningEffort
+      ?.options;
+
+  it("keeps the client's own options for a model it knows", () => {
+    expect(efforts(createOpenAIModel("o3", { apiKey: "k" }))).toEqual(["low", "medium", "high"]);
+    expect(efforts(createGeminiModel("gemini-3-pro-preview", { apiKey: "k" }))).toEqual([
+      "low",
+      "high",
+    ]);
+  });
+
+  it("accepts any effort for a model it does not know, so the provider decides", () => {
+    const any = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+    expect(efforts(createOpenAIModel("gpt-6-sol", { apiKey: "k" }))).toEqual(any);
+    expect(efforts(createGeminiModel("gemini-pro-latest", { apiKey: "k" }))).toEqual(any);
+    expect(
+      efforts(
+        createAzureModel("gpt-6-sol", { apiKey: "k", baseUrl: "https://acme.openai.azure.com" }),
+      ),
+    ).toEqual(any);
+  });
+});
+
 describe("provider factory", () => {
   it("builds completion models without network calls", () => {
     const anthropic = createAnthropicModel("claude-sonnet-4-5", { apiKey: "test-key" });
@@ -259,7 +284,7 @@ describe("runSinglePassReview", () => {
   });
 
   it("repairs schema-invalid output once", async () => {
-    const bad = validBatch({ summary: "s".repeat(601) });
+    const bad = validBatch({ findings: [validFinding({ confidence: 5 })] });
     const good = validBatch();
     const generate = vi.fn((prompt: string) =>
       generate.mock.calls.length === 1 && prompt.length > 0 ? bad : good,
@@ -270,7 +295,7 @@ describe("runSinglePassReview", () => {
   });
 
   it("returns schema_violation when repair fails", async () => {
-    const bad = validBatch({ summary: "s".repeat(601) });
+    const bad = validBatch({ findings: [validFinding({ confidence: 5 })] });
     const generate = vi.fn(() => bad);
     const result = await runSinglePassReview(baseInput(), { generate });
     expect(result).toMatchObject({ ok: false, error: "schema_violation" });

@@ -29,9 +29,15 @@ inputs:
     description: Reasoning effort for clients/models that support it (e.g. low | medium | high). Fails the run if the model doesn't support it.
     required: false
   platform-url:
-    description: Hammer platform that issues a short-lived GitHub App token. It is required, because Hammer reviews only repositories registered with the platform. Needs the id-token write permission in the workflow and the Hammer App installed on the repository. The run fails with an install link otherwise.
+    description: Hammer platform that issues a short-lived GitHub App token so reviews are posted as the Hammer bot. Needs the Hammer App installed and the repository registered, plus hammer-api-key or the id-token write permission. Falls back to github-token when any of that is missing. Set to an empty string to disable.
     required: false
-    default: https://hammer-platform.me-063.workers.dev
+    default: https://hammer.anvia.dev
+  hammer-api-key:
+    description: API key for this repository from the Hammer platform (hammer.anvia.dev). Store it as the secret HAMMER_API_KEY. When set, the id-token write permission is not needed.
+    required: false
+  bot-login:
+    description: Login of the GitHub App that owns github-token, such as hammer[bot]. Installation tokens cannot look up their own login, so set this when github-token comes from a GitHub App; Hammer uses it to find and update its own comments.
+    required: false
   github-token:
     description: Token used to read the PR and post the review.
     required: false
@@ -71,13 +77,11 @@ inputs:
     required: false
     default: "100"
   max_tokens:
-    description: Maximum tokens per run.
+    description: Maximum tokens per run. No limit unless set here or in the repo config.
     required: false
-    default: "400000"
   max_cost_usd:
-    description: Maximum model cost per run in USD.
+    description: Maximum model cost per run in USD. No limit unless set here or in the repo config.
     required: false
-    default: "1.00"
   verify:
     description: Run the verification pass on findings.
     required: false

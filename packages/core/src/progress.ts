@@ -147,12 +147,35 @@ export function renderProgressBody(state: ProgressState): string {
     "<!-- hammer:summary -->",
     "### Hammer Review",
     "",
-    `Review in progress. This comment updates as work completes${state.runUrl ? ` ([live log](${state.runUrl}))` : ""}.`,
+    `${PROGRESS_MARKER} This comment updates as work completes${state.runUrl ? ` ([live log](${state.runUrl}))` : ""}.`,
     "",
     ...state.steps.map(
       (step) => `${STEP_MARK[step.status]} ${step.label}${step.detail ? ` (${step.detail})` : ""}`,
     ),
   ];
   if (state.lastSha) lines.push("", `<!-- hammer:last-sha=${state.lastSha} -->`);
+  return `${lines.join("\n")}\n`;
+}
+
+export const PROGRESS_MARKER = "Review in progress.";
+
+export function isProgressBody(body: string | null | undefined): boolean {
+  return body?.includes(PROGRESS_MARKER) === true;
+}
+
+export function renderInterruptedBody(options: {
+  reason: string;
+  lastSha?: string | undefined;
+}): string {
+  const lines = [
+    "<!-- hammer:summary -->",
+    "### Hammer Review",
+    "",
+    `The previous review did not finish, and this update was not reviewed: ${options.reason}.`,
+  ];
+  if (options.lastSha) {
+    lines.push("", `Last reviewed commit: \`${options.lastSha.slice(0, 7)}\``);
+    lines.push("", `<!-- hammer:last-sha=${options.lastSha} -->`);
+  }
   return `${lines.join("\n")}\n`;
 }

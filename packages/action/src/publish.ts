@@ -18,6 +18,7 @@ export interface PublishTarget {
   number: number;
   headSha: string;
   repoUrl?: string;
+  runUrl?: string;
 }
 
 export async function writeProgress(
@@ -88,6 +89,9 @@ export async function publishReview(
         body: renderReviewBody({
           findings: placed.map((entry) => entry.finding),
           changes: result.changes,
+          summary: result.summary,
+          model,
+          runUrl: target.runUrl,
         }),
         inline: placed.map((entry) => {
           const finding = entry.finding;
@@ -138,6 +142,7 @@ export async function publishReview(
       costUsd: result.usage.costUsd,
       partial: result.partial || plan.partial,
       unverified: result.unverified,
+      ...(result.reviewError !== undefined ? { reviewError: result.reviewError } : {}),
     },
     secrets,
   );

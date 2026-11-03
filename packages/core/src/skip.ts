@@ -16,6 +16,7 @@ export interface SkipInput {
   isMergeFromBase: boolean;
   remainingFileCount: number;
   ignoreAuthors?: string[];
+  reviewBotPushes?: boolean;
 }
 
 export interface SkipResult {
@@ -40,7 +41,7 @@ export function decideSkip(input: SkipInput): SkipResult {
   if (ignoreAuthors.includes(input.authorLogin)) {
     return { skip: true, reason: `PR author "${input.authorLogin}" is in ignore_authors` };
   }
-  if (isBot(input.sender.login, input.sender.type)) {
+  if (!input.reviewBotPushes && isBot(input.sender.login, input.sender.type)) {
     return { skip: true, reason: `event sender "${input.sender.login}" is a bot` };
   }
   if (input.isMergeFromBase) {

@@ -70,13 +70,13 @@ export function createBudget(input: CreateBudgetInput = {}): Budget {
     Number.isFinite(input.maxTokens) &&
     (input.maxTokens as number) >= 0
       ? Math.floor(input.maxTokens as number)
-      : DEFAULT_CAPS.max_tokens;
+      : Number.POSITIVE_INFINITY;
   const maxCostUsd =
     input.maxCostUsd !== undefined &&
     Number.isFinite(input.maxCostUsd) &&
     (input.maxCostUsd as number) >= 0
       ? (input.maxCostUsd as number)
-      : DEFAULT_CAPS.max_cost_usd;
+      : Number.POSITIVE_INFINITY;
   const pricing = input.pricing;
 
   let tokens = 0;

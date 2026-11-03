@@ -40,7 +40,7 @@ jobs:
       github.event_name == 'pull_request' ||
       (github.event.issue.pull_request && startsWith(github.event.comment.body, '/hammer'))
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: anvia-hq/hammer@v1
         with:
@@ -61,7 +61,12 @@ Comment on a pull request. Commands need write access to the repository.
 | `/hammer review <instruction>` | Review with a focus, e.g. `/hammer review security` |
 | `/hammer help`                 | Show the commands                                   |
 
-Pull requests from forks are not reviewed automatically, because the workflow would run with the base repository's secrets. A maintainer can run `/hammer review` on them instead.
+Pull requests from forks are not reviewed automatically by the default
+workflow, because it would run with the base repository's secrets. A
+maintainer can run `/hammer review` on them instead. To opt in to automatic
+fork reviews, copy `docs/examples/hammer-fork-review.yml` (a pinned
+`pull_request_target` workflow with abuse controls) into `.github/workflows`;
+see [0018](docs/decision/0018-opt-in-fork-auto-review.md).
 
 ## Models
 
@@ -82,7 +87,7 @@ native-json-schema: "false" # only if the endpoint lacks native JSON-schema outp
 api-key: ${{ secrets.GATEWAY_API_KEY }}
 ```
 
-Models that support it accept `reasoning-effort` (`low`, `medium` or `high`). The run fails with a clear error if the model doesn't support the value.
+Models that support it accept `reasoning-effort`, with the values the provider documents for that model (for example `low`, `medium`, `high`, and on some models `none`, `minimal`, `xhigh` or `max`). For a model Hammer's client does not list yet, the value is passed to the provider, which rejects it if the model does not support it. For a listed model the run fails with a clear error before any call.
 
 ## Configuration
 
@@ -100,6 +105,7 @@ ignore:
 ignore_authors:
   - dependabot[bot]
   - renovate[bot]
+review_bot_pushes: false # true: also review pushes made by bots (remove them from ignore_authors for bot-authored PRs)
 rules:
   - id: no-raw-sql
     text: Queries must go through the db helper, never string-built SQL.
@@ -114,26 +120,28 @@ Hammer also reads `AGENTS.md`, `CLAUDE.md` and `CONTRIBUTING.md` from the base b
 
 ### Limits
 
-Each run is bounded. Defaults: 50 files, 3,000 diff lines, 100 agent turns, 400,000 tokens and $1.00. Raise or lower them with `max_files`, `max_diff_lines`, `max_turns`, `max_tokens` and `max_cost_usd`. When a limit is hit, Hammer posts what it has and says the review was partial. `max_cost_usd` is enforced when Hammer knows the model's price: from the `pricing` input, from an openai-compatible gateway's `/models` endpoint (when `base-url` is set and lists prices), or from the bundled list. Supply `pricing` for models none of these cover.
+Each run is bounded by 50 files, 3,000 diff lines and 100 agent turns; change them with `max_files`, `max_diff_lines` and `max_turns`. There is no token or cost limit unless you set `max_tokens` or `max_cost_usd` in `.github/hammer.yml`. If a token or cost limit stops the review before it finishes, the summary says the PR was not reviewed. `max_cost_usd` is enforced when Hammer knows the model's price: from the `pricing` input, from an openai-compatible gateway's `/models` endpoint (when `base-url` is set and lists prices), or from the bundled list. Supply `pricing` for models none of these cover.
 
 ### Inputs
 
-| Input                                      | Description                                                                                     |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `client`, `model`, `api-key`               | Required. Model client, model id and API key.                                                   |
-| `base-url`                                 | Gateway URL (`openai-compatible`) or endpoint (`azure`).                                        |
-| `native-json-schema`                       | Set `"false"` for endpoints without native JSON-schema output.                                  |
-| `reasoning-effort`                         | `low`, `medium` or `high`, for models that support it.                                          |
-| `pricing`                                  | JSON of per-million-token USD prices, to enforce `max_cost_usd`.                                |
-| `github-token`                             | Defaults to the workflow token.                                                                 |
-| `platform-url`                             | Required. Hammer platform that issues the bot token; only registered repositories are reviewed. |
-| `config-path`                              | Config file path. Default `.github/hammer.yml`.                                                 |
-| `min_severity`, `max_comments`, `fail_on`  | Override the matching config keys.                                                              |
-| `review_drafts`, `ignore`, `include`       | Override the matching config keys. Lists are newline-separated.                                 |
-| `max_files`, `max_diff_lines`, `max_turns` | Review limits.                                                                                  |
-| `max_tokens`, `max_cost_usd`               | Token and cost limits.                                                                          |
-| `verify`, `verify_threshold`               | Verification pass on or off, and the minimum score to keep a finding.                           |
-| `fail_on_error`                            | Fail the job if Hammer itself errors. Default `false`.                                          |
+| Input                                      | Description                                                           |
+| ------------------------------------------ | --------------------------------------------------------------------- |
+| `client`, `model`, `api-key`               | Required. Model client, model id and API key.                         |
+| `base-url`                                 | Gateway URL (`openai-compatible`) or endpoint (`azure`).              |
+| `native-json-schema`                       | Set `"false"` for endpoints without native JSON-schema output.        |
+| `reasoning-effort`                         | Reasoning effort, for models that support it.                         |
+| `pricing`                                  | JSON of per-million-token USD prices, to enforce `max_cost_usd`.      |
+| `github-token`                             | Defaults to the workflow token.                                       |
+| `hammer-api-key`                           | Repository key from hammer.anvia.dev, so Hammer posts as the bot.     |
+| `platform-url`                             | Token broker that lets Hammer post as the bot. Empty disables it.     |
+| `bot-login`                                | Login of your own GitHub App behind `github-token`.                   |
+| `config-path`                              | Config file path. Default `.github/hammer.yml`.                       |
+| `min_severity`, `max_comments`, `fail_on`  | Override the matching config keys.                                    |
+| `review_drafts`, `ignore`, `include`       | Override the matching config keys. Lists are newline-separated.       |
+| `max_files`, `max_diff_lines`, `max_turns` | Review limits.                                                        |
+| `max_tokens`, `max_cost_usd`               | Token and cost limits.                                                |
+| `verify`, `verify_threshold`               | Verification pass on or off, and the minimum score to keep a finding. |
+| `fail_on_error`                            | Fail the job if Hammer itself errors. Default `false`.                |
 
 ### Outputs
 

@@ -88,6 +88,34 @@ describe("review pipeline", () => {
     expect(result.partial).toBe(true);
     expect(result.failed).toBe(true);
   });
+  it("keeps findings as unverified when verification runs out of time", async () => {
+    const request = input([batch, { scores: [{ id: "f1", score: 8 }] }]);
+    request.config.verify = true;
+    let now = 1_700_000_000_000;
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => (now += 600_000));
+    try {
+      const result = await runReviewPipeline(request);
+      expect(result.findings).toHaveLength(1);
+      expect(result.unverified).toBe(true);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+  it("applies no token or cost limit unless the config sets one", async () => {
+    const request = input([batch]);
+    const original = request.model.completion;
+    request.model.completion = (async (...args: Parameters<typeof original>) => {
+      const response = await original(...args);
+      return {
+        ...response,
+        usage: { ...response.usage, inputTokens: 5_000_000, totalTokens: 5_000_000 },
+      };
+    }) as typeof original;
+    const result = await runReviewPipeline(request);
+    expect(result.partial).toBe(false);
+    expect(result.reviewError).toBeUndefined();
+    expect(result.findings).toHaveLength(1);
+  });
   it("stops verification after a token cap and keeps completed findings", async () => {
     const request = input([batch]);
     request.config.verify = true;
@@ -219,7 +247,10 @@ it("falls back to a non-streaming run when the stream fails before any output", 
   expect(result.failed).toBe(false);
 });
 
-it("drops the tools near the budget so the model has to finish with the review", async () => {
+it("never changes the request shape near the budget", async () => {
+  // Anthropic binds a signed thinking block to the tools/tool_choice shape of the turn that
+  // created it, so the request sent to the model must stay identical turn to turn; wind-down
+  // is enforced by the reviewer tools themselves (see agent-tools.test.ts), not by this request.
   const request = input([]);
   const usage = {
     inputTokens: 10,
@@ -234,7 +265,7 @@ it("drops the tools near the budget so the model has to finish with the review",
     toolName: "checkout_pr",
     input: {},
   };
-  const seen: number[] = [];
+  const seen: Array<{ tools: number; toolChoice: unknown }> = [];
   const replies = [
     { choice: [toolCall], usage, finishReason: "tool-calls" as const, rawResponse: {} },
     {
@@ -247,13 +278,14 @@ it("drops the tools near the budget so the model has to finish with the review",
   request.model = {
     ...request.model,
     completion: vi.fn(async (call) => {
-      seen.push(call.tools.length);
+      seen.push({ tools: call.tools.length, toolChoice: call.toolChoice });
       return replies.shift()!;
     }),
   } as unknown as typeof request.model;
   request.config.max_tokens = 16;
   const result = await runReviewPipeline(request);
-  expect(seen[0]).toBeGreaterThan(0);
-  expect(seen[1]).toBe(0);
+  expect(seen).toHaveLength(2);
+  expect(seen[0]?.tools).toBeGreaterThan(0);
+  expect(seen[1]).toEqual(seen[0]);
   expect(result.findings).toHaveLength(1);
 });
