@@ -299,3 +299,54 @@ it("never changes the request shape near the budget", async () => {
   expect(seen[1]).toEqual(seen[0]);
   expect(result.findings).toHaveLength(1);
 });
+
+describe("review pipeline truncation salvage", () => {
+  it("publishes salvaged findings as partial instead of Not reviewed", async () => {
+    const full = JSON.stringify({
+      summary: "Changes a helper",
+      findings: [
+        { ...finding, title: "Kept finding" },
+        { ...finding, title: "Cut off finding" },
+      ],
+      generalNotes: [],
+    });
+    const cut = full.slice(0, full.lastIndexOf(`"Cut off finding"`));
+    const truncated = {
+      choice: [{ type: "text" as const, text: cut }],
+      usage: {
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        cachedInputTokens: 0,
+        cacheCreationInputTokens: 0,
+      },
+      finishReason: "length" as const,
+      rawResponse: {},
+    };
+    const model: CompletionModel = {
+      provider: "test",
+      modelId: "fake",
+      capabilities: {
+        outputSchema: false,
+        tools: true,
+        toolChoice: true,
+        streaming: false,
+        imageInput: false,
+        documentInput: false,
+        reasoning: false,
+      },
+      completion: vi.fn(async () => structuredClone(truncated)),
+    };
+    const request = input([]);
+    request.model = model;
+    const result = await runReviewPipeline(request);
+    expect(model.completion).toHaveBeenCalledTimes(1);
+    expect(result.findings).toHaveLength(1);
+    expect(result.partial).toBe(true);
+    expect(result.failed).toBe(false);
+    expect(result.reviewError).toBeUndefined();
+    expect(result.finishReason).toBe("length");
+    expect(result.outputChars).toBe(cut.length);
+    expect(result.reviewNote).toContain("salvaged 1 findings");
+  });
+});
