@@ -125,6 +125,7 @@ async function fixture(overrides: Record<string, string> = {}) {
     createComment: vi.fn(async () => ({ id: 13 })),
     react: vi.fn(async () => {}),
     archive: vi.fn(async () => Buffer.alloc(0)),
+    commitStatus: vi.fn<GitHubPort["commitStatus"]>(async () => {}),
   } satisfies GitHubPort;
   const model: ReviewPipelineInput["model"] = {
     provider: "test",
@@ -316,6 +317,53 @@ describe("Action review flow", () => {
       }),
       expect.anything(),
     );
+  });
+  describe("commit status for comment-triggered reviews", () => {
+    const commentEvent = async (f: Awaited<ReturnType<typeof fixture>>) => {
+      f.env.GITHUB_EVENT_NAME = "issue_comment";
+      await writeFile(
+        f.eventPath,
+        JSON.stringify({
+          action: "created",
+          repository: f.payload.repository,
+          sender: f.payload.sender,
+          issue: { number: 7, pull_request: {} },
+          comment: { id: 8, body: "/hammer review", user: f.payload.sender },
+        }),
+      );
+    };
+    it("shows the review as pending, then its result, on the PR head", async () => {
+      const f = await fixture();
+      await commentEvent(f);
+      await f.run();
+      const calls = f.github.commitStatus.mock.calls;
+      expect(calls.map((call) => call[3].state)).toEqual(["pending", "success"]);
+      expect(calls.every((call) => call[2] === f.pr.head.sha)).toBe(true);
+    });
+    it("leaves pull_request runs to their own check", async () => {
+      const f = await fixture();
+      await f.run();
+      expect(f.github.commitStatus).not.toHaveBeenCalled();
+    });
+    it("marks an errored review as failed", async () => {
+      const f = await fixture();
+      await commentEvent(f);
+      f.checkout.mockRejectedValue(new Error("checkout failed"));
+      await f.run();
+      expect(f.github.commitStatus.mock.calls.map((call) => call[3].state)).toEqual([
+        "pending",
+        "failure",
+      ]);
+    });
+    it("keeps reviewing and warns once when the token cannot set a status", async () => {
+      const f = await fixture();
+      await commentEvent(f);
+      f.github.commitStatus.mockRejectedValue(new Error("Resource not accessible by integration"));
+      await f.run();
+      expect(f.posted).toHaveLength(1);
+      expect(f.github.commitStatus).toHaveBeenCalledTimes(1);
+      expect(f.runtime.warning).toHaveBeenCalledWith(expect.stringContaining("statuses: write"));
+    });
   });
   it("discards stale results without publishing", async () => {
     const f = await fixture();

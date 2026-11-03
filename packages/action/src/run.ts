@@ -40,6 +40,7 @@ import { GitHub, proxiedFetch, type GitHubPort, type IssueComment } from "./gith
 import { configOverrides, readInputs, type ActionInputs } from "./inputs";
 import { requestPlatformToken } from "./platform";
 import { createProgressReporter, type ProgressReporter } from "./progress";
+import { createCommentStatus, type CommentStatus } from "./status";
 import { publishReview, writeProgress, writeSummary, type PublishTarget } from "./publish";
 
 export interface ActionRuntime {
@@ -81,6 +82,7 @@ export async function runAction(
   let identity = "";
   let githubToken = "";
   let progress: ProgressReporter | undefined;
+  let commentStatus: CommentStatus | undefined;
   const cleanError = (error: unknown): string => {
     let message =
       error instanceof z.ZodError
@@ -333,6 +335,17 @@ export async function runAction(
       warn: runtime.warning,
     });
     await progress.start();
+    if (decision.kind === "comment") {
+      commentStatus = createCommentStatus({
+        github,
+        owner,
+        repo,
+        sha: pr.head.sha,
+        ...(runUrl ? { runUrl } : {}),
+        warn: runtime.warning,
+      });
+      await commentStatus.set("pending", "Review in progress");
+    }
     const checkout = join(directory, "head");
     await (dependencies.checkout ?? checkoutHead)(
       {
@@ -441,6 +454,7 @@ export async function runAction(
       current.base.sha !== pr.base.sha ||
       current.state !== "open"
     ) {
+      await commentStatus?.set("error", "Discarded: the pull request changed during the review");
       await skip("pull request changed while reviewing; discarding stale results");
       return;
     }
@@ -488,9 +502,15 @@ export async function runAction(
       failOnError: inputs.fail_on_error,
       errored: result.failed,
     });
-    if (gate.ok && gate.exitCode) runtime.setFailed(gate.reason);
+    const failure = gate.ok && gate.exitCode ? gate.reason : undefined;
+    await commentStatus?.set(
+      failure ? "failure" : "success",
+      failure ?? `${published.findings.length} findings`,
+    );
+    if (failure) runtime.setFailed(failure);
   } catch (error) {
     await progress?.settle();
+    await commentStatus?.set("failure", "Review failed; see the run log");
     const message = cleanError(error);
     runtime.warning(`[hammer] ${message}`);
     await runtime.summary(renderJobSummaryMarkdown({ error: message }));
