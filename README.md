@@ -61,6 +61,8 @@ Comment on a pull request. Commands need write access to the repository.
 | `/hammer review <instruction>` | Review with a focus, e.g. `/hammer review security` |
 | `/hammer help`                 | Show the commands                                   |
 
+A review started by a command does not appear in the PR's checks on its own. Add `statuses: write` to the workflow permissions and Hammer sets a `Hammer Review / comment` commit status on the PR head while it runs and when it finishes; see [0019](docs/decision/0019-commit-status-for-comment-reviews.md).
+
 Pull requests from forks are not reviewed automatically by the default
 workflow, because it would run with the base repository's secrets. A
 maintainer can run `/hammer review` on them instead. To opt in to automatic

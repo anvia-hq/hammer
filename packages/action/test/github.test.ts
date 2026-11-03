@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { assertAllowedRequest, GitHub } from "../src/github";
+import { assertAllowedRequest, COMMENT_STATUS_CONTEXT, GitHub } from "../src/github";
 
 const apiUrl = "https://enterprise.example/api/v3";
 describe("GitHub API boundary", () => {
@@ -13,8 +13,16 @@ describe("GitHub API boundary", () => {
       ["POST", `${apiUrl}/repos/o/r/issues/7/labels`, {}],
       ["POST", `${apiUrl}/repos/o/r/pulls/7/reviews`, { event: "APPROVE" }],
       ["POST", `${apiUrl}/repos/o/r/pulls/7/reviews`, { event: "REQUEST_CHANGES" }],
+      ["POST", `${apiUrl}/repos/o/r/statuses/${"a".repeat(40)}`, { context: "ci/build" }],
+      ["POST", `${apiUrl}/repos/o/r/statuses/main`, { context: COMMENT_STATUS_CONTEXT }],
+      ["POST", `${apiUrl}/repos/o/r/check-runs`, { context: COMMENT_STATUS_CONTEXT }],
     ] as const)
       expect(() => assertAllowedRequest(method, url, apiUrl, body)).toThrow();
+    expect(() =>
+      assertAllowedRequest("POST", `${apiUrl}/repos/o/r/statuses/${"a".repeat(40)}`, apiUrl, {
+        context: COMMENT_STATUS_CONTEXT,
+      }),
+    ).not.toThrow();
   });
   it("resolves Octokit's route templates before enforcing its allowlist", async () => {
     const request = vi.fn<typeof globalThis.fetch>(

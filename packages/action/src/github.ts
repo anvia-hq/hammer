@@ -49,6 +49,9 @@ const reviewCommentSchema = commentSchema.extend({
 export type IssueComment = z.infer<typeof commentSchema>;
 export type ReviewComment = z.infer<typeof reviewCommentSchema>;
 
+export const COMMENT_STATUS_CONTEXT = "Hammer Review / comment";
+export type CommitStatusState = "pending" | "success" | "failure" | "error";
+
 export function assertAllowedRequest(
   method: string,
   url: string,
@@ -95,6 +98,15 @@ export function assertAllowedRequest(
   )
     return;
   if (method === "PATCH" && /^repos\/[^/]+\/[^/]+\/issues\/comments\/\d+$/.test(route)) return;
+  if (
+    method === "POST" &&
+    /^repos\/[^/]+\/[^/]+\/statuses\/[0-9a-f]{40}$/.test(route) &&
+    typeof body === "object" &&
+    body !== null &&
+    "context" in body &&
+    body.context === COMMENT_STATUS_CONTEXT
+  )
+    return;
   throw new Error(`GitHub operation is outside Hammer's allowlist: ${method} ${route}`);
 }
 
@@ -159,6 +171,22 @@ export class GitHub {
       .object({ permission: z.string() })
       .parse((await this.api.repos.getCollaboratorPermissionLevel({ owner, repo, username })).data)
       .permission;
+  }
+  async commitStatus(
+    owner: string,
+    repo: string,
+    sha: string,
+    status: { state: CommitStatusState; description: string; targetUrl?: string },
+  ): Promise<void> {
+    await this.api.repos.createCommitStatus({
+      owner,
+      repo,
+      sha,
+      state: status.state,
+      description: status.description,
+      context: COMMENT_STATUS_CONTEXT,
+      ...(status.targetUrl ? { target_url: status.targetUrl } : {}),
+    });
   }
   async pull(owner: string, repo: string, pull_number: number): Promise<PullRequest> {
     return PullRequestSchema.parse((await this.api.pulls.get({ owner, repo, pull_number })).data);
