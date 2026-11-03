@@ -250,3 +250,29 @@ describe("repeated tool calls", () => {
     expect(await run({})).toContain("already made this exact call");
   });
 });
+
+describe("wind-down near the budget", () => {
+  it("skips the real work and asks for the final review instead", async () => {
+    const tools = buildReviewerTools({
+      checkoutRoot: root,
+      files: [],
+      discussion: { title: "t", body: "b", comments: [] },
+      isNearBudget: () => true,
+    });
+    const discussion = tools.find((tool) => tool.name === "get_pr_discussion")!;
+    const readDiff = tools.find((tool) => tool.name === "read_diff")!;
+    expect(await discussion.call({})).toContain("budget");
+    expect(await readDiff.call({})).toContain("budget");
+  });
+
+  it("still does the real work when the budget check is absent or false", async () => {
+    const tools = buildReviewerTools({
+      checkoutRoot: root,
+      files: [],
+      discussion: { title: "t", body: "b", comments: [] },
+      isNearBudget: () => false,
+    });
+    const discussion = tools.find((tool) => tool.name === "get_pr_discussion")!;
+    expect(JSON.stringify(await discussion.call({}))).toContain("untrusted");
+  });
+});
