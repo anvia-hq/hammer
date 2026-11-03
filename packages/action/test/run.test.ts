@@ -516,6 +516,7 @@ describe("Action review flow", () => {
     expect(f.summaries.at(-1)).toContain("model unavailable");
     expect(f.summaries.at(-1)).not.toContain("No issues found");
     expect(f.summaries.at(-1)).not.toContain("hammer:last-sha=");
+    expect(f.summaries.at(-1)).not.toContain("repair attempted");
     expect(f.runtime.setFailed).not.toHaveBeenCalled();
   });
   it("rejects cleanup outside its own directory", async () => {

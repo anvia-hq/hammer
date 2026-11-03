@@ -6,6 +6,7 @@ import {
   type ReviewBatch,
   ReviewBatchSchema,
   runWithRepair,
+  salvageTruncatedReview,
   validateBatchOutput,
 } from "../src/schema";
 
@@ -94,7 +95,10 @@ describe("validateBatchOutput", () => {
   });
 
   it("rejects a bad severity", () => {
-    const raw = { ...validBatch(), findings: [{ ...validFinding(), severity: "critical" }] };
+    const raw = {
+      ...validBatch(),
+      findings: [{ ...validFinding(), severity: "critical" as unknown as Finding["severity"] }],
+    };
     const result = validateBatchOutput(raw);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.issues[0]?.path).toContain("severity");
@@ -259,5 +263,69 @@ describe("runWithRepair", () => {
     const result = await runWithRepair({ prompt: "review this", generate });
     expect(result).toMatchObject({ ok: false, error: "generate_failed" });
     if (!result.ok) expect(result.issues[0]?.message).toContain("model unavailable");
+  });
+});
+
+describe("salvageTruncatedReview", () => {
+  it("salvages complete findings from output cut off mid-JSON", () => {
+    const full = JSON.stringify(
+      validBatch({
+        findings: [validFinding({ title: "First" }), validFinding({ title: "Second" })],
+      }),
+    );
+    const cut = full.slice(0, full.lastIndexOf(`"Second"`));
+    const salvaged = salvageTruncatedReview(cut);
+    expect(salvaged).not.toBeNull();
+    expect(salvaged?.batch.findings.map((finding) => finding.title)).toEqual(["First"]);
+    expect(salvaged?.salvagedCount).toBe(1);
+    expect(salvaged?.droppedCount).toBe(0);
+  });
+
+  it("handles braces inside strings when finding the salvageable prefix", () => {
+    const full = JSON.stringify(
+      validBatch({
+        summary: "Handles {braces} in text",
+        findings: [
+          validFinding({ body: "Uses {x} and } oddly" }),
+          validFinding({ title: "Second" }),
+        ],
+      }),
+    );
+    const cut = full.slice(0, full.lastIndexOf(`"Second"`));
+    const salvaged = salvageTruncatedReview(cut);
+    expect(salvaged?.batch.findings).toHaveLength(1);
+    expect(salvaged?.batch.summary).toContain("{braces}");
+  });
+
+  it("drops invalid findings but keeps valid ones", () => {
+    const full = JSON.stringify(validBatch({ findings: [validFinding({ title: "Good" })] }));
+    const broken = `{"path": "src/app.ts"}`;
+    const cut = `${full.slice(0, full.lastIndexOf("]"))}, ${broken}`;
+    const salvaged = salvageTruncatedReview(cut);
+    expect(salvaged?.batch.findings.map((finding) => finding.title)).toEqual(["Good"]);
+    expect(salvaged?.droppedCount).toBe(1);
+  });
+
+  it("returns null when nothing salvageable remains", () => {
+    expect(salvageTruncatedReview("not json at all")).toBeNull();
+    expect(
+      salvageTruncatedReview(`{"summary": 42, "findings": [], "generalNotes": []}`),
+    ).toBeNull();
+    expect(
+      salvageTruncatedReview(
+        JSON.stringify(
+          validBatch({
+            findings: [
+              { ...validFinding(), severity: "critical" as unknown as Finding["severity"] },
+            ],
+          }),
+        ),
+      ),
+    ).toBeNull();
+  });
+
+  it("returns null for complete valid output and for unparseable fragments", () => {
+    expect(salvageTruncatedReview(JSON.stringify(validBatch()))).toBeNull();
+    expect(salvageTruncatedReview('{"summary": }')).toBeNull();
   });
 });

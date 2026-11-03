@@ -9,6 +9,7 @@ import {
   DEFAULT_MAX_TURNS,
   ReviewBatchSchema,
   runWithRepair,
+  salvageTruncatedReview,
   validateBatchOutput,
   type PullFileEntry,
   type ReviewBatch,
@@ -45,12 +46,19 @@ export interface SinglePassFailure {
   ok: false;
   error: SinglePassErrorCode;
   issues: Array<{ path: string; message: string }>;
+  finishReason?: string;
+  outputChars?: number;
+  repairAttempted?: boolean;
 }
 
 export interface SinglePassSuccess {
   ok: true;
   batch: ReviewBatch;
   usage: SinglePassUsage;
+  partial?: boolean;
+  note?: string;
+  finishReason?: string;
+  outputChars?: number;
 }
 
 export type SinglePassResult = SinglePassSuccess | SinglePassFailure;
@@ -119,6 +127,33 @@ function addUsage(left: SinglePassUsage, right: SinglePassUsage): SinglePassUsag
     inputTokens: left.inputTokens + right.inputTokens,
     outputTokens: left.outputTokens + right.outputTokens,
     totalTokens: left.totalTokens + right.totalTokens,
+  };
+}
+
+function describeReason(finishReason?: string, providerFinishReason?: string): string {
+  const reason = finishReason ?? providerFinishReason ?? "unknown";
+  return providerFinishReason !== undefined && finishReason !== undefined
+    ? `${finishReason} (${providerFinishReason})`
+    : reason;
+}
+
+function structuredFailure(error: unknown): SinglePassFailure {
+  const structured =
+    error instanceof AgentStructuredOutputError
+      ? error
+      : error instanceof Error && error.cause instanceof AgentStructuredOutputError
+        ? error.cause
+        : null;
+  const message = error instanceof Error ? error.message : String(error);
+  const finish =
+    structured !== null ? (structured.finishReason ?? structured.providerFinishReason) : undefined;
+  const chars = structured !== null ? structured.outputLength : undefined;
+  return {
+    ok: false,
+    error: structured !== null ? "schema_violation" : "generate_failed",
+    issues: [{ path: "(generate)", message }],
+    ...(finish !== undefined ? { finishReason: finish } : {}),
+    ...(chars !== undefined ? { outputChars: chars } : {}),
   };
 }
 
@@ -287,15 +322,33 @@ export async function runSinglePassReview(
   }
   const reviewed = buildReviewPrompt(input);
   if (options.generate !== undefined) {
-    const repaired = await runWithRepair({
-      prompt: reviewed.prompt,
-      generate: options.generate,
-    });
+    const seen: string[] = [];
+    const generate = async (prompt: string): Promise<unknown> => {
+      const raw = await options.generate!(prompt);
+      if (typeof raw === "string") seen.push(raw);
+      return raw;
+    };
+    const repaired = await runWithRepair({ prompt: reviewed.prompt, generate });
     if (!repaired.ok) {
+      const last = seen.at(-1);
+      if (last !== undefined && !last.trim().endsWith("}")) {
+        const salvaged = salvageTruncatedReview(last);
+        if (salvaged !== null) {
+          return {
+            ok: true,
+            batch: salvaged.batch,
+            usage: { ...ZERO_USAGE },
+            partial: true,
+            note: `truncated_output salvaged ${salvaged.salvagedCount} findings (${salvaged.droppedCount} dropped)`,
+            outputChars: last.length,
+          };
+        }
+      }
       return {
         ok: false,
         error: repaired.error === "generate_failed" ? "generate_failed" : "schema_violation",
         issues: repaired.issues,
+        ...(last !== undefined ? { outputChars: last.length } : {}),
       };
     }
     return { ok: true, batch: repaired.value, usage: { ...ZERO_USAGE } };
@@ -336,42 +389,51 @@ export async function runSinglePassReview(
     const message = error instanceof Error ? error.message : String(error);
     return failure("generate_failed", message, "(model)");
   }
-  let outcome: Awaited<ReturnType<typeof agent.generate>>;
+  let outcome: Awaited<ReturnType<typeof agent.generate>> | undefined;
+  let repairAttempted = false;
   try {
     outcome = await runAgent(agent, reviewed.prompt, options);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return failure(
-      error instanceof AgentStructuredOutputError ? "schema_violation" : "generate_failed",
-      message,
-      "(generate)",
-    );
+    return structuredFailure(error);
   }
-  if (outcome.type !== "response") {
-    return failure(
-      "unexpected_outcome",
-      `Agent run ended with "${outcome.type}" instead of a response.`,
-    );
+  if (outcome === undefined || outcome.type !== "response") {
+    return failure("unexpected_outcome", "Agent run ended without a response.");
   }
   let usage = toSinglePassUsage(outcome.usage);
+  const finishReason = outcome.finishReason ?? outcome.providerFinishReason;
+  const outputChars = outcome.text.length;
   const first = validateBatchOutput(outcome.text);
   if (first.ok) {
     return { ok: true, batch: first.value, usage };
   }
+  const truncatedLike = finishReason === "length" || !outcome.text.trim().endsWith("}");
+  if (truncatedLike) {
+    const salvaged = salvageTruncatedReview(outcome.text);
+    if (salvaged !== null) {
+      const reason = outcome.finishReason ?? outcome.providerFinishReason;
+      return {
+        ok: true,
+        batch: salvaged.batch,
+        usage,
+        partial: true,
+        note: `truncated_output salvaged ${salvaged.salvagedCount} findings (${salvaged.droppedCount} dropped)`,
+        ...(reason !== undefined
+          ? { finishReason: describeReason(outcome.finishReason, outcome.providerFinishReason) }
+          : {}),
+        outputChars,
+      };
+    }
+  }
   let repairedOutcome: Awaited<ReturnType<typeof agent.generate>>;
   try {
+    repairAttempted = true;
     repairedOutcome = await runAgent(
       agent,
       buildRepairPrompt(reviewed.prompt, first.issues),
       options,
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return failure(
-      error instanceof AgentStructuredOutputError ? "schema_violation" : "generate_failed",
-      message,
-      "(generate)",
-    );
+    return structuredFailure(error);
   }
   if (repairedOutcome.type !== "response") {
     return failure(
@@ -382,7 +444,47 @@ export async function runSinglePassReview(
   usage = addUsage(usage, toSinglePassUsage(repairedOutcome.usage));
   const second = validateBatchOutput(repairedOutcome.text);
   if (!second.ok) {
-    return { ok: false, error: "schema_violation", issues: second.issues };
+    const repairReason = repairedOutcome.finishReason ?? repairedOutcome.providerFinishReason;
+    const repairChars = repairedOutcome.text.length;
+    const repairTruncatedLike =
+      repairReason === "length" || !repairedOutcome.text.trim().endsWith("}");
+    if (repairTruncatedLike) {
+      const salvaged = salvageTruncatedReview(repairedOutcome.text);
+      if (salvaged !== null) {
+        const reason = repairedOutcome.finishReason ?? repairedOutcome.providerFinishReason;
+        return {
+          ok: true,
+          batch: salvaged.batch,
+          usage,
+          partial: true,
+          note: `truncated_output salvaged ${salvaged.salvagedCount} findings (${salvaged.droppedCount} dropped)`,
+          ...(reason !== undefined
+            ? {
+                finishReason: describeReason(
+                  repairedOutcome.finishReason,
+                  repairedOutcome.providerFinishReason,
+                ),
+              }
+            : {}),
+          outputChars: repairChars,
+        };
+      }
+    }
+    return {
+      ok: false,
+      error: "schema_violation",
+      issues: second.issues,
+      ...(repairReason !== undefined
+        ? {
+            finishReason: describeReason(
+              repairedOutcome.finishReason,
+              repairedOutcome.providerFinishReason,
+            ),
+          }
+        : {}),
+      outputChars: repairChars,
+      ...(repairAttempted ? { repairAttempted: true as const } : {}),
+    };
   }
   return { ok: true, batch: second.value, usage };
 }

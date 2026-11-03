@@ -152,7 +152,22 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     : "";
   const promptInput = { ...input, priorFindings: context, resolvedFindings: resolvedContext };
   emit({ type: "plan", files: input.files.length });
-  let review: { ok: true; batch: ReviewBatch } | { ok: false; error: string };
+  let review:
+    | {
+        ok: true;
+        batch: ReviewBatch;
+        partial?: boolean;
+        note?: string;
+        finishReason?: string;
+        outputChars?: number;
+      }
+    | {
+        ok: false;
+        error: string;
+        finishReason?: string;
+        outputChars?: number;
+        repairAttempted?: boolean;
+      };
   if (!budget.canStartBatch().ok) {
     review = { ok: false, error: "Review budget reached." };
   } else {
@@ -178,12 +193,59 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
       },
     );
     if (outcome.ok) {
-      review = { ok: true, batch: outcome.batch };
-      emit({ type: "review_end", ok: true, findings: outcome.batch.findings.length });
+      const succeeding: {
+        ok: true;
+        batch: ReviewBatch;
+        partial?: boolean;
+        note?: string;
+        finishReason?: string;
+        outputChars?: number;
+      } = { ok: true, batch: outcome.batch };
+      if (outcome.partial === true) succeeding.partial = true;
+      if (outcome.note !== undefined) succeeding.note = outcome.note;
+      if (outcome.finishReason !== undefined) succeeding.finishReason = outcome.finishReason;
+      if (outcome.outputChars !== undefined) succeeding.outputChars = outcome.outputChars;
+      review = succeeding;
+      emit({
+        type: "review_end",
+        ok: true,
+        findings: outcome.batch.findings.length,
+        ...(review.ok && review.partial === true ? { partial: true as const } : {}),
+        ...(review.ok && review.finishReason !== undefined
+          ? { finishReason: review.finishReason }
+          : {}),
+        ...(review.ok && review.outputChars !== undefined
+          ? { outputChars: review.outputChars }
+          : {}),
+      });
     } else {
       const error = outcome.issues.map((issue) => issue.message).join("; ");
-      review = { ok: false, error };
-      emit({ type: "review_end", ok: false, findings: 0, error });
+      const failing: {
+        ok: false;
+        error: string;
+        finishReason?: string;
+        outputChars?: number;
+        repairAttempted?: boolean;
+      } = {
+        ok: false,
+        error,
+      };
+      if (outcome.finishReason !== undefined) failing.finishReason = outcome.finishReason;
+      if (outcome.outputChars !== undefined) failing.outputChars = outcome.outputChars;
+      if (outcome.repairAttempted === true) failing.repairAttempted = true;
+      review = failing;
+      emit({
+        type: "review_end",
+        ok: false,
+        findings: 0,
+        error,
+        ...(!review.ok && review.finishReason !== undefined
+          ? { finishReason: review.finishReason }
+          : {}),
+        ...(!review.ok && review.outputChars !== undefined
+          ? { outputChars: review.outputChars }
+          : {}),
+      });
     }
   }
   reviewing = false;
@@ -192,7 +254,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     changes: review.ok ? (review.batch.changes ?? []) : [],
     findings: review.ok ? review.batch.findings : [],
     generalNotes: review.ok ? review.batch.generalNotes : [],
-    partial: !review.ok,
+    partial: !review.ok || (review.ok && review.partial === true),
   };
   const verifying = input.config.verify && merged.findings.length > 0;
   if (verifying) verifyDeadline = Date.now() + VERIFY_TIME_LIMIT_MS;
@@ -274,6 +336,18 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     failed: !review.ok && review.error !== "Review budget reached.",
     unverified: verification.status === "unverified",
     ...(review.ok ? {} : { reviewError: review.error.slice(0, 1000) }),
+    ...(!review.ok && review.repairAttempted === true ? { repairAttempted: true as const } : {}),
+    ...(review.ok && review.partial === true && review.note !== undefined
+      ? { reviewNote: review.note }
+      : {}),
+    ...((review.ok && review.finishReason !== undefined) ||
+    (!review.ok && review.finishReason !== undefined)
+      ? { finishReason: review.finishReason }
+      : {}),
+    ...((review.ok && review.outputChars !== undefined) ||
+    (!review.ok && review.outputChars !== undefined)
+      ? { outputChars: review.outputChars }
+      : {}),
     duplicates: deduped.duplicates.length,
   };
 }

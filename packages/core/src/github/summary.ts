@@ -31,6 +31,9 @@ export interface RenderSummaryOptions {
   partial?: boolean;
   unverified?: boolean;
   reviewError?: string;
+  finishReason?: string;
+  outputChars?: number;
+  repairOutcome?: string;
   error?: string;
   runUrl?: string;
   repoUrl?: string;
@@ -86,6 +89,22 @@ function detailsBlock(summary: string, entries: string[]): string[] {
   return ["<details>", `<summary>${summary}</summary>`, "", ...entries, "", "</details>"];
 }
 
+function renderDiagnosticNote(options: RenderSummaryOptions): string | null {
+  const parts: string[] = [];
+  if (options.finishReason !== undefined && options.finishReason !== "") {
+    parts.push(`model finish reason: ${sanitizeSummaryText(options.finishReason)}`);
+  }
+  if (options.outputChars !== undefined) {
+    parts.push(`received ${options.outputChars.toLocaleString("en-US")} chars`);
+  }
+  if (options.repairOutcome !== undefined && options.repairOutcome !== "") {
+    parts.push(sanitizeSummaryText(options.repairOutcome));
+  }
+  if (parts.length === 0) return null;
+  if (options.model) parts.push(`model: ${sanitizeSummaryText(options.model)}`);
+  return `> [!NOTE]\n> Incomplete run: ${parts.join(" · ")}.`;
+}
+
 export function renderSummaryBody(options: RenderSummaryOptions): string {
   const lines: string[] = [SUMMARY_MARKER, "### Hammer Review", ""];
   const incomplete = options.reviewError !== undefined;
@@ -96,6 +115,10 @@ export function renderSummaryBody(options: RenderSummaryOptions): string {
       "> Hammer could not finish reviewing this PR, so having no findings does not mean the code is clean.",
       "",
     );
+  }
+  const diagnostic = renderDiagnosticNote(options);
+  if (diagnostic !== null && (incomplete || options.findings !== undefined)) {
+    lines.push(diagnostic, "");
   }
   if (options.findings !== undefined && !incomplete) {
     const high = options.findings.filter((finding) => finding.severity === "high").length;

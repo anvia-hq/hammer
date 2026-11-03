@@ -491,6 +491,23 @@ export async function runAction(
         tokens: result.usage.tokens,
         costUsd: result.usage.costUsd,
         partial: plan.partial || result.partial,
+        ...(result.reviewError !== undefined ||
+        result.finishReason !== undefined ||
+        result.outputChars !== undefined
+          ? {
+              partialReason: [
+                result.finishReason !== undefined ? `finish ${result.finishReason}` : null,
+                result.outputChars !== undefined ? `${result.outputChars} chars` : null,
+                result.reviewNote !== undefined
+                  ? result.reviewNote
+                  : result.reviewError !== undefined && result.repairAttempted === true
+                    ? "repair attempted"
+                    : null,
+              ]
+                .filter((part): part is string => part !== null)
+                .join(" · "),
+            }
+          : {}),
         modelSummary: sanitizeForPosting(result.summary, {
           secrets: [inputs["api-key"], githubToken],
         }),

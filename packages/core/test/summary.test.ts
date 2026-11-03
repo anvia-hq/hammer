@@ -313,3 +313,52 @@ it("filters secrets and hostile output before both summary create and update", a
     expect(published).toContain("<!-- hammer:last-sha=abc123 -->");
   }
 });
+
+describe("truncation diagnostics", () => {
+  const files = [{ path: "src/app.ts", status: "modified" as const }];
+  const finding = {
+    path: "src/app.ts",
+    line: 1,
+    severity: "low" as const,
+    category: "reliability" as const,
+    title: "t",
+    body: "b",
+    confidence: 0.8,
+  };
+
+  it("notes the finish reason, chars and salvage path on a partial review", () => {
+    const body = renderSummaryBody({
+      files,
+      findings: [finding],
+      partial: true,
+      model: "openai/gpt-4o",
+      finishReason: "length",
+      outputChars: 143,
+      repairOutcome: "truncated_output salvaged 1 findings (0 dropped)",
+    });
+    expect(body).toContain("1 findings (0 high) · partial");
+    expect(body).toContain("model finish reason: length");
+    expect(body).toContain("received 143 chars");
+    expect(body).toContain("salvaged 1 findings");
+  });
+
+  it("notes the repair path on a failed review", () => {
+    const body = renderSummaryBody({
+      files,
+      findings: [],
+      partial: true,
+      reviewError: "Output is not valid JSON",
+      finishReason: "length",
+      outputChars: 999,
+      repairOutcome: "repair attempted",
+    });
+    expect(body).toContain("**Not reviewed.**");
+    expect(body).toContain("model finish reason: length");
+    expect(body).toContain("repair attempted");
+  });
+
+  it("stays silent without diagnostic fields", () => {
+    const body = renderSummaryBody({ files, findings: [finding] });
+    expect(body).not.toContain("Incomplete run");
+  });
+});

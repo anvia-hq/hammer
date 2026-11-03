@@ -452,3 +452,130 @@ describe("runSinglePassReview agent repair", () => {
     expect(seen).toHaveLength(0);
   });
 });
+
+describe("runSinglePassReview truncation salvage", () => {
+  function truncatingModel(
+    texts: string[],
+    seen: CompletionRequest[],
+    finishReasons: Array<"stop" | "length"> = [],
+  ): CompletionModel {
+    let calls = 0;
+    return {
+      provider: "test",
+      modelId: "test-model",
+      capabilities: {
+        streaming: false,
+        tools: true,
+        toolChoice: true,
+        imageInput: false,
+        documentInput: false,
+        outputSchema: false,
+        reasoning: false,
+      },
+      completion: async (request: CompletionRequest): Promise<CompletionResponse<unknown>> => {
+        seen.push(request);
+        const index = Math.min(calls, texts.length - 1);
+        const text = texts[index] ?? "";
+        const finishReason = finishReasons[index] ?? "stop";
+        calls += 1;
+        return {
+          choice: [{ type: "text", text }] as CompletionResponse<unknown>["choice"],
+          usage: {
+            inputTokens: 10,
+            outputTokens: 5,
+            totalTokens: 15,
+            cachedInputTokens: 0,
+            cacheCreationInputTokens: 0,
+          },
+          finishReason,
+          rawResponse: null,
+        };
+      },
+    };
+  }
+
+  function truncatedBatchText(): string {
+    const full = JSON.stringify(
+      validBatch({ findings: [validFinding(), validFinding({ title: "Second finding" })] }),
+    );
+    return full.slice(0, full.lastIndexOf(`"Second finding"`));
+  }
+
+  it("returns a partial success when the model is cut off mid-JSON", async () => {
+    const seen: CompletionRequest[] = [];
+    const result = await runSinglePassReview(baseInput(), {
+      model: truncatingModel([truncatedBatchText()], seen, ["length"]),
+      checkoutRoot: "/tmp",
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.partial).toBe(true);
+      expect(result.batch.findings).toHaveLength(1);
+      expect(result.finishReason).toBe("length");
+      expect(result.outputChars).toBe(truncatedBatchText().length);
+    }
+    expect(seen).toHaveLength(1);
+  });
+
+  it("keeps schema_violation for a real validation error with finish stop", async () => {
+    const seen: CompletionRequest[] = [];
+    const bad = JSON.stringify(validBatch({ findings: [validFinding({ confidence: 5 })] }));
+    const result = await runSinglePassReview(baseInput(), {
+      model: truncatingModel([bad, bad], seen, ["stop", "stop"]),
+      checkoutRoot: "/tmp",
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: "schema_violation",
+      repairAttempted: true,
+    });
+    expect(seen).toHaveLength(2);
+  });
+
+  it("omits repairAttempted when the first call throws before any repair", async () => {
+    const failing: CompletionModel = {
+      provider: "test",
+      modelId: "test-model",
+      capabilities: {
+        streaming: false,
+        tools: true,
+        toolChoice: true,
+        imageInput: false,
+        documentInput: false,
+        outputSchema: false,
+        reasoning: false,
+      },
+      completion: async () => {
+        throw new Error("boom");
+      },
+    };
+    const result = await runSinglePassReview(baseInput(), {
+      model: failing,
+      checkoutRoot: "/tmp",
+    });
+    expect(result).toMatchObject({ ok: false, error: "generate_failed" });
+    if (!result.ok) expect(result.repairAttempted).toBeUndefined();
+  });
+});
+
+describe("runSinglePassReview generate-hook truncation salvage", () => {
+  it("salvages a cut-off string instead of reporting schema_violation", async () => {
+    const full = JSON.stringify(
+      validBatch({ findings: [validFinding(), validFinding({ title: "Second finding" })] }),
+    );
+    const cut = full.slice(0, full.lastIndexOf(`"Second finding"`));
+    const prompts: string[] = [];
+    const generate = (prompt: string) => {
+      prompts.push(prompt);
+      return cut;
+    };
+    const result = await runSinglePassReview(baseInput(), { generate });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.partial).toBe(true);
+      expect(result.batch.findings).toHaveLength(1);
+      expect(result.outputChars).toBe(cut.length);
+    }
+    expect(prompts).toHaveLength(2);
+  });
+});

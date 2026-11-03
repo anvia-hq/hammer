@@ -5,7 +5,15 @@ export type ReviewEvent =
   | { type: "tool"; name: string; detail: string }
   | { type: "turn"; tokens: number; costUsd: number | null }
   | { type: "text"; kind: "text" | "reasoning"; text: string }
-  | { type: "review_end"; ok: boolean; findings: number; error?: string }
+  | {
+      type: "review_end";
+      ok: boolean;
+      findings: number;
+      error?: string;
+      partial?: boolean;
+      finishReason?: string;
+      outputChars?: number;
+    }
   | { type: "verify_start"; findings: number }
   | { type: "verify_end"; kept: number; dropped: number; unverified?: string }
   | { type: "done"; inline: number; notes: number };
@@ -48,10 +56,19 @@ export function formatReviewEvent(event: ReviewEvent): string {
       const cost = event.costUsd === null ? "" : `, $${event.costUsd.toFixed(4)}`;
       return `[hammer] model call done: ${event.tokens} tokens used so far${cost}`;
     }
-    case "review_end":
+    case "review_end": {
+      const diagnostics = [
+        event.partial === true ? "partial" : null,
+        event.finishReason !== undefined && event.finishReason !== ""
+          ? `finish ${event.finishReason}`
+          : null,
+        event.outputChars !== undefined ? `${event.outputChars} chars` : null,
+      ].filter((part): part is string => part !== null);
+      const suffix = diagnostics.length > 0 ? ` (${diagnostics.join(", ")})` : "";
       return event.ok
-        ? `[hammer] review done, ${plural(event.findings, "finding")}`
-        : `[hammer] review failed${event.error ? `: ${oneLine(event.error)}` : ""}`;
+        ? `[hammer] review done, ${plural(event.findings, "finding")}${suffix}`
+        : `[hammer] review failed${event.error ? `: ${oneLine(event.error)}` : ""}${suffix}`;
+    }
     case "verify_start":
       return `[hammer] verifying ${plural(event.findings, "finding")}`;
     case "verify_end":
