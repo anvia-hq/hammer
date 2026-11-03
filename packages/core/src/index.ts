@@ -8,12 +8,14 @@ export type {
   ReviewBatch,
   RunWithRepairOptions,
   RunWithRepairResult,
+  SalvagedReviewBatch,
 } from "./schema";
 export {
   buildRepairPrompt,
   FindingSchema,
   ReviewBatchSchema,
   runWithRepair,
+  salvageTruncatedReview,
   validateBatchOutput,
 } from "./schema";
 export type { CheckoutPlanOptions, CheckoutResult, CheckoutStep, ExecFn } from "./checkout/git";

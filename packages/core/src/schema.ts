@@ -117,6 +117,196 @@ export function validateBatchOutput(raw: unknown): BatchValidationResult {
   return { ok: false, issues: toIssues(parsed.error) };
 }
 
+export interface SalvagedReviewBatch {
+  batch: ReviewBatch;
+  salvagedCount: number;
+  droppedCount: number;
+}
+
+function stripFence(text: string): string {
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
+  return fenced?.[1] !== undefined ? fenced[1] : text;
+}
+
+function scanBalancedEnd(text: string, start: number): number {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i += 1) {
+    const char = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{" || char === "[") depth += 1;
+    else if (char === "}" || char === "]") {
+      depth -= 1;
+      if (depth === 0) return i;
+      if (depth < 0) return -1;
+    }
+  }
+  return -1;
+}
+
+function completeBrackets(prefix: string): string | null {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  const closers: string[] = [];
+  for (const char of prefix) {
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === "{") {
+      depth += 1;
+      closers.push("}");
+    } else if (char === "[") {
+      depth += 1;
+      closers.push("]");
+    } else if (char === "}" || char === "]") {
+      if (closers.pop() === undefined) return null;
+      depth -= 1;
+    }
+  }
+  if (inString || escaped) return null;
+  return prefix + closers.reverse().join("");
+}
+
+function salvageFindingsPrefix(raw: string): unknown[] | null {
+  const marker = '"findings"';
+  const key = raw.indexOf(marker);
+  if (key < 0) return null;
+  const bracket = raw.indexOf("[", key + marker.length);
+  if (bracket < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let entryStart = -1;
+  const entries: string[] = [];
+  for (let i = bracket; i < raw.length; i += 1) {
+    const char = raw[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      if (depth === 0) entryStart = i;
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0 && entryStart >= 0) {
+        entries.push(raw.slice(entryStart, i + 1));
+        entryStart = -1;
+      }
+      continue;
+    }
+    if (char === "[") {
+      continue;
+    }
+    if (char === "]") {
+      continue;
+    }
+  }
+  const kept: unknown[] = [];
+  for (const entry of entries) {
+    try {
+      kept.push(JSON.parse(entry));
+    } catch {
+      return null;
+    }
+  }
+  return kept;
+}
+
+export function salvageTruncatedReview(text: string): SalvagedReviewBatch | null {
+  const body = stripFence(text).trim();
+  const start = body.indexOf("{");
+  if (start < 0) return null;
+  const fullEnd = scanBalancedEnd(body, start);
+  if (fullEnd > start) {
+    try {
+      const parsedFull: unknown = JSON.parse(body.slice(start, fullEnd + 1));
+      if (isRecord(parsedFull) && Array.isArray(parsedFull["findings"])) {
+        if (validateBatchOutput(parsedFull).ok) return null;
+      }
+    } catch {
+      // Fall through to prefix salvage below.
+    }
+  }
+  const findings = salvageFindingsPrefix(body);
+  if (findings === null || findings.length === 0) return null;
+  let summary = "Partial review (output was cut off before the model finished).";
+  let changes: string[] | undefined;
+  let generalNotes: string[] = [];
+  const headKey = body.indexOf('"findings"');
+  if (headKey > start) {
+    const headPrefix = body.slice(start, headKey).replace(/[\s,]+$/, "");
+    const headText = `${headPrefix}, "findings": [], "generalNotes": []}`;
+    const completed = completeBrackets(headText);
+    if (completed !== null) {
+      try {
+        const parsedHead: unknown = JSON.parse(completed);
+        if (isRecord(parsedHead)) {
+          const headSummary = clip(parsedHead["summary"], 600);
+          if (typeof headSummary === "string") summary = headSummary;
+          if (parsedHead["changes"] !== undefined && Array.isArray(parsedHead["changes"])) {
+            const clipped = clipAll((parsedHead["changes"] as unknown[]).slice(0, 6), 160);
+            if (Array.isArray(clipped)) {
+              const strings = (clipped as unknown[]).filter(
+                (entry): entry is string => typeof entry === "string",
+              );
+              if (strings.length > 0) changes = strings;
+            }
+          }
+          if (Array.isArray(parsedHead["generalNotes"])) {
+            const clipped = clipAll((parsedHead["generalNotes"] as unknown[]).slice(0, 5), 300);
+            if (Array.isArray(clipped)) {
+              generalNotes = (clipped as unknown[]).filter(
+                (entry): entry is string => typeof entry === "string",
+              );
+            }
+          }
+        }
+      } catch {
+        // Keep the fallback summary when the header does not parse.
+      }
+    }
+  }
+  const batch: ReviewBatch = {
+    summary,
+    findings: [],
+    generalNotes,
+    ...(changes !== undefined ? { changes } : {}),
+  };
+  let droppedCount = 0;
+  for (const entry of findings.slice(0, 25)) {
+    const trimmed = trimOverlong(entry);
+    const result = FindingSchema.safeParse(trimmed);
+    if (result.success) batch.findings.push(result.data);
+    else droppedCount += 1;
+  }
+  if (batch.findings.length === 0) return null;
+  return { batch, salvagedCount: batch.findings.length, droppedCount };
+}
+
 export function buildRepairPrompt(originalPrompt: string, issues: BatchValidationIssue[]): string {
   const details = issues.map((issue) => `- ${issue.path}: ${issue.message}`).join("\n");
   return `${originalPrompt}\n\nYour previous output did not match the required JSON schema. Fix these validation issues:\n${details}\n\nRespond with only JSON matching the schema: an object with summary (max 600 characters), optional changes (max 6 strings of max 160 characters each), findings (max 25 items, each with an optional details string of max 1200 characters), and generalNotes (max 5 strings of max 300 characters each).`;
