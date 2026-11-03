@@ -118,6 +118,14 @@ const ANTHROPIC_CONTROLS: CompletionModelControls = defineCompletionModelControl
   },
 });
 
+// Top-level cache_control makes Anthropic cache the request up to its last block, so each turn of an
+// agent loop reads the earlier turns from cache. Other providers do not accept the field.
+export function promptCacheProviderOptions(
+  provider: string,
+): { cache_control: { type: "ephemeral" } } | undefined {
+  return provider === "anthropic" ? { cache_control: { type: "ephemeral" } } : undefined;
+}
+
 export function createAnthropicModel(
   modelId: string,
   options: ModelClientOptions,
