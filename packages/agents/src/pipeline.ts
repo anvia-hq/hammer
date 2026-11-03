@@ -234,6 +234,9 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
       type: "verify_end",
       kept: verification.findings.length,
       dropped: verification.dropped.length,
+      ...(verification.status === "unverified"
+        ? { unverified: verification.note ?? "no reason given" }
+        : {}),
     });
   const validated = validateFindings(
     verification.findings,

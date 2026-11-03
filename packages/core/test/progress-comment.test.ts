@@ -42,6 +42,18 @@ describe("progress comment", () => {
     expect(body).toContain("- [ ] ⏳ Post the review");
   });
 
+  it("marks verification that did not finish", () => {
+    let state = initialProgress({ files: 1, verify: true });
+    state = applyProgressEvent(state, { type: "verify_start", findings: 1 });
+    state = applyProgressEvent(state, {
+      type: "verify_end",
+      kept: 1,
+      dropped: 0,
+      unverified: "budget",
+    });
+    expect(renderProgressBody(state)).toContain("- [ ] ❌ Verify findings (did not finish)");
+  });
+
   it("marks a failed review", () => {
     let state = initialProgress({ files: 5, verify: false });
     state = applyProgressEvent(state, { type: "plan", files: 5 });

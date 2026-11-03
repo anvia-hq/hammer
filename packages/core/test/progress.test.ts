@@ -14,6 +14,15 @@ describe("formatReviewEvent", () => {
     );
   });
 
+  it("says when verification did not finish", () => {
+    expect(formatReviewEvent({ type: "verify_end", kept: 1, dropped: 0 })).toBe(
+      "[hammer] verification kept 1, dropped 0",
+    );
+    expect(
+      formatReviewEvent({ type: "verify_end", kept: 1, dropped: 0, unverified: "budget" }),
+    ).toBe("[hammer] verification did not finish (budget); keeping 1 finding unverified");
+  });
+
   it("keeps untrusted text on one prefixed line so it cannot start a workflow command", () => {
     const line = formatReviewEvent({
       type: "tool",
