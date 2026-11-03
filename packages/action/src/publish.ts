@@ -142,7 +142,18 @@ export async function publishReview(
       costUsd: result.usage.costUsd,
       partial: result.partial || plan.partial,
       unverified: result.unverified,
-      ...(result.reviewError !== undefined ? { reviewError: result.reviewError } : {}),
+      ...(result.reviewError !== undefined
+        ? {
+            reviewError: result.reviewError,
+            ...(result.finishReason !== undefined ? { finishReason: result.finishReason } : {}),
+            ...(result.outputChars !== undefined ? { outputChars: result.outputChars } : {}),
+            repairOutcome: "repair attempted",
+          }
+        : {
+            ...(result.finishReason !== undefined ? { finishReason: result.finishReason } : {}),
+            ...(result.outputChars !== undefined ? { outputChars: result.outputChars } : {}),
+            ...(result.reviewNote !== undefined ? { repairOutcome: result.reviewNote } : {}),
+          }),
     },
     secrets,
   );

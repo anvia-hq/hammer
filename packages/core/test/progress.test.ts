@@ -58,3 +58,31 @@ describe("text events", () => {
     );
   });
 });
+
+describe("review_end diagnostics", () => {
+  it("appends partial and finish details without leaking raw output", () => {
+    expect(
+      formatReviewEvent({
+        type: "review_end",
+        ok: true,
+        findings: 2,
+        partial: true,
+        finishReason: "length",
+        outputChars: 143,
+      }),
+    ).toBe("[hammer] review done, 2 findings (partial, finish length, 143 chars)");
+    expect(formatReviewEvent({ type: "review_end", ok: true, findings: 1 })).toBe(
+      "[hammer] review done, 1 finding",
+    );
+    expect(
+      formatReviewEvent({
+        type: "review_end",
+        ok: false,
+        findings: 0,
+        error: "bad",
+        finishReason: "length",
+        outputChars: 10,
+      }),
+    ).toBe("[hammer] review failed: bad (finish length, 10 chars)");
+  });
+});
