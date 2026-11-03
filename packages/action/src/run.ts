@@ -500,7 +500,7 @@ export async function runAction(
                 result.outputChars !== undefined ? `${result.outputChars} chars` : null,
                 result.reviewNote !== undefined
                   ? result.reviewNote
-                  : result.reviewError !== undefined
+                  : result.reviewError !== undefined && result.repairAttempted === true
                     ? "repair attempted"
                     : null,
               ]

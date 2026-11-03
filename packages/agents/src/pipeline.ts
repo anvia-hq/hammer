@@ -161,7 +161,13 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
         finishReason?: string;
         outputChars?: number;
       }
-    | { ok: false; error: string; finishReason?: string; outputChars?: number };
+    | {
+        ok: false;
+        error: string;
+        finishReason?: string;
+        outputChars?: number;
+        repairAttempted?: boolean;
+      };
   if (!budget.canStartBatch().ok) {
     review = { ok: false, error: "Review budget reached." };
   } else {
@@ -214,12 +220,19 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
       });
     } else {
       const error = outcome.issues.map((issue) => issue.message).join("; ");
-      const failing: { ok: false; error: string; finishReason?: string; outputChars?: number } = {
+      const failing: {
+        ok: false;
+        error: string;
+        finishReason?: string;
+        outputChars?: number;
+        repairAttempted?: boolean;
+      } = {
         ok: false,
         error,
       };
       if (outcome.finishReason !== undefined) failing.finishReason = outcome.finishReason;
       if (outcome.outputChars !== undefined) failing.outputChars = outcome.outputChars;
+      if (outcome.repairAttempted === true) failing.repairAttempted = true;
       review = failing;
       emit({
         type: "review_end",
@@ -323,6 +336,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     failed: !review.ok && review.error !== "Review budget reached.",
     unverified: verification.status === "unverified",
     ...(review.ok ? {} : { reviewError: review.error.slice(0, 1000) }),
+    ...(!review.ok && review.repairAttempted === true ? { repairAttempted: true as const } : {}),
     ...(review.ok && review.partial === true && review.note !== undefined
       ? { reviewNote: review.note }
       : {}),

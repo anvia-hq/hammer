@@ -147,7 +147,7 @@ export async function publishReview(
             reviewError: result.reviewError,
             ...(result.finishReason !== undefined ? { finishReason: result.finishReason } : {}),
             ...(result.outputChars !== undefined ? { outputChars: result.outputChars } : {}),
-            repairOutcome: "repair attempted",
+            ...(result.repairAttempted === true ? { repairOutcome: "repair attempted" } : {}),
           }
         : {
             ...(result.finishReason !== undefined ? { finishReason: result.finishReason } : {}),

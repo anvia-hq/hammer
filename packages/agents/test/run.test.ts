@@ -524,8 +524,37 @@ describe("runSinglePassReview truncation salvage", () => {
       model: truncatingModel([bad, bad], seen, ["stop", "stop"]),
       checkoutRoot: "/tmp",
     });
-    expect(result).toMatchObject({ ok: false, error: "schema_violation" });
+    expect(result).toMatchObject({
+      ok: false,
+      error: "schema_violation",
+      repairAttempted: true,
+    });
     expect(seen).toHaveLength(2);
+  });
+
+  it("omits repairAttempted when the first call throws before any repair", async () => {
+    const failing: CompletionModel = {
+      provider: "test",
+      modelId: "test-model",
+      capabilities: {
+        streaming: false,
+        tools: true,
+        toolChoice: true,
+        imageInput: false,
+        documentInput: false,
+        outputSchema: false,
+        reasoning: false,
+      },
+      completion: async () => {
+        throw new Error("boom");
+      },
+    };
+    const result = await runSinglePassReview(baseInput(), {
+      model: failing,
+      checkoutRoot: "/tmp",
+    });
+    expect(result).toMatchObject({ ok: false, error: "generate_failed" });
+    if (!result.ok) expect(result.repairAttempted).toBeUndefined();
   });
 });
 

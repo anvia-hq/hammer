@@ -48,6 +48,7 @@ export interface SinglePassFailure {
   issues: Array<{ path: string; message: string }>;
   finishReason?: string;
   outputChars?: number;
+  repairAttempted?: boolean;
 }
 
 export interface SinglePassSuccess {
@@ -389,6 +390,7 @@ export async function runSinglePassReview(
     return failure("generate_failed", message, "(model)");
   }
   let outcome: Awaited<ReturnType<typeof agent.generate>> | undefined;
+  let repairAttempted = false;
   try {
     outcome = await runAgent(agent, reviewed.prompt, options);
   } catch (error) {
@@ -424,6 +426,7 @@ export async function runSinglePassReview(
   }
   let repairedOutcome: Awaited<ReturnType<typeof agent.generate>>;
   try {
+    repairAttempted = true;
     repairedOutcome = await runAgent(
       agent,
       buildRepairPrompt(reviewed.prompt, first.issues),
@@ -480,6 +483,7 @@ export async function runSinglePassReview(
           }
         : {}),
       outputChars: repairChars,
+      ...(repairAttempted ? { repairAttempted: true as const } : {}),
     };
   }
   return { ok: true, batch: second.value, usage };
