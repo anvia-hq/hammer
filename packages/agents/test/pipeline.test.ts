@@ -162,6 +162,16 @@ it("emits progress events through the review lifecycle", async () => {
   ]);
 });
 
+it("reports why verification did not finish instead of a clean kept count", async () => {
+  const request = input([batch]);
+  request.config.verify = true;
+  request.config.max_tokens = 10;
+  const events: unknown[] = [];
+  request.onEvent = (event) => events.push(event);
+  await runReviewPipeline(request);
+  expect(events).toContainEqual({ type: "verify_end", kept: 1, dropped: 0, unverified: "budget" });
+});
+
 it("keeps reviewing when the event sink throws", async () => {
   const request = input([batch]);
   request.onEvent = () => {

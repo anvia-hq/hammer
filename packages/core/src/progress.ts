@@ -7,7 +7,7 @@ export type ReviewEvent =
   | { type: "text"; kind: "text" | "reasoning"; text: string }
   | { type: "review_end"; ok: boolean; findings: number; error?: string }
   | { type: "verify_start"; findings: number }
-  | { type: "verify_end"; kept: number; dropped: number }
+  | { type: "verify_end"; kept: number; dropped: number; unverified?: string }
   | { type: "done"; inline: number; notes: number };
 
 export type ReviewEventSink = (event: ReviewEvent) => void;
@@ -55,7 +55,9 @@ export function formatReviewEvent(event: ReviewEvent): string {
     case "verify_start":
       return `[hammer] verifying ${plural(event.findings, "finding")}`;
     case "verify_end":
-      return `[hammer] verification kept ${event.kept}, dropped ${event.dropped}`;
+      return event.unverified === undefined
+        ? `[hammer] verification kept ${event.kept}, dropped ${event.dropped}`
+        : `[hammer] verification did not finish (${oneLine(event.unverified)}); keeping ${plural(event.kept, "finding")} unverified`;
     case "done":
       return `[hammer] review ready: ${plural(event.inline, "inline comment")}, ${plural(event.notes, "general note")}`;
   }
@@ -127,7 +129,9 @@ export function applyProgressEvent(state: ProgressState, event: ReviewEvent): Pr
     case "verify_start":
       return setStep(state, "verify", "running");
     case "verify_end":
-      return setStep(state, "verify", "done", `kept ${event.kept}, dropped ${event.dropped}`);
+      return event.unverified === undefined
+        ? setStep(state, "verify", "done", `kept ${event.kept}, dropped ${event.dropped}`)
+        : setStep(state, "verify", "failed", "did not finish");
     case "done":
       return setStep(state, "post", "running");
     default:
