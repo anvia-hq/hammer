@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { assertAllowedRequest, COMMENT_STATUS_CONTEXT, GitHub } from "../src/github";
+import {
+  assertAllowedRequest,
+  COMMENT_STATUS_CONTEXT,
+  GitHub,
+  RESOLVE_THREAD_MUTATION,
+} from "../src/github";
 
 const apiUrl = "https://enterprise.example/api/v3";
 describe("GitHub API boundary", () => {
@@ -79,7 +84,7 @@ it("does not log handled 403 and 404 responses", async () => {
   vi.restoreAllMocks();
 });
 
-describe("resolved review threads", () => {
+describe("review threads", () => {
   const graphql = (nodes: unknown[]) =>
     vi.fn<typeof globalThis.fetch>(
       async () =>
@@ -97,37 +102,69 @@ describe("resolved review threads", () => {
         ),
     );
 
-  it("collects the comment ids of resolved threads only", async () => {
+  it("lists each thread with its resolved and outdated state", async () => {
     const request = graphql([
-      { isResolved: true, comments: { nodes: [{ databaseId: 1 }, { databaseId: 2 }] } },
-      { isResolved: false, comments: { nodes: [{ databaseId: 3 }] } },
+      {
+        id: "PRRT_1",
+        isResolved: true,
+        isOutdated: false,
+        path: "a.ts",
+        comments: { nodes: [{ databaseId: 1 }, { databaseId: 2 }] },
+      },
+      {
+        id: "PRRT_2",
+        isResolved: false,
+        isOutdated: true,
+        path: "b.ts",
+        comments: { nodes: [{ databaseId: 3 }] },
+      },
     ]);
-    const ids = await new GitHub("test-token", apiUrl, request).resolvedReviewCommentIds(
-      "o",
-      "r",
-      7,
-    );
-    expect([...ids]).toEqual([1, 2]);
+    const threads = await new GitHub("test-token", apiUrl, request).reviewThreads("o", "r", 7);
+    expect(threads).toEqual([
+      { id: "PRRT_1", resolved: true, outdated: false, path: "a.ts", commentIds: [1, 2] },
+      { id: "PRRT_2", resolved: false, outdated: true, path: "b.ts", commentIds: [3] },
+    ]);
     expect(request.mock.calls[0]?.[0]).toBe("https://enterprise.example/api/graphql");
   });
 
-  it("allows a read-only GraphQL query and refuses a mutation", () => {
+  it("resolves a thread with the one allowed mutation", async () => {
+    const request = vi.fn<typeof globalThis.fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({ data: { resolveReviewThread: { thread: { id: "PRRT_2" } } } }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+    await new GitHub("test-token", apiUrl, request).resolveThread("PRRT_2");
+    const sent = JSON.parse(String(request.mock.calls[0]?.[1]?.body));
+    expect(sent.query).toBe(RESOLVE_THREAD_MUTATION);
+    expect(sent.variables).toEqual({ threadId: "PRRT_2" });
+  });
+
+  it("allows a read-only GraphQL query and only the resolve mutation", () => {
+    const url = "https://enterprise.example/api/graphql";
     expect(() =>
-      assertAllowedRequest("POST", "https://enterprise.example/api/graphql", apiUrl, {
-        query: "query { viewer { id } }",
-      }),
+      assertAllowedRequest("POST", url, apiUrl, { query: "query { viewer { id } }" }),
     ).not.toThrow();
     expect(() =>
-      assertAllowedRequest("POST", "https://enterprise.example/api/graphql", apiUrl, {
-        query: 'mutation { resolveReviewThread(input: {threadId: "x"}) { thread { id } } }',
+      assertAllowedRequest("POST", url, apiUrl, {
+        query: RESOLVE_THREAD_MUTATION,
+        variables: { threadId: "PRRT_kwDOA" },
       }),
-    ).toThrow();
-    expect(() =>
-      assertAllowedRequest("POST", "https://enterprise.example/api/graphql", apiUrl, {}),
-    ).toThrow();
+    ).not.toThrow();
+    for (const body of [
+      { query: 'mutation { resolveReviewThread(input: {threadId: "x"}) { thread { id } } }' },
+      { query: RESOLVE_THREAD_MUTATION },
+      { query: RESOLVE_THREAD_MUTATION, variables: { threadId: 'x") { id } }' } },
+      { query: RESOLVE_THREAD_MUTATION, variables: { threadId: "PRRT_kwDOA", extra: "x" } },
+      { query: "mutation { addPullRequestReview(input: {}) { clientMutationId } }" },
+      {},
+    ])
+      expect(() => assertAllowedRequest("POST", url, apiUrl, body)).toThrow();
     expect(() =>
       assertAllowedRequest("POST", "https://attacker.example/api/graphql", apiUrl, {
-        query: "query { viewer { id } }",
+        query: RESOLVE_THREAD_MUTATION,
+        variables: { threadId: "PRRT_kwDOA" },
       }),
     ).toThrow();
   });

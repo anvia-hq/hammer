@@ -96,8 +96,6 @@ export { fetchPullFiles, MAX_PULL_FILES, PULL_FILES_PER_PAGE } from "./github/fi
 
 export type {
   CreateIssueComment,
-  ListedComment,
-  ListCommentPage,
   RenderSummaryOptions,
   SkippedSummaryFile,
   SummaryScopeFile,
@@ -153,8 +151,11 @@ export {
   formatFingerprintComment,
   isDuplicate,
   MAX_PRIOR_FINDINGS_CHARS,
+  parseFingerprintMarker,
   parsePriorFingerprints,
 } from "./dedupe";
+export type { FixableThread, SelectThreadsOptions } from "./resolve";
+export { selectThreadsToResolve } from "./resolve";
 export type { IncrementalScope, PatchHunk, PatchLine, ReviewScopeOptions } from "./github/patch";
 export { commentableLines, decideReviewScope, extractLastSha, parsePatch } from "./github/patch";
 export type {

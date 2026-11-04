@@ -60,6 +60,14 @@ export function parsePriorFingerprints(commentBodies: string[]): Set<string> {
   return found;
 }
 
+export function parseFingerprintMarker(body: string): FindingFingerprints | undefined {
+  const match = new RegExp(FINGERPRINT_MARKER_RE.source, "i").exec(body);
+  const bodyFp = match?.[1];
+  const suggestionFp = match?.[2];
+  if (bodyFp === undefined || suggestionFp === undefined) return undefined;
+  return { bodyFp: bodyFp.toLowerCase(), suggestionFp: suggestionFp.toLowerCase() };
+}
+
 export function isDuplicate(finding: DedupeFinding, priorSet: Set<string>): boolean {
   const fp = fingerprints(finding.path, finding.body, finding.suggestion);
   return (

@@ -32,6 +32,7 @@ export interface RenderSummaryOptions {
   unverified?: boolean;
   filtered?: SkippedSummaryFile[];
   duplicates?: number;
+  resolvedThreads?: number;
   reviewError?: string;
   finishReason?: string;
   outputChars?: number;
@@ -179,6 +180,10 @@ export function renderSummaryBody(options: RenderSummaryOptions): string {
   if (skipped.length > 0) footer.push(`skipped ${skipped.length}`);
   if (notReviewed.length > 0) footer.push(`not reviewed ${notReviewed.length}`);
   if ((options.duplicates ?? 0) > 0) footer.push(`already reported ${options.duplicates}`);
+  if ((options.resolvedThreads ?? 0) > 0)
+    footer.push(
+      `resolved ${options.resolvedThreads} earlier thread${options.resolvedThreads === 1 ? "" : "s"}`,
+    );
   if (options.model) footer.push(options.model);
   if (options.tokens !== undefined) footer.push(formatTokens(options.tokens));
   if (options.costUsd != null) footer.push(`$${options.costUsd.toFixed(4)}`);
@@ -229,19 +234,11 @@ export function renderSummaryBody(options: RenderSummaryOptions): string {
   return `${lines.join("\n")}\n`;
 }
 
-export interface ListedComment {
-  id: number;
-  body?: string | null | undefined;
-}
-
-export type ListCommentPage = (page: number, perPage: number) => Promise<ListedComment[]>;
-
 export type CreateIssueComment = (body: string) => Promise<{ id: number }>;
 
 export type UpdateComment = (commentId: number, body: string) => Promise<void>;
 
 export interface UpsertSummaryOptions {
-  perPage?: number;
   sanitizeOptions?: SanitizeCommentOptions;
 }
 
@@ -251,7 +248,7 @@ export interface UpsertSummaryResult {
 }
 
 export async function upsertSummaryComment(
-  listComments: ListCommentPage,
+  existingId: number | undefined,
   createComment: CreateIssueComment,
   updateComment: UpdateComment,
   body: string,
@@ -263,18 +260,9 @@ export async function upsertSummaryComment(
   body = `${metadata}${sanitizeForPosting(body, options.sanitizeOptions)
     .replace(/^\n/, "")
     .slice(0, MAX_COMMENT_CHARS - metadata.length - state.length)}${state}`;
-  const perPage = Math.max(1, Math.floor(options.perPage ?? 100));
-  let page = 1;
-  for (;;) {
-    const comments = await listComments(page, perPage);
-    for (const comment of comments) {
-      if (comment.body?.includes(SUMMARY_MARKER) === true) {
-        await updateComment(comment.id, body);
-        return { id: comment.id, action: "updated" };
-      }
-    }
-    if (comments.length < perPage) break;
-    page += 1;
+  if (existingId !== undefined) {
+    await updateComment(existingId, body);
+    return { id: existingId, action: "updated" };
   }
   const created = await createComment(body);
   return { id: created.id, action: "created" };

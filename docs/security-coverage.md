@@ -21,7 +21,7 @@ Action integration tests cover that notice and authorized maintainer commands.
 Action boundary coverage lives in `packages/action/test/run.test.ts`,
 `github.test.ts`, and `checkout.test.ts`: permission rejection precedes PR
 reads, config/guidance refs are pinned to the base SHA, stale results are
-discarded, spoofed sticky markers are ignored, mutations are allowlisted,
+discarded, spoofed summary markers are ignored, mutations are allowlisted (only the resolve-thread mutation passes),
 archive traversal and links are rejected, and post cleanup stays under
 RUNNER_TEMP. Same-repository Haiku 5.5 and Muse reviews passed on GitHub-hosted
 Linux x64; see [sandbox evidence](sandbox.md). Fork commands, the complete

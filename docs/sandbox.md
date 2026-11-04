@@ -12,7 +12,7 @@ Run `bun run build` and `node packages/action/scripts/smoke-review.mjs`. This ex
 2. In the Hammer repository's Actions secrets, set `HAMMER_API_KEY` to the reviewer's model key and `HAMMER_SANDBOX_TOKEN` to a fine-grained GitHub token scoped to the sandbox repository with contents read and pull requests write. The workflow's ordinary token remains read-only.
 3. Run **Runner matrix** with `run_e2e: true`, `sandbox_repository: owner/repo`, `sandbox_pr: number`, `client: anthropic|openai|gemini|openai-compatible|azure`, and `model: model-id`, using the branch containing the implementation.
 
-The job builds the Action and runs its bundled main step with a sandbox PR event. It checks `result.json`, a sticky summary containing the reviewed head SHA, and a `COMMENT` review when findings exist, then runs the bundled post step. It rejects partial results. This initial smoke run uses a same-repository PR; maintainer-triggered fork behavior is covered locally and needs a separate live check.
+The job builds the Action and runs its bundled main step with a sandbox PR event. It checks `result.json`, a summary comment containing the reviewed head SHA, and a `COMMENT` review when findings exist, then runs the bundled post step. It rejects partial results. This initial smoke run uses a same-repository PR; maintainer-triggered fork behavior is covered locally and needs a separate live check.
 
 The run posts comments to the specified PR and sends the reviewed source to the configured model provider. It does not execute the sandbox repository's code.
 

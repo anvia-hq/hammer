@@ -109,7 +109,8 @@ async function fixture(overrides: Record<string, string> = {}) {
     ),
     comments: vi.fn(async () => comments),
     reviewComments: vi.fn<GitHubPort["reviewComments"]>(async () => []),
-    resolvedReviewCommentIds: vi.fn(async () => new Set<number>()),
+    reviewThreads: vi.fn<GitHubPort["reviewThreads"]>(async () => []),
+    resolveThread: vi.fn(async () => {}),
     parents: vi.fn(async () => [base]),
     review: vi.fn(async (value: CreateReviewPayload) => {
       posted.push(value);
@@ -456,8 +457,8 @@ describe("Action review flow", () => {
     });
     await f.run();
     expect(f.github.identity).not.toHaveBeenCalled();
-    expect(f.github.updateSummary.mock.calls.some((call) => call[2] === 5)).toBe(true);
-    expect(f.github.createSummary).not.toHaveBeenCalled();
+    expect(f.github.createSummary).toHaveBeenCalledTimes(1);
+    expect(f.github.updateSummary.mock.calls.every((call) => call[2] === 12)).toBe(true);
   });
   it("posts as the platform bot when the platform issues a token", async () => {
     const f = await fixture({ "platform-url": "https://platform.example" });
@@ -475,7 +476,7 @@ describe("Action review flow", () => {
       expect.objectContaining({ platformUrl: "https://platform.example" }),
     );
     expect(f.github.identity).not.toHaveBeenCalled();
-    expect(f.github.updateSummary.mock.calls.some((call) => call[2] === 5)).toBe(true);
+    expect(f.github.createSummary).toHaveBeenCalledTimes(1);
     expect(f.runtime.info).toHaveBeenCalledWith("[hammer] posting as anvia-hammer[bot]");
   });
   it("falls back to the workflow token when the platform cannot issue one", async () => {
@@ -610,7 +611,9 @@ it("tells the reviewer which earlier findings were resolved and dedupes them", a
       body: formatFingerprintComment(fingerprints(finding.path, finding.body)),
     },
   ]);
-  f.github.resolvedReviewCommentIds.mockResolvedValue(new Set([9]));
+  f.github.reviewThreads.mockResolvedValue([
+    { id: "T9", resolved: true, outdated: false, path: finding.path, commentIds: [9] },
+  ]);
   await f.run();
   const prompt = JSON.stringify(vi.mocked(f.model.completion).mock.calls[0]?.[0].chatHistory);
   expect(prompt).toContain("marked resolved");
@@ -620,12 +623,146 @@ it("tells the reviewer which earlier findings were resolved and dedupes them", a
 
 it("keeps reviewing when resolved threads cannot be read", async () => {
   const f = await fixture();
-  f.github.resolvedReviewCommentIds.mockRejectedValue(new Error("Resource not accessible"));
+  f.github.reviewThreads.mockRejectedValue(new Error("Resource not accessible"));
   await f.run();
   expect(f.posted).toHaveLength(1);
   expect(f.runtime.warning).toHaveBeenCalledWith(
     expect.stringContaining("Resolved threads unavailable"),
   );
+});
+
+const earlierThreadBody = (body: string) =>
+  `${body}\n${formatFingerprintComment(fingerprints(finding.path, body))}`;
+
+describe("one comment per run", () => {
+  const completed = (id: number, sha?: string) => ({
+    id,
+    body: `<!-- hammer:summary -->\n### Hammer Review\n\n0 findings\n${sha ? `\n<!-- hammer:last-sha=${sha} -->\n` : ""}`,
+    user: { login: "github-actions[bot]", type: "Bot" },
+  });
+
+  it("posts a new summary on a push and leaves earlier ones alone", async () => {
+    const f = await fixture();
+    await writeFile(f.eventPath, JSON.stringify({ ...f.payload, action: "synchronize" }));
+    f.github.compare.mockResolvedValue({
+      ancestor: true,
+      files: (await f.github.files()) as never,
+    });
+    f.comments.push(completed(4, "a".repeat(40)), completed(5, base), completed(6));
+    await f.run();
+    expect(f.github.createSummary).toHaveBeenCalledTimes(1);
+    expect(f.github.updateSummary.mock.calls.every((call) => call[2] === 12)).toBe(true);
+    expect(f.github.compare).toHaveBeenCalledWith("acme", "sandbox", base, head);
+    expect(f.summaries.at(-1)).toContain(`hammer:last-sha=${head}`);
+  });
+
+  it("marks an unfinished earlier run as superseded", async () => {
+    const f = await fixture();
+    f.comments.push({
+      id: 5,
+      body: "<!-- hammer:summary -->\n### Hammer Review\n\nReview in progress. This comment updates.\n",
+      user: { login: "github-actions[bot]", type: "Bot" },
+    });
+    await f.run();
+    const rewrite = f.github.updateSummary.mock.calls.find((call) => call[2] === 5);
+    expect(rewrite?.[3]).toContain("superseded by a newer run");
+    expect(rewrite?.[3]).not.toContain("Review in progress");
+    expect(f.github.createSummary).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolving fixed threads", () => {
+  const earlier = "Earlier finding the author has since fixed.";
+  const outdatedThread = {
+    id: "T9",
+    resolved: false,
+    outdated: true,
+    path: finding.path,
+    commentIds: [9],
+  };
+  const withThread = async (thread: Partial<typeof outdatedThread> = {}) => {
+    const f = await fixture();
+    f.github.reviewComments.mockResolvedValue([
+      {
+        id: 9,
+        path: finding.path,
+        line: null,
+        original_line: 2,
+        user: { login: "github-actions[bot]", type: "Bot" },
+        body: earlierThreadBody(earlier),
+      },
+    ] as never);
+    f.github.reviewThreads.mockResolvedValue([{ ...outdatedThread, ...thread }]);
+    return f;
+  };
+
+  it("resolves an outdated thread the reviewer no longer reports", async () => {
+    const f = await withThread();
+    await f.run();
+    expect(f.github.resolveThread).toHaveBeenCalledTimes(1);
+    expect(f.github.resolveThread).toHaveBeenCalledWith("T9");
+    expect(f.posted).toHaveLength(1);
+    expect(f.summaries.at(-1)).toContain("resolved 1 earlier thread");
+  });
+
+  it("leaves a thread whose flagged lines did not change", async () => {
+    const f = await withThread({ outdated: false });
+    await f.run();
+    expect(f.github.resolveThread).not.toHaveBeenCalled();
+  });
+
+  it("leaves a thread the reviewer reports again", async () => {
+    const f = await withThread();
+    f.github.reviewComments.mockResolvedValue([
+      {
+        id: 9,
+        path: finding.path,
+        line: null,
+        original_line: 2,
+        user: { login: "github-actions[bot]", type: "Bot" },
+        body: earlierThreadBody(finding.body),
+      },
+    ] as never);
+    await f.run();
+    expect(f.github.resolveThread).not.toHaveBeenCalled();
+  });
+
+  it("leaves a thread already resolved or started by someone else", async () => {
+    const resolved = await withThread({ resolved: true });
+    await resolved.run();
+    const foreign = await withThread({ commentIds: [77] });
+    await foreign.run();
+    expect(resolved.github.resolveThread).not.toHaveBeenCalled();
+    expect(foreign.github.resolveThread).not.toHaveBeenCalled();
+  });
+
+  it("resolves nothing when the review did not finish", async () => {
+    const f = await withThread();
+    vi.mocked(f.model.completion).mockResolvedValue({
+      choice: [{ type: "text" as const, text: "not json" }],
+      usage: {
+        inputTokens: 1,
+        outputTokens: 1,
+        totalTokens: 2,
+        cachedInputTokens: 0,
+        cacheCreationInputTokens: 0,
+      },
+      rawResponse: {},
+    });
+    await f.run();
+    expect(f.github.resolveThread).not.toHaveBeenCalled();
+  });
+
+  it("keeps the review when a thread cannot be resolved", async () => {
+    const f = await withThread();
+    f.github.resolveThread.mockRejectedValue(new Error("Resource not accessible"));
+    await f.run();
+    expect(f.posted).toHaveLength(1);
+    expect(f.runtime.warning).toHaveBeenCalledWith(
+      expect.stringContaining("Could not resolve a fixed thread"),
+    );
+    expect(f.summaries.at(-1)).not.toContain("resolved 1 earlier thread");
+  });
 });
 
 it("honors verification disabled in base config when there is no action override", async () => {
