@@ -5,7 +5,7 @@ Previous broader draft ("Anvia Agent for GitHub"): `docs/archive/PRD-v0-agent-fo
 
 ## 1. Summary
 
-A GitHub Action that reviews pull requests with an agent built on `@anvia/core`. On every PR (or on `/hammer review`), it reads the diff plus surrounding code, then posts **one sticky summary comment** and **inline review comments** for real problems: bugs, security issues, and violations of the team's own rules.
+A GitHub Action that reviews pull requests with an agent built on `@anvia/core`. On every PR (or on `/hammer review`), it reads the diff plus surrounding code, then posts a **summary comment** and **inline review comments** for each run for real problems: bugs, security issues, and violations of the team's own rules.
 
 It runs on the customer's runner with their own model key (BYOK), is MIT-licensed, and is configured with one workflow file plus an optional `.github/hammer.yml`.
 
@@ -57,7 +57,7 @@ It runs on the customer's runner with their own model key (BYOK), is MIT-license
 ## 5. User stories (v1)
 
 1. **Auto review.** When I open or update a non-draft PR, I get a summary comment and inline comments within a few minutes.
-2. **Incremental review.** When I push new commits, only the new changes are reviewed. Earlier comments are not duplicated, and the summary is updated in place.
+2. **Incremental review.** When I push new commits, only the new changes are reviewed. Earlier comments are not duplicated, each push gets its own summary comment, and earlier threads whose flagged code was fixed are resolved ([0020](decision/0020-comment-per-run-and-resolve-fixed-threads.md)).
 3. **On-demand review.** A maintainer comments `/hammer review` (full re-review) or `/hammer review <instruction>`, e.g. `/hammer review focus on the SQL migration`.
 4. **House rules.** We write rules and per-path instructions in `.github/hammer.yml`, and the agent applies them and names the rule it is citing.
 5. **Gate merges (opt-in).** With `fail_on: high`, the job fails when a high-severity finding is posted, so branch protection can block the merge.
@@ -103,7 +103,7 @@ No `actions/checkout` is needed: the action fetches the PR head itself with a sc
 
 ### 6.2 Output on the PR
 
-**Summary comment** (one per PR, edited in place, found by a hidden marker `<!-- hammer-review:v1 -->`):
+**Summary comment** (one per run; the run edits only its own comment, and the newest one with a `last-sha` marker is the last reviewed commit):
 
 ```
 ### Hammer Review · 3 findings (1 high, 2 medium)
@@ -173,7 +173,7 @@ Commands from users without write access get a 👀 reaction and no run (§9, S1
 | F12 | **One agent per PR:** the whole filtered diff is reviewed by a single agent (see [0015](decision/0015-single-agent-checkout-pr.md)). The prompt carries the PR title, body and repo guidance; `checkout_pr` returns the metadata and a table of contents of the diff, and `read_diff` serves it in pages with new-file line numbers. `max_files` and `max_diff_lines` bound the size | 200-file fixture completes under caps; a finding in the last file of a large PR is reported |
 | F13 | **Finding validation (local, before any API call):** build the set of commentable RIGHT-side lines per file from the patch (added and context lines). A finding with `startLine..line` fully inside one hunk is posted inline. If only `line` is valid, it becomes a single-line comment and its `suggestion` is dropped. Otherwise it goes into the summary as a "general note". Findings are never remapped to a nearby hunk. Drop findings under `min_severity` or with `confidence < 0.6`; cap at `max_comments` (default 10), highest severity first | Unit tests for out-of-diff lines, cross-hunk ranges, multi-line ranges, deleted files |
 | F14 | **Dedupe:** each inline comment carries a hidden `<!-- hammer:fp=… -->` with two fingerprints: sha256(path + normalized body) and sha256(path + suggestion code). Line numbers are excluded so a finding survives code shifting. If either fingerprint matches a prior Hammer comment, the finding is a duplicate. Prior open findings (max 8k chars) are passed to the model with an instruction to restate a still-valid one word for word | Re-running on the same SHA posts 0 new inline comments; shifting code by 10 lines posts 0 duplicates |
-| F15 | **Posting:** one `POST /pulls/{n}/reviews` with `event: COMMENT`, `commit_id` = reviewed head SHA, and all inline comments; create or update the sticky summary comment. On GitHub's generic 422 "internal error", retry after 1 s and 3 s. On a 422 naming a bad anchor, move that comment to the summary and retry once. Never check anchors by creating and deleting pending reviews | No `APPROVE`/`REQUEST_CHANGES` ever sent; tested against a mocked API |
+| F15 | **Posting:** one `POST /pulls/{n}/reviews` with `event: COMMENT`, `commit_id` = reviewed head SHA, and all inline comments; create the run's summary comment and update it as the run progresses; resolve earlier threads whose flagged lines changed and whose finding was not reported again ([0020](decision/0020-comment-per-run-and-resolve-fixed-threads.md)). On GitHub's generic 422 "internal error", retry after 1 s and 3 s. On a 422 naming a bad anchor, move that comment to the summary and retry once. Never check anchors by creating and deleting pending reviews | No `APPROVE`/`REQUEST_CHANGES` ever sent; tested against a mocked API |
 | F16 | **Outputs and job summary:** action outputs `findings_count`, `high_count`, `review_url`, `result_path` (full JSON written to `$RUNNER_TEMP`), `tokens`, `cost_usd`. Markdown table written to `$GITHUB_STEP_SUMMARY` | Outputs readable in a later workflow step |
 | F17 | **Gate:** `fail_on: none\|high\|medium` (default `none`) sets the exit code from the posted findings | `fail_on: high` with 1 high finding → exit 1 |
 | F18 | **Clients:** separate `client` and `model` inputs (`model` is a bare model id). v1 clients: `anthropic`, `openai`, `gemini`, plus `openai-compatible` and `azure` with `base-url`. Uses `@anvia/anthropic`, `@anvia/openai`, `@anvia/gemini`, `@anvia/azure` | Smoke test per client in CI (nightly, real keys) |
@@ -212,7 +212,7 @@ Not used in v1: `@anvia/durable`, `@anvia/tool-sandbox`, `@anvia/tool-browser`. 
 ```
 
 event ──► 1 resolve ─ parse event, check trigger auth (F2), load config, decide skip (F3)
-2 fetch ─ PR metadata, files+patches (F4), lastSha from sticky comment (F5)
+2 fetch ─ PR metadata, files+patches (F4), lastSha from the newest summary comment that has one (F5)
 3 checkout ─ git init in $RUNNER_TEMP/hammer-head; fetch head SHA (depth 1, plus
 base SHA if needed); no hooks, no submodules, no LFS smudge
 4 filter ─ ignores, include, size limits (F6, F7) → review plan
@@ -220,7 +220,7 @@ base SHA if needed); no hooks, no submodules, no LFS smudge
 and outputSchema → validate (F11–F13)
 6 dedupe ─ against prior comments (F14)
 6b verify ─ one verification call scores and filters findings (F22)
-7 publish ─ PR review + sticky summary (F15), outputs + job summary (F16)
+7 publish ─ PR review + run summary + resolve fixed threads (F15), outputs + job summary (F16)
 8 exit ─ code from fail_on / fail_on_error (F17)
 
 ````
@@ -346,7 +346,7 @@ packages/
     src/
       event.ts               # event parsing, trigger auth, commands
       config.ts              # load + zod-validate + merge
-      github/                # octokit client, diff fetch, patch parser, publish, sticky comment
+      github/                # octokit client, diff fetch, patch parser, publish, run comment
       git/checkout.ts        # read-only head fetch (git, or API tarball fallback)
       plan.ts                # filtering, prioritising
       agent/                 # model factory, tools, prompts/, schema, run + merge, verify
@@ -410,17 +410,17 @@ A review is mostly waiting on the model, so 2 vCPU is enough. A bigger runner do
 
 Threat model: PR content and repo files are attacker-controlled (forks, compromised contributors). The agent's only output channel is review comments, so the job is to keep secrets out of that channel and to stop the agent from doing anything else.
 
-| ID  | Requirement                                                                                                                                                                                                                                                                                                                       |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| S1  | Comment triggers require write+ permission, checked via `GET /collaborators/{user}/permission`. `pull_request` from forks runs without secrets, so the action detects the missing key and exits 0 with a notice telling maintainers to use `/hammer review`                                                                       |
-| S2  | `pull_request_target` only in the blessed opt-in example (`docs/examples/hammer-fork-review.yml`), allowlisted by tests. The `issue_comment` and `pull_request_target` paths run in base-repo context, so they must never execute fork code. They only `git fetch` and read files                                                 |
-| S3  | No code execution: no shell tool, no network tool, no package install, git hooks disabled (`core.hooksPath=/dev/null`), submodules and LFS not fetched                                                                                                                                                                            |
-| S4  | File tools resolve real paths inside the checkout dir. Symlinks pointing outside are rejected. Denylist: `.env*`, `*.pem`, `*.key`, `id_rsa*`, `.git/**`, files > 1 MB                                                                                                                                                            |
-| S5  | Token permissions limited to `contents: read`, `pull-requests: write`, plus optional `statuses: write` for comment-triggered reviews ([0019](../decision/0019-commit-status-for-comment-reviews.md)). The action never calls approve, merge, label-edit or push endpoints, and an Octokit wrapper allowlist enforces this in code |
-| S6  | API key and GitHub token are masked with `core.setSecret`. All outbound comment text is scanned for secret patterns (provider key prefixes, JWTs, private keys, high-entropy strings ≥ 32 chars) and redacted before posting, using `@anvia/core` redaction                                                                       |
-| S7  | Comment sanitising: neutralise `@mentions` (zero-width join) to prevent pinging, strip raw HTML and images, allow links only to `github.com/<owner>/<repo>`, cap total comment length                                                                                                                                             |
-| S8  | Config and `AGENTS.md`/`CLAUDE.md` are read from the base branch only (§8.6), so a PR cannot disable rules or inject its own. Repo config can never set host-level values (`base-url`, `lens-endpoint`, `otel-endpoint`, tokens) or raise caps above the action inputs                                                            |
-| S9  | Data handling: code is sent only to the configured model provider. No Hammer telemetry in v1. This is stated in the README                                                                                                                                                                                                        |
+| ID  | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1  | Comment triggers require write+ permission, checked via `GET /collaborators/{user}/permission`. `pull_request` from forks runs without secrets, so the action detects the missing key and exits 0 with a notice telling maintainers to use `/hammer review`                                                                                                                                                                                                                   |
+| S2  | `pull_request_target` only in the blessed opt-in example (`docs/examples/hammer-fork-review.yml`), allowlisted by tests. The `issue_comment` and `pull_request_target` paths run in base-repo context, so they must never execute fork code. They only `git fetch` and read files                                                                                                                                                                                             |
+| S3  | No code execution: no shell tool, no network tool, no package install, git hooks disabled (`core.hooksPath=/dev/null`), submodules and LFS not fetched                                                                                                                                                                                                                                                                                                                        |
+| S4  | File tools resolve real paths inside the checkout dir. Symlinks pointing outside are rejected. Denylist: `.env*`, `*.pem`, `*.key`, `id_rsa*`, `.git/**`, files > 1 MB                                                                                                                                                                                                                                                                                                        |
+| S5  | Token permissions limited to `contents: read`, `pull-requests: write`, plus optional `statuses: write` for comment-triggered reviews ([0019](../decision/0019-commit-status-for-comment-reviews.md)). The action never calls approve, merge, label-edit or push endpoints, and an Octokit wrapper allowlist enforces this in code. The one GraphQL mutation it admits resolves a Hammer review thread ([0020](../decision/0020-comment-per-run-and-resolve-fixed-threads.md)) |
+| S6  | API key and GitHub token are masked with `core.setSecret`. All outbound comment text is scanned for secret patterns (provider key prefixes, JWTs, private keys, high-entropy strings ≥ 32 chars) and redacted before posting, using `@anvia/core` redaction                                                                                                                                                                                                                   |
+| S7  | Comment sanitising: neutralise `@mentions` (zero-width join) to prevent pinging, strip raw HTML and images, allow links only to `github.com/<owner>/<repo>`, cap total comment length                                                                                                                                                                                                                                                                                         |
+| S8  | Config and `AGENTS.md`/`CLAUDE.md` are read from the base branch only (§8.6), so a PR cannot disable rules or inject its own. Repo config can never set host-level values (`base-url`, `lens-endpoint`, `otel-endpoint`, tokens) or raise caps above the action inputs                                                                                                                                                                                                        |
+| S9  | Data handling: code is sent only to the configured model provider. No Hammer telemetry in v1. This is stated in the README                                                                                                                                                                                                                                                                                                                                                    |
 
 ## 10. Error handling
 
@@ -459,7 +459,7 @@ Threat model: PR content and repo files are attacker-controlled (forks, compromi
 ## 13. After v1 (designed for, not built)
 
 - **Custom reviewer** (`agent: ./review/agent.ts`): a TypeScript file exports `createReviewer(ctx) → Agent`. It gets the same tools and schema, so teams can add their own tools (e.g. a vector-store lookup of internal docs). `ReviewBatchSchema` and the tool interfaces are kept stable from v1 for this reason.
-- `/hammer resolve` and `/hammer explain`, plus auto-resolving our threads when the flagged code changes.
+- `/hammer resolve` and `/hammer explain`. Auto-resolving our threads when the flagged code changes shipped in [0020](decision/0020-comment-per-run-and-resolve-fixed-threads.md).
 - Fix suggestions applied as commits (moves toward the autofix mode in the v0 draft).
 - GitHub App identity (`hammer[bot]`), hosted run history and budgets.
 

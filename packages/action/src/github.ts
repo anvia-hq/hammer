@@ -49,6 +49,9 @@ const reviewCommentSchema = commentSchema.extend({
 export type IssueComment = z.infer<typeof commentSchema>;
 export type ReviewComment = z.infer<typeof reviewCommentSchema>;
 
+export const RESOLVE_THREAD_MUTATION = `mutation($threadId: ID!) {
+  resolveReviewThread(input: { threadId: $threadId }) { thread { id } }
+}`;
 export const COMMENT_STATUS_CONTEXT = "Hammer Review / comment";
 export type CommitStatusState = "pending" | "success" | "failure" | "error";
 
@@ -68,8 +71,15 @@ export function assertAllowedRequest(
     body !== null &&
     "query" in body &&
     typeof body.query === "string" &&
-    /^\s*query\b/.test(body.query) &&
-    !/\bmutation\b/i.test(body.query)
+    ((/^\s*query\b/.test(body.query) && !/\bmutation\b/i.test(body.query)) ||
+      (body.query === RESOLVE_THREAD_MUTATION &&
+        "variables" in body &&
+        typeof body.variables === "object" &&
+        body.variables !== null &&
+        Object.keys(body.variables).join() === "threadId" &&
+        "threadId" in body.variables &&
+        typeof body.variables.threadId === "string" &&
+        /^[\w=-]+$/.test(body.variables.threadId)))
   )
     return;
   if (target.origin !== base.origin || !target.pathname.startsWith(base.pathname))
@@ -118,7 +128,7 @@ const THREADS_QUERY = `query($owner: String!, $repo: String!, $pull_number: Int!
     pullRequest(number: $pull_number) {
       reviewThreads(first: 100, after: $after) {
         pageInfo { hasNextPage endCursor }
-        nodes { isResolved comments(first: 50) { nodes { databaseId } } }
+        nodes { id isResolved isOutdated path comments(first: 50) { nodes { databaseId } } }
       }
     }
   }
@@ -130,7 +140,10 @@ const threadsSchema = z.object({
         pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable() }),
         nodes: z.array(
           z.object({
+            id: z.string(),
             isResolved: z.boolean(),
+            isOutdated: z.boolean(),
+            path: z.string(),
             comments: z.object({ nodes: z.array(z.object({ databaseId: z.number() })) }),
           }),
         ),
@@ -138,6 +151,14 @@ const threadsSchema = z.object({
     }),
   }),
 });
+
+export interface ReviewThread {
+  id: string;
+  resolved: boolean;
+  outdated: boolean;
+  path: string;
+  commentIds: number[];
+}
 
 export class GitHub {
   private readonly api;
@@ -255,12 +276,8 @@ export class GitHub {
       }),
     );
   }
-  async resolvedReviewCommentIds(
-    owner: string,
-    repo: string,
-    pull_number: number,
-  ): Promise<Set<number>> {
-    const resolved = new Set<number>();
+  async reviewThreads(owner: string, repo: string, pull_number: number): Promise<ReviewThread[]> {
+    const found: ReviewThread[] = [];
     let after: string | null = null;
     for (let page = 0; page < MAX_THREAD_PAGES; page += 1) {
       const data: unknown = await this.api.graphql(THREADS_QUERY, {
@@ -271,12 +288,20 @@ export class GitHub {
       });
       const threads = threadsSchema.parse(data).repository.pullRequest.reviewThreads;
       for (const thread of threads.nodes)
-        if (thread.isResolved)
-          for (const comment of thread.comments.nodes) resolved.add(comment.databaseId);
+        found.push({
+          id: thread.id,
+          resolved: thread.isResolved,
+          outdated: thread.isOutdated,
+          path: thread.path,
+          commentIds: thread.comments.nodes.map((comment) => comment.databaseId),
+        });
       if (!threads.pageInfo.hasNextPage) break;
       after = threads.pageInfo.endCursor;
     }
-    return resolved;
+    return found;
+  }
+  async resolveThread(threadId: string): Promise<void> {
+    await this.api.graphql(RESOLVE_THREAD_MUTATION, { threadId });
   }
   async createComment(
     owner: string,

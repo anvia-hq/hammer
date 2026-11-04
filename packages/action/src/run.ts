@@ -12,6 +12,8 @@ import {
   extractLastSha,
   isProgressBody,
   renderInterruptedBody,
+  renderSummaryBody,
+  selectThreadsToResolve,
   type PriceCatalog,
   fetchGatewayCatalog,
   fetchPullFiles,
@@ -41,7 +43,7 @@ import { configOverrides, readInputs, type ActionInputs } from "./inputs";
 import { requestPlatformToken } from "./platform";
 import { createProgressReporter, type ProgressReporter } from "./progress";
 import { createCommentStatus, type CommentStatus } from "./status";
-import { publishReview, writeProgress, writeSummary, type PublishTarget } from "./publish";
+import { createRunComment, publishReview, type PublishTarget, type RunComment } from "./publish";
 
 export interface ActionRuntime {
   getInput(name: string): string;
@@ -82,6 +84,7 @@ export async function runAction(
   let identity = "";
   let githubToken = "";
   let progress: ProgressReporter | undefined;
+  let runComment: RunComment | undefined;
   let commentStatus: CommentStatus | undefined;
   const cleanError = (error: unknown): string => {
     let message =
@@ -99,26 +102,30 @@ export async function runAction(
     }
     return redactSecrets(message);
   };
+  const secretValues = (): string[] => [
+    runtime.getInput("api-key"),
+    runtime.getInput("github-token"),
+    githubToken,
+  ];
   const clearStaleProgress = async (reason: string): Promise<void> => {
     if (!github || !target || !identity || progress) return;
-    const stale = comments.find(
+    const stale = comments.filter(
       (comment) =>
         comment.user?.login === identity &&
         comment.body?.includes(SUMMARY_MARKER) &&
         isProgressBody(comment.body),
     );
-    if (!stale) return;
-    try {
-      await writeProgress(
-        github,
-        target,
-        comments,
-        identity,
-        renderInterruptedBody({ reason, lastSha: extractLastSha(stale.body ?? "") }),
-        [runtime.getInput("api-key"), runtime.getInput("github-token"), githubToken],
-      );
-    } catch (error) {
-      runtime.warning(`Could not clear the stale progress comment: ${cleanError(error)}`);
+    for (const comment of stale) {
+      const body = renderInterruptedBody({
+        reason,
+        lastSha: extractLastSha(comment.body ?? ""),
+      });
+      try {
+        await createRunComment(github, target, secretValues(), comment.id).write(body);
+        comment.body = body;
+      } catch (error) {
+        runtime.warning(`Could not clear the stale progress comment: ${cleanError(error)}`);
+      }
     }
   };
   const warnWithoutCancel = async (owner: string, repo: string): Promise<void> => {
@@ -227,6 +234,7 @@ export async function runAction(
       repoUrl: `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${owner}/${repo}`,
     };
     identity = botLogin || (await github.identity());
+    runComment = createRunComment(github, target, secretValues());
     comments = await github.comments(owner, repo, prNumber);
     if (
       decision.kind === "comment" &&
@@ -278,10 +286,14 @@ export async function runAction(
     );
     const anchorFiles = files;
     const lastSha = comments
-      .filter((comment) => comment.user?.login === identity)
-      .find((comment) => comment.body?.includes(SUMMARY_MARKER))?.body;
+      .filter(
+        (comment) => comment.user?.login === identity && comment.body?.includes(SUMMARY_MARKER),
+      )
+      .map((comment) => extractLastSha(comment.body ?? ""))
+      .filter((sha) => sha !== undefined)
+      .at(-1);
     if (decision.kind === "pull_request" && decision.action === "synchronize" && lastSha) {
-      const sha = extractLastSha(lastSha);
+      const sha = lastSha;
       if (sha === pr.head.sha) {
         await skip("this head commit was already reviewed");
         return;
@@ -320,18 +332,15 @@ export async function runAction(
       env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && env.GITHUB_RUN_ID
         ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`
         : undefined;
-    const progressTarget = target;
-    const progressGithub = github;
-    const secrets = [inputs["api-key"], githubToken];
+    const progressComment = runComment;
+    await clearStaleProgress("superseded by a newer run");
     progress = createProgressReporter({
       state: initialProgress({
         files: plan.reviewFiles.length,
         verify: config.verify,
         runUrl,
-        lastSha: extractLastSha(lastSha ?? ""),
       }),
-      write: (body) =>
-        writeProgress(progressGithub, progressTarget, comments, identity, body, secrets),
+      write: (body) => progressComment.write(body),
       warn: runtime.warning,
     });
     await progress.start();
@@ -375,14 +384,15 @@ export async function runAction(
     const hammerComments = (await github.reviewComments(owner, repo, prNumber)).filter(
       (comment) => comment.user?.login === identity && comment.body?.includes("<!-- hammer:fp="),
     );
-    const resolvedIds = await github
-      .resolvedReviewCommentIds(owner, repo, prNumber)
-      .catch((error: unknown) => {
-        runtime.warning(
-          `Resolved threads unavailable; continuing without them: ${cleanError(error)}`,
-        );
-        return new Set<number>();
-      });
+    const threads = await github.reviewThreads(owner, repo, prNumber).catch((error: unknown) => {
+      runtime.warning(
+        `Resolved threads unavailable; continuing without them: ${cleanError(error)}`,
+      );
+      return [];
+    });
+    const resolvedIds = new Set(
+      threads.filter((thread) => thread.resolved).flatMap((thread) => thread.commentIds),
+    );
     const prior = hammerComments.filter((comment) => !resolvedIds.has(comment.id));
     const resolved = hammerComments.filter((comment) => resolvedIds.has(comment.id));
     const toFinding = (comment: (typeof hammerComments)[number]) => ({
@@ -458,15 +468,47 @@ export async function runAction(
       await skip("pull request changed while reviewing; discarding stale results");
       return;
     }
+    const resolveFixed = async (): Promise<number> => {
+      const opening = new Map(hammerComments.map((comment) => [comment.id, comment.body ?? ""]));
+      const candidates = threads.flatMap((thread) => {
+        const first = thread.commentIds[0];
+        const body = first === undefined ? undefined : opening.get(first);
+        return thread.resolved || body === undefined
+          ? []
+          : [{ id: thread.id, path: thread.path, outdated: thread.outdated, body }];
+      });
+      const ids = selectThreadsToResolve({
+        threads: candidates,
+        reviewedPaths: new Set(plan.reviewFiles.map((file) => file.filename)),
+        reported: [...result.findings, ...result.dropped.map((entry) => entry.finding)],
+        complete:
+          instruction === "" &&
+          !result.partial &&
+          !plan.partial &&
+          result.reviewError === undefined &&
+          !result.failed,
+      });
+      let resolvedCount = 0;
+      for (const id of ids) {
+        try {
+          await github!.resolveThread(id);
+          resolvedCount += 1;
+        } catch (error) {
+          runtime.warning(`Could not resolve a fixed thread: ${cleanError(error)}`);
+          break;
+        }
+      }
+      return resolvedCount;
+    };
     const published = await publishReview(
       github,
       { ...target, ...(runUrl ? { runUrl } : {}) },
-      comments,
-      identity,
+      runComment!,
       plan,
       result,
       modelRef,
       [inputs["api-key"], githubToken],
+      resolveFixed,
     );
     const resultPath = join(directory, "result.json");
     await writeFile(
@@ -531,19 +573,14 @@ export async function runAction(
     const message = cleanError(error);
     runtime.warning(`[hammer] ${message}`);
     await runtime.summary(renderJobSummaryMarkdown({ error: message }));
-    if (github && target && identity) {
+    if (runComment) {
       const runUrl =
         env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && env.GITHUB_RUN_ID
           ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`
           : undefined;
       try {
-        await writeSummary(
-          github,
-          target,
-          comments,
-          identity,
-          { files: [], error: message, ...(runUrl ? { runUrl } : {}) },
-          [runtime.getInput("api-key"), runtime.getInput("github-token"), githubToken],
+        await runComment.write(
+          renderSummaryBody({ files: [], error: message, ...(runUrl ? { runUrl } : {}) }),
         );
       } catch (postError) {
         runtime.warning(`Could not publish error summary: ${cleanError(postError)}`);

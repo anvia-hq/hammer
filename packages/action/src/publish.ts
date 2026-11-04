@@ -7,10 +7,9 @@ import {
   upsertSummaryComment,
   type Finding,
   type ReviewPlan,
-  type RenderSummaryOptions,
 } from "@anvia/hammer-core";
 import type { ReviewPipelineResult } from "@anvia/hammer-agents";
-import type { GitHubPort, IssueComment } from "./github";
+import type { GitHubPort } from "./github";
 
 export interface PublishTarget {
   owner: string;
@@ -21,59 +20,40 @@ export interface PublishTarget {
   runUrl?: string;
 }
 
-export async function writeProgress(
-  github: GitHubPort,
-  target: PublishTarget,
-  comments: IssueComment[],
-  identity: string,
-  body: string,
-  secrets: readonly string[] = [],
-): Promise<void> {
-  const written = await upsertSummaryComment(
-    async (page) =>
-      page === 1 ? comments.filter((comment) => comment.user?.login === identity) : [],
-    (text) => github.createSummary(target.owner, target.repo, target.number, text),
-    (id, text) => github.updateSummary(target.owner, target.repo, id, text),
-    body,
-    {
-      perPage: comments.length + 1,
-      sanitizeOptions: { owner: target.owner, repo: target.repo, secrets },
-    },
-  );
-  if (written.action === "created")
-    comments.push({ id: written.id, body: body, user: { login: identity, type: "Bot" } });
+export interface RunComment {
+  write(body: string): Promise<void>;
 }
 
-export async function writeSummary(
+export function createRunComment(
   github: GitHubPort,
   target: PublishTarget,
-  comments: IssueComment[],
-  identity: string,
-  options: RenderSummaryOptions,
   secrets: readonly string[] = [],
-): Promise<void> {
-  await upsertSummaryComment(
-    async (page) =>
-      page === 1 ? comments.filter((comment) => comment.user?.login === identity) : [],
-    (body) => github.createSummary(target.owner, target.repo, target.number, body),
-    (id, body) => github.updateSummary(target.owner, target.repo, id, body),
-    renderSummaryBody(options),
-    {
-      perPage: comments.length + 1,
-      sanitizeOptions: { owner: target.owner, repo: target.repo, secrets },
+  existingId?: number,
+): RunComment {
+  let id = existingId;
+  return {
+    async write(body) {
+      const written = await upsertSummaryComment(
+        id,
+        (text) => github.createSummary(target.owner, target.repo, target.number, text),
+        (commentId, text) => github.updateSummary(target.owner, target.repo, commentId, text),
+        body,
+        { sanitizeOptions: { owner: target.owner, repo: target.repo, secrets } },
+      );
+      id = written.id;
     },
-  );
+  };
 }
 
 export async function publishReview(
   github: GitHubPort,
   target: PublishTarget,
-  comments: IssueComment[],
-  identity: string,
+  runComment: RunComment,
   plan: ReviewPlan,
   result: ReviewPipelineResult,
   model: string,
   secrets: readonly string[] = [],
+  resolveFixed: () => Promise<number> = async () => 0,
 ): Promise<{ findings: Finding[]; reviewUrl: string; postedInline: number }> {
   const placed = [...result.inline, ...result.single];
   const notes = [...result.generalNotes];
@@ -119,12 +99,9 @@ export async function publishReview(
     }
   }
   const findings = result.findings;
-  await writeSummary(
-    github,
-    target,
-    comments,
-    identity,
-    {
+  const resolvedThreads = await resolveFixed();
+  await runComment.write(
+    renderSummaryBody({
       files: plan.reviewFiles.map((file) => ({
         path: file.filename,
         status: file.status,
@@ -146,6 +123,7 @@ export async function publishReview(
           }
         : {}),
       ...(result.duplicates > 0 ? { duplicates: result.duplicates } : {}),
+      ...(resolvedThreads > 0 ? { resolvedThreads } : {}),
       ...(result.partial || plan.partial ? {} : { headSha: target.headSha }),
       ...(target.repoUrl !== undefined ? { repoUrl: target.repoUrl } : {}),
       findings,
@@ -168,8 +146,7 @@ export async function publishReview(
             ...(result.outputChars !== undefined ? { outputChars: result.outputChars } : {}),
             ...(result.reviewNote !== undefined ? { repairOutcome: result.reviewNote } : {}),
           }),
-    },
-    secrets,
+    }),
   );
   return { findings, reviewUrl, postedInline };
 }

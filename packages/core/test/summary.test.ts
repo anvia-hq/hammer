@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  renderSummaryBody,
-  SUMMARY_MARKER,
-  upsertSummaryComment,
-  type ListedComment,
-} from "../src/index";
+import { renderSummaryBody, SUMMARY_MARKER, upsertSummaryComment } from "../src/index";
 
 describe("renderSummaryBody", () => {
   it("starts with the marker and includes a last-sha line when a sha is given", () => {
@@ -219,7 +214,7 @@ describe("summary posting", () => {
     });
     let posted = "";
     await upsertSummaryComment(
-      async () => [],
+      undefined,
       async (text) => {
         posted = text;
         return { id: 1 };
@@ -236,10 +231,10 @@ describe("summary posting", () => {
 });
 
 describe("upsertSummaryComment", () => {
-  it("creates a comment when no marker comment exists", async () => {
+  it("creates a comment when the run has none yet", async () => {
     const created: string[] = [];
     const result = await upsertSummaryComment(
-      async () => [{ id: 1, body: "hello" }],
+      undefined,
       async (body) => {
         created.push(body);
         return { id: 10 };
@@ -253,72 +248,28 @@ describe("upsertSummaryComment", () => {
     expect(created).toHaveLength(1);
   });
 
-  it("updates the existing comment instead of creating a second one", async () => {
+  it("updates the run's own comment instead of creating a second one", async () => {
     const updated: Array<{ id: number; body: string }> = [];
-    let created = 0;
-    const pages: ListedComment[][] = [
-      [{ id: 5, body: "other" }],
-      [{ id: 7, body: `note\n${SUMMARY_MARKER}\nmore` }],
-    ];
     const result = await upsertSummaryComment(
-      async (page) => pages[page - 1] ?? [],
+      7,
       async () => {
-        created += 1;
-        return { id: 99 };
+        throw new Error("create should not be called");
       },
       async (commentId, body) => {
         updated.push({ id: commentId, body });
       },
       `${SUMMARY_MARKER}\nnew body\n`,
-      { perPage: 1 },
     );
     expect(result).toEqual({ id: 7, action: "updated" });
-    expect(created).toBe(0);
     expect(updated).toEqual([{ id: 7, body: `${SUMMARY_MARKER}\nnew body\n` }]);
-    const rerun = await upsertSummaryComment(
-      async (page) => pages[page - 1] ?? [],
-      async () => {
-        created += 1;
-        return { id: 99 };
-      },
-      async (commentId, body) => {
-        updated.push({ id: commentId, body });
-      },
-      `${SUMMARY_MARKER}\nnew body\n`,
-      { perPage: 1 },
-    );
-    expect(rerun.action).toBe("updated");
-    expect(created).toBe(0);
-    expect(updated).toHaveLength(2);
-  });
-
-  it("finds the marker on the second page", async () => {
-    const updated: number[] = [];
-    const result = await upsertSummaryComment(
-      async (page) =>
-        page === 1
-          ? [
-              { id: 1, body: "one" },
-              { id: 2, body: "two" },
-            ]
-          : [{ id: 3, body: `x ${SUMMARY_MARKER} y` }],
-      async () => ({ id: 42 }),
-      async (commentId) => {
-        updated.push(commentId);
-      },
-      `${SUMMARY_MARKER}\nbody\n`,
-      { perPage: 2 },
-    );
-    expect(result).toEqual({ id: 3, action: "updated" });
-    expect(updated).toEqual([3]);
   });
 });
 
 it("filters secrets and hostile output before both summary create and update", async () => {
-  for (const exists of [false, true]) {
+  for (const existingId of [undefined, 1]) {
     let published = "";
     await upsertSummaryComment(
-      async () => (exists ? [{ id: 1, body: SUMMARY_MARKER }] : []),
+      existingId,
       async (body) => {
         published = body;
         return { id: 1 };
@@ -334,6 +285,21 @@ it("filters secrets and hostile output before both summary create and update", a
     expect(published).not.toContain("<img");
     expect(published).toContain("<!-- hammer:last-sha=abc123 -->");
   }
+});
+
+describe("resolved thread count", () => {
+  it("names the earlier threads this run resolved", () => {
+    const files = [{ path: "src/app.ts", status: "modified" as const }];
+    expect(renderSummaryBody({ files, findings: [], resolvedThreads: 2 })).toContain(
+      "resolved 2 earlier threads",
+    );
+    const single = renderSummaryBody({ files, findings: [], resolvedThreads: 1 });
+    expect(single).toContain("resolved 1 earlier thread");
+    expect(single).not.toContain("earlier threads");
+    expect(renderSummaryBody({ files, findings: [], resolvedThreads: 0 })).not.toContain(
+      "resolved",
+    );
+  });
 });
 
 describe("truncation diagnostics", () => {
