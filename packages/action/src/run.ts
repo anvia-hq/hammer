@@ -482,7 +482,11 @@ export async function runAction(
         reviewedPaths: new Set(plan.reviewFiles.map((file) => file.filename)),
         reported: [...result.findings, ...result.dropped.map((entry) => entry.finding)],
         complete:
-          !result.partial && !plan.partial && result.reviewError === undefined && !result.failed,
+          instruction === "" &&
+          !result.partial &&
+          !plan.partial &&
+          result.reviewError === undefined &&
+          !result.failed,
       });
       let resolvedCount = 0;
       for (const id of ids) {

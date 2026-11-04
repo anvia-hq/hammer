@@ -753,6 +753,35 @@ describe("resolving fixed threads", () => {
     expect(f.github.resolveThread).not.toHaveBeenCalled();
   });
 
+  it("resolves nothing in a review focused by a maintainer instruction", async () => {
+    const f = await withThread();
+    await writeFile(
+      f.eventPath,
+      JSON.stringify({
+        action: "created",
+        repository: f.payload.repository,
+        sender: { login: "maintainer", type: "User" },
+        issue: { number: 7, pull_request: {} },
+        comment: {
+          id: 3,
+          body: "/hammer review check security only",
+          user: { login: "maintainer" },
+        },
+      }),
+    );
+    await runAction(
+      f.runtime,
+      { ...f.env, GITHUB_EVENT_NAME: "issue_comment" },
+      {
+        github: f.github,
+        model: f.model,
+        checkout: f.checkout,
+      },
+    );
+    expect(f.model.completion).toHaveBeenCalled();
+    expect(f.github.resolveThread).not.toHaveBeenCalled();
+  });
+
   it("keeps the review when a thread cannot be resolved", async () => {
     const f = await withThread();
     f.github.resolveThread.mockRejectedValue(new Error("Resource not accessible"));
