@@ -305,3 +305,37 @@ describe("buildReviewPlan flags and summary wiring", () => {
     expect(body).toContain("`pnpm-lock.yaml` — ignored by default: lockfile");
   });
 });
+
+describe("renderSummaryBody size", () => {
+  const scope = Array.from({ length: 300 }, (_, i) => ({
+    path: `src/module-${i}/component-${i}.ts`,
+    status: "modified",
+  }));
+
+  it("keeps the not-reviewed list visible by compacting the file list", () => {
+    const body = renderSummaryBody({
+      files: scope,
+      notReviewed: [
+        { path: "src/big-a.ts", reason: "over max_diff_lines" },
+        { path: "src/big-b.ts", reason: "patch omitted by GitHub (diff too large)" },
+      ],
+      headSha: "abcdef1234567",
+    });
+    expect(body.length).toBeLessThan(4000);
+    expect(body).toContain("`src/big-a.ts` — over max_diff_lines");
+    expect(body).toContain("`src/big-b.ts`");
+    expect(body).toContain("… and ");
+    expect(body.trimEnd().endsWith("-->")).toBe(true);
+  });
+
+  it("compacts a very long not-reviewed list with a count of the rest", () => {
+    const notReviewed = Array.from({ length: 400 }, (_, i) => ({
+      path: `src/extra/file-${i}.ts`,
+      reason: "over max_files",
+    }));
+    const body = renderSummaryBody({ files: scope, notReviewed });
+    expect(body.length).toBeLessThan(4000);
+    expect(body).toContain("Not reviewed (400)");
+    expect(body).toMatch(/… and \d+ more/);
+  });
+});

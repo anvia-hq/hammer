@@ -108,7 +108,45 @@ function renderDiagnosticNote(options: RenderSummaryOptions): string | null {
   return `> [!NOTE]\n> Incomplete run: ${parts.join(" · ")}.`;
 }
 
+interface ListCaps {
+  files: number;
+  skipped: number;
+  notReviewed: number;
+  filtered: number;
+}
+
+const FULL_CAPS: ListCaps = {
+  files: Infinity,
+  skipped: Infinity,
+  notReviewed: Infinity,
+  filtered: Infinity,
+};
+
+const CAP_STEPS = [40, 15, 5, 0];
+const SUMMARY_SLACK = 300;
+
+function capEntries(entries: string[], cap: number): string[] {
+  if (entries.length <= cap) return entries;
+  return [...entries.slice(0, cap), `- … and ${entries.length - cap} more`];
+}
+
 export function renderSummaryBody(options: RenderSummaryOptions): string {
+  const limit = MAX_COMMENT_CHARS - SUMMARY_SLACK;
+  let body = renderSummaryWithCaps(options, FULL_CAPS);
+  if (body.length <= limit) return body;
+  const order = ["files", "filtered", "skipped", "notReviewed"] as const;
+  const caps = { ...FULL_CAPS };
+  for (const key of order) {
+    for (const step of CAP_STEPS) {
+      caps[key] = step;
+      body = renderSummaryWithCaps(options, caps);
+      if (body.length <= limit) return body;
+    }
+  }
+  return body;
+}
+
+function renderSummaryWithCaps(options: RenderSummaryOptions, caps: ListCaps): string {
   const lines: string[] = [SUMMARY_MARKER, "### Hammer Review", ""];
   const incomplete = options.reviewError !== undefined;
   if (options.reviewError !== undefined) {
@@ -188,16 +226,20 @@ export function renderSummaryBody(options: RenderSummaryOptions): string {
   if (options.tokens !== undefined) footer.push(formatTokens(options.tokens));
   if (options.costUsd != null) footer.push(`$${options.costUsd.toFixed(4)}`);
   lines.push(footer.join(" · "), "");
-  const fileEntries = files.length === 0 ? ["_No files in scope._"] : files.map(describeFile);
+  const fileEntries =
+    files.length === 0 ? ["_No files in scope._"] : capEntries(files.map(describeFile), caps.files);
   lines.push(...detailsBlock(`Files in scope (${files.length})`, fileEntries));
   if (skipped.length > 0) {
     lines.push(
       "",
       ...detailsBlock(
         `Skipped files (${skipped.length})`,
-        skipped.map(
-          (entry) =>
-            `- \`${sanitizeSummaryText(entry.path)}\` — ${sanitizeSummaryText(entry.reason)}`,
+        capEntries(
+          skipped.map(
+            (entry) =>
+              `- \`${sanitizeSummaryText(entry.path)}\` — ${sanitizeSummaryText(entry.reason)}`,
+          ),
+          caps.skipped,
         ),
       ),
     );
@@ -207,9 +249,12 @@ export function renderSummaryBody(options: RenderSummaryOptions): string {
       "",
       ...detailsBlock(
         `Not reviewed (${notReviewed.length})`,
-        notReviewed.map(
-          (entry) =>
-            `- \`${sanitizeSummaryText(entry.path)}\` — ${sanitizeSummaryText(entry.reason)}`,
+        capEntries(
+          notReviewed.map(
+            (entry) =>
+              `- \`${sanitizeSummaryText(entry.path)}\` — ${sanitizeSummaryText(entry.reason)}`,
+          ),
+          caps.notReviewed,
         ),
       ),
     );
@@ -220,9 +265,12 @@ export function renderSummaryBody(options: RenderSummaryOptions): string {
       "",
       ...detailsBlock(
         `Filtered findings (${filtered.length})`,
-        filtered.map(
-          (entry) =>
-            `- \`${sanitizeSummaryText(entry.path)}\` — ${sanitizeSummaryText(entry.reason)}`,
+        capEntries(
+          filtered.map(
+            (entry) =>
+              `- \`${sanitizeSummaryText(entry.path)}\` — ${sanitizeSummaryText(entry.reason)}`,
+          ),
+          caps.filtered,
         ),
       ),
     );
