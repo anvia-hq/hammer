@@ -113,13 +113,21 @@ export function isTestPath(path: string): boolean {
   return path.split("/").some((segment) => TEST_DIR_NAMES.has(segment.toLowerCase()));
 }
 
+const GENERATED_HEADER_LINES = 6;
+
+function hasGeneratedMarker(patch: string): boolean {
+  return patch
+    .split("\n", GENERATED_HEADER_LINES + 1)
+    .slice(0, GENERATED_HEADER_LINES + 1)
+    .some((line) => /^[ +]/.test(line) && line.toLowerCase().includes("@generated"));
+}
+
 function filterReason(
   file: PullFileEntry,
   ignore: string[],
   include: string[],
 ): string | undefined {
-  if (file.patch === undefined) return "binary";
-  if (file.patch.toLowerCase().includes("@generated")) return "generated";
+  if (file.patch !== undefined && hasGeneratedMarker(file.patch)) return "generated";
   if (isLockfile(file.filename)) return "ignored by default: lockfile";
   const dir = buildDirName(file.filename);
   if (dir !== undefined) return `ignored by default: ${dir}/`;
@@ -147,9 +155,16 @@ export function buildReviewPlan(files: PullFileEntry[], options: PlanOptions = {
 
   const skippedFiles: SkippedPlanFile[] = [];
   const candidates: PullFileEntry[] = [];
+  const omitted: SkippedPlanFile[] = [];
   for (const file of files) {
     const reason = filterReason(file, ignore, include);
-    if (reason === undefined) {
+    if (reason === undefined && file.patch === undefined) {
+      if (file.additions + file.deletions > 0) {
+        omitted.push({ path: file.filename, reason: "patch omitted by GitHub (diff too large)" });
+      } else {
+        skippedFiles.push({ path: file.filename, reason: "binary" });
+      }
+    } else if (reason === undefined) {
       candidates.push(file);
     } else {
       skippedFiles.push({ path: file.filename, reason });
@@ -175,12 +190,20 @@ export function buildReviewPlan(files: PullFileEntry[], options: PlanOptions = {
     if (reviewFiles.length >= maxFiles) {
       notReviewed.push({ path: file.filename, reason: "over max_files" });
     } else if (totalDiffLines + lines > maxDiffLines) {
-      notReviewed.push({ path: file.filename, reason: "over max_diff_lines" });
+      notReviewed.push({
+        path: file.filename,
+        reason:
+          lines > maxDiffLines
+            ? `diff of ${lines} lines is larger than max_diff_lines (${maxDiffLines})`
+            : "over max_diff_lines",
+      });
     } else {
       reviewFiles.push(file);
       totalDiffLines += lines;
     }
   }
+
+  notReviewed.push(...omitted);
 
   return {
     reviewFiles,

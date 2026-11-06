@@ -316,8 +316,8 @@ export async function runAction(
     if (pr.changed_files > 3000) {
       plan.partial = true;
       plan.notReviewed.push({
-        path: "(additional files)",
-        reason: "GitHub's 3,000-file API limit",
+        path: `(${pr.changed_files - 3000} more files)`,
+        reason: "GitHub's API lists at most 3,000 files per PR, so these cannot be named or reviewed",
       });
     }
     if (!plan.reviewFiles.length && !plan.notReviewed.length) {
