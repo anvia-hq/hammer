@@ -350,3 +350,161 @@ describe("review pipeline truncation salvage", () => {
     expect(result.reviewNote).toContain("salvaged 1 findings");
   });
 });
+
+describe("review pipeline stopped runs", () => {
+  const usage = {
+    inputTokens: 10,
+    outputTokens: 5,
+    totalTokens: 15,
+    cachedInputTokens: 0,
+    cacheCreationInputTokens: 0,
+  };
+  function loopingInput(): ReviewPipelineInput {
+    const request = input([]);
+    let n = 0;
+    request.model = {
+      ...request.model,
+      completion: vi.fn(
+        async (call: { chatHistory: Array<{ role: string; content: unknown }> }) => {
+          const last = call.chatHistory.at(-1);
+          if (last?.role === "user" && String(last.content).includes("stopped before you finished"))
+            return {
+              choice: [{ type: "text" as const, text: JSON.stringify(batch) }],
+              usage,
+              finishReason: "stop" as const,
+              rawResponse: {},
+            };
+          n += 1;
+          return {
+            choice: [
+              {
+                type: "tool-call" as const,
+                toolCallId: `c${n}`,
+                toolName: "list_dir",
+                input: { path: `d${n}` },
+              },
+            ],
+            usage,
+            finishReason: "tool-calls" as const,
+            rawResponse: {},
+          };
+        },
+      ),
+    } as unknown as typeof request.model;
+    return request;
+  }
+
+  it("publishes the findings gathered when the turn limit is hit", async () => {
+    const request = loopingInput();
+    request.config.max_turns = 4;
+    const result = await runReviewPipeline(request);
+    expect(result.findings).toHaveLength(1);
+    expect(result.failed).toBe(false);
+    expect(result.reviewError).toBeUndefined();
+    expect(result.partial).toBe(true);
+    expect(result.reviewNote).toContain("partial");
+  });
+
+  it("publishes the findings gathered when the token budget is exhausted", async () => {
+    const request = loopingInput();
+    request.config.max_turns = 40;
+    request.config.max_tokens = 30;
+    const result = await runReviewPipeline(request);
+    expect(result.findings).toHaveLength(1);
+    expect(result.reviewError).toBeUndefined();
+    expect(result.partial).toBe(true);
+  });
+});
+
+describe("review pipeline sharding", () => {
+  const usage = {
+    inputTokens: 10,
+    outputTokens: 5,
+    totalTokens: 15,
+    cachedInputTokens: 0,
+    cacheCreationInputTokens: 0,
+  };
+  function patchOf(lines: number): string {
+    return [
+      `@@ -0,0 +1,${lines} @@`,
+      ...Array.from({ length: lines }, (_, i) => `+const value${i} = ${i};`),
+    ].join("\n");
+  }
+  function shardedInput(failShard?: number): ReviewPipelineInput {
+    const request = input([]);
+    request.files = ["a/one.ts", "b/two.ts", "c/three.ts", "d/four.ts"].map((filename) => ({
+      filename,
+      sha: "x",
+      status: "added",
+      additions: 120,
+      deletions: 0,
+      changes: 120,
+      patch: patchOf(120),
+    }));
+    request.config = resolveConfig(defaultRepoConfig(), {
+      verify: false,
+      shard_tokens: 600,
+      max_shards: 4,
+    });
+    request.model = {
+      ...request.model,
+      completion: vi.fn(
+        async (call: { chatHistory: Array<{ role: string; content: unknown }> }) => {
+          const first = String(call.chatHistory[0]?.content ?? "");
+          const shard = /shard (\d+) of/.exec(first)?.[1];
+          if (shard !== undefined && Number(shard) === failShard) throw new Error("model exploded");
+          const path = request.files.find((file) =>
+            first.includes(`### File: ${file.filename}`),
+          )?.filename;
+          return {
+            choice: [
+              {
+                type: "text" as const,
+                text: JSON.stringify({
+                  summary: `Shard ${shard}`,
+                  findings: [{ ...finding, path, title: `Issue in ${path}` }],
+                  generalNotes: [],
+                }),
+              },
+            ],
+            usage,
+            finishReason: "stop" as const,
+            rawResponse: {},
+          };
+        },
+      ),
+    } as unknown as typeof request.model;
+    return request;
+  }
+
+  it("reviews a large diff in parallel shards and merges the findings", async () => {
+    const result = await runReviewPipeline(shardedInput());
+    expect(result.shards).toBeGreaterThan(1);
+    expect(result.findings.map((entry) => entry.path).sort()).toEqual([
+      "a/one.ts",
+      "b/two.ts",
+      "c/three.ts",
+      "d/four.ts",
+    ]);
+    expect(result.partial).toBe(false);
+    expect(result.notReviewed).toBeUndefined();
+  });
+
+  it("keeps the other shards' findings when one shard fails and names its files", async () => {
+    const result = await runReviewPipeline(shardedInput(2));
+    expect(result.failed).toBe(false);
+    expect(result.partial).toBe(true);
+    expect(result.findings.length).toBeGreaterThan(0);
+    expect(result.notReviewed?.length).toBeGreaterThan(0);
+    expect(result.notReviewed?.[0]?.reason).toContain("failed");
+    const failedPaths = new Set(result.notReviewed?.map((entry) => entry.path));
+    expect(result.findings.every((entry) => !failedPaths.has(entry.path))).toBe(true);
+  });
+
+  it("keeps the single-agent path for a small diff", async () => {
+    const request = input([batch]);
+    const result = await runReviewPipeline(request);
+    expect(result.shards).toBe(1);
+    expect(request.model.completion).toHaveBeenCalledTimes(1);
+  });
+});

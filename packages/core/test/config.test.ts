@@ -89,6 +89,9 @@ path_instructions:
       max_files: undefined,
       max_diff_lines: undefined,
       max_turns: undefined,
+      max_diff_tokens: undefined,
+      shard_tokens: undefined,
+      max_shards: undefined,
       max_tokens: undefined,
       max_cost_usd: undefined,
       verify: true,
@@ -176,6 +179,35 @@ describe("resolveConfig", () => {
     });
     expect(effective.min_severity).toBe("high");
     expect(effective.max_comments).toBe(20);
+  });
+
+  it("lets the repo config raise caps when the workflow input is unset", () => {
+    const effective = resolveConfig(
+      loadConfig("max_files: 500\nmax_diff_lines: 50000\nmax_turns: 150\n"),
+      {},
+    );
+    expect(effective.max_files).toBe(500);
+    expect(effective.max_diff_lines).toBe(50000);
+    expect(effective.max_turns).toBe(150);
+  });
+
+  it("defaults max_diff_tokens and lets the repo config and input bound it", () => {
+    expect(resolveConfig(loadConfig("")).max_diff_tokens).toBe(DEFAULT_CAPS.max_diff_tokens);
+    expect(resolveConfig(loadConfig("max_diff_tokens: 50000\n")).max_diff_tokens).toBe(50000);
+    expect(
+      resolveConfig(loadConfig("max_diff_tokens: 50000\n"), { max_diff_tokens: 30000 })
+        .max_diff_tokens,
+    ).toBe(30000);
+  });
+
+  it("resolves shard settings from input, then repo config, then defaults", () => {
+    const defaults = resolveConfig(loadConfig(""));
+    expect(defaults.shard_tokens).toBe(DEFAULT_CAPS.shard_tokens);
+    expect(defaults.max_shards).toBe(DEFAULT_CAPS.max_shards);
+    const repo = resolveConfig(loadConfig("shard_tokens: 8000\nmax_shards: 3\n"));
+    expect([repo.shard_tokens, repo.max_shards]).toEqual([8000, 3]);
+    const input = resolveConfig(loadConfig("max_shards: 3\n"), { max_shards: 1 });
+    expect(input.max_shards).toBe(1);
   });
 
   it("clamps repo caps at the action input values", () => {

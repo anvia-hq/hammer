@@ -39,6 +39,8 @@ export interface BuildReviewPromptInput {
   instruction?: string;
   priorFindings?: string;
   resolvedFindings?: string;
+  shardNote?: string;
+  changeLeads?: string;
 }
 
 export interface ReviewPrompt {
@@ -229,6 +231,7 @@ export function buildReviewPrompt(input: BuildReviewPromptInput): ReviewPrompt {
     ) <= MAX_INLINE_DIFF_TOKENS;
   const parts: string[] = [
     "You are reviewing a pull request. Report specific problems only: bugs, security issues, and violations of the listed rules.",
+    ...(input.shardNote ? [input.shardNote] : []),
     "Quote new-file (RIGHT side) line numbers exactly as shown in each __new hunk__ block that read_diff returns.",
     "When a finding violates a configured rule, cite its rule id.",
     "The PR title and the start of its body (the author's stated intent) are inline below. Compare the diff against that intent; use the get_pr_discussion tool for the full body and comments.",
@@ -252,6 +255,7 @@ export function buildReviewPrompt(input: BuildReviewPromptInput): ReviewPrompt {
   if (guidance.text !== "") {
     parts.push("", "## Repo guidance", guidance.text);
   }
+  if (input.changeLeads) parts.push("", "## Change impact leads", untrusted(input.changeLeads));
   if (input.instruction) parts.push("", "Maintainer instruction:", input.instruction);
   if (input.priorFindings)
     parts.push(

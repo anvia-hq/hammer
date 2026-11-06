@@ -95,3 +95,6 @@ export { runReviewPipeline } from "./pipeline";
 export type { ReviewPipelineInput, ReviewPipelineResult } from "./pipeline";
 export { buildPrDiff, renderCheckout, DIFF_PAGE_LINES } from "./diff";
 export type { DiffTocEntry, PrDiff, PrMeta } from "./diff";
+export { dropDeletionOnlyHunks, fitDiff, type FitResult, type FitStage } from "./fit";
+export { extractCandidates, findChangeLeads, DEFAULT_LEAD_LIMITS } from "./leads";
+export { shardFiles } from "./shard";

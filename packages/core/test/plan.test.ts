@@ -104,10 +104,46 @@ describe("buildReviewPlan default ignores", () => {
 
   it("skips binary files with no patch", () => {
     const plan = buildReviewPlan([
-      entry({ filename: "assets/logo.png", status: "added", patch: undefined }),
+      entry({
+        filename: "assets/logo.png",
+        status: "added",
+        additions: 0,
+        deletions: 0,
+        changes: 0,
+        patch: undefined,
+      }),
     ]);
     expect(plan.reviewFiles).toHaveLength(0);
     expect(plan.skippedFiles).toEqual([{ path: "assets/logo.png", reason: "binary" }]);
+    expect(plan.partial).toBe(false);
+  });
+
+  it("reports a text file whose patch GitHub omitted as not reviewed, not binary", () => {
+    const plan = buildReviewPlan([
+      entry({ filename: "src/huge.ts", additions: 9000, deletions: 10, patch: undefined }),
+    ]);
+    expect(plan.skippedFiles).toEqual([]);
+    expect(plan.notReviewed).toEqual([
+      { path: "src/huge.ts", reason: "patch omitted by GitHub (diff too large)" },
+    ]);
+    expect(plan.partial).toBe(true);
+  });
+
+  it("does not treat a late @generated mention in the body as a generated file", () => {
+    const patch = [
+      "@@ -1,12 +1,12 @@",
+      ...Array.from({ length: 10 }, (_, i) => ` line${i}`),
+      "+// the @generated marker is documented here",
+    ].join("\n");
+    const plan = buildReviewPlan([entry({ patch })]);
+    expect(plan.reviewFiles).toHaveLength(1);
+  });
+
+  it("skips a file with @generated in its first lines of a hunk-only patch", () => {
+    const plan = buildReviewPlan([
+      entry({ patch: "@@ -0,0 +1,2 @@\n+// @generated\n+export const x = 1;" }),
+    ]);
+    expect(plan.skippedFiles[0]?.reason).toBe("generated");
   });
 
   it("reviews truncated patches that still carry a patch", () => {
@@ -195,7 +231,12 @@ describe("buildReviewPlan size limits", () => {
       entry({ filename: "src/huge.ts", additions: 5000, deletions: 0, changes: 5000 }),
     ]);
     expect(plan.reviewFiles).toHaveLength(0);
-    expect(plan.notReviewed).toEqual([{ path: "src/huge.ts", reason: "over max_diff_lines" }]);
+    expect(plan.notReviewed).toEqual([
+      {
+        path: "src/huge.ts",
+        reason: "diff of 5000 lines is larger than max_diff_lines (3000)",
+      },
+    ]);
     expect(plan.partial).toBe(true);
   });
 
@@ -262,5 +303,39 @@ describe("buildReviewPlan flags and summary wiring", () => {
     expect(body).toContain("Not reviewed");
     expect(body).toContain("`src/extra.ts` — over max_files");
     expect(body).toContain("`pnpm-lock.yaml` — ignored by default: lockfile");
+  });
+});
+
+describe("renderSummaryBody size", () => {
+  const scope = Array.from({ length: 300 }, (_, i) => ({
+    path: `src/module-${i}/component-${i}.ts`,
+    status: "modified",
+  }));
+
+  it("keeps the not-reviewed list visible by compacting the file list", () => {
+    const body = renderSummaryBody({
+      files: scope,
+      notReviewed: [
+        { path: "src/big-a.ts", reason: "over max_diff_lines" },
+        { path: "src/big-b.ts", reason: "patch omitted by GitHub (diff too large)" },
+      ],
+      headSha: "abcdef1234567",
+    });
+    expect(body.length).toBeLessThan(4000);
+    expect(body).toContain("`src/big-a.ts` — over max_diff_lines");
+    expect(body).toContain("`src/big-b.ts`");
+    expect(body).toContain("… and ");
+    expect(body.trimEnd().endsWith("-->")).toBe(true);
+  });
+
+  it("compacts a very long not-reviewed list with a count of the rest", () => {
+    const notReviewed = Array.from({ length: 400 }, (_, i) => ({
+      path: `src/extra/file-${i}.ts`,
+      reason: "over max_files",
+    }));
+    const body = renderSummaryBody({ files: scope, notReviewed });
+    expect(body.length).toBeLessThan(4000);
+    expect(body).toContain("Not reviewed (400)");
+    expect(body).toMatch(/… and \d+ more/);
   });
 });

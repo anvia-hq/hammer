@@ -122,7 +122,9 @@ Hammer also reads `AGENTS.md`, `CLAUDE.md` and `CONTRIBUTING.md` from the base b
 
 ### Limits
 
-Each run is bounded by 50 files, 3,000 diff lines and 100 agent turns; change them with `max_files`, `max_diff_lines` and `max_turns`. There is no token or cost limit unless you set `max_tokens` or `max_cost_usd` in `.github/hammer.yml`. If a token or cost limit stops the review before it finishes, the summary says the PR was not reviewed. `max_cost_usd` is enforced when Hammer knows the model's price: from the `pricing` input, from an openai-compatible gateway's `/models` endpoint (when `base-url` is set and lists prices), or from the bundled list. Supply `pricing` for models none of these cover.
+Each run is bounded by 50 files, 3,000 diff lines and 100 agent turns; change them with `max_files`, `max_diff_lines` and `max_turns` in `.github/hammer.yml`. A value passed in the workflow `with:` block is a ceiling the repository config cannot raise, so leave the input empty if you want the config file to decide. There is no token or cost limit unless you set `max_tokens` or `max_cost_usd` in `.github/hammer.yml`. If a turn, token or cost limit (or the model's context window) stops the review before it finishes, Hammer asks the model for its findings so far and publishes them as a partial review; only if that fails does the summary say the PR was not reviewed. `max_cost_usd` is enforced when Hammer knows the model's price: from the `pricing` input, from an openai-compatible gateway's `/models` endpoint (when `base-url` is set and lists prices), or from the bundled list. Supply `pricing` for models none of these cover.
+
+Large PRs: the diff the model sees is measured in estimated tokens. Above `max_diff_tokens` (default 120,000) Hammer drops extra context, then deletion-only hunks, then whole low-priority files, and names everything it left out under "Not reviewed". Above `shard_tokens` (default 20,000) the files are split into at most `max_shards` (default 5, `1` turns it off) shards reviewed in parallel by separate read-only agents; if a shard fails, the others' findings are kept and its files are listed as not reviewed. See [0021](docs/decision/0021-large-pr-sharding-and-partial-results.md).
 
 ### Inputs
 
@@ -140,7 +142,9 @@ Each run is bounded by 50 files, 3,000 diff lines and 100 agent turns; change th
 | `config-path`                              | Config file path. Default `.github/hammer.yml`.                       |
 | `min_severity`, `max_comments`, `fail_on`  | Override the matching config keys.                                    |
 | `review_drafts`, `ignore`, `include`       | Override the matching config keys. Lists are newline-separated.       |
-| `max_files`, `max_diff_lines`, `max_turns` | Review limits.                                                        |
+| `max_files`, `max_diff_lines`, `max_turns` | Review limits. Empty means use `.github/hammer.yml`.                  |
+| `max_diff_tokens`                          | Token budget for the rendered diff. Default 120000.                   |
+| `shard_tokens`, `max_shards`               | Shard a diff above this size (default 20000) into up to 5 shards.     |
 | `max_tokens`, `max_cost_usd`               | Token and cost limits.                                                |
 | `verify`, `verify_threshold`               | Verification pass on or off, and the minimum score to keep a finding. |
 | `fail_on_error`                            | Fail the job if Hammer itself errors. Default `false`.                |

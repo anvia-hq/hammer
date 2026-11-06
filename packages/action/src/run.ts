@@ -33,6 +33,7 @@ import {
   loadReviewSkills,
   parseModelRefWithBase,
   readFile as readCheckoutFile,
+  fitDiff,
   runReviewPipeline,
   type PromptGuidelines,
   type ReviewPipelineInput,
@@ -316,8 +317,9 @@ export async function runAction(
     if (pr.changed_files > 3000) {
       plan.partial = true;
       plan.notReviewed.push({
-        path: "(additional files)",
-        reason: "GitHub's 3,000-file API limit",
+        path: `(${pr.changed_files - 3000} more files)`,
+        reason:
+          "GitHub's API lists at most 3,000 files per PR, so these cannot be named or reviewed",
       });
     }
     if (!plan.reviewFiles.length && !plan.notReviewed.length) {
@@ -376,10 +378,22 @@ export async function runAction(
         const value = await github.content(owner, repo, path, pr.base.sha);
         if (value !== undefined) guidelines[key] = value;
       }
-    const fileContents: Record<string, string> = {};
+    let fileContents: Record<string, string> = {};
     for (const file of plan.reviewFiles) {
       const content = await readCheckoutFile(checkout, file.filename);
       if (content.ok) fileContents[file.filename] = content.text.replace(/^\d+: /gm, "");
+    }
+    const fitted = fitDiff(plan.reviewFiles, fileContents, config.max_diff_tokens);
+    if (fitted.stage !== "full") {
+      runtime.info(
+        `[hammer] diff fitted to ${config.max_diff_tokens} tokens (${fitted.stage}): ${fitted.files.length} of ${plan.reviewFiles.length} files, ~${fitted.tokens} tokens`,
+      );
+      plan.reviewFiles = fitted.files;
+      fileContents = fitted.contents;
+      if (fitted.omitted.length > 0) {
+        plan.notReviewed.push(...fitted.omitted);
+        plan.partial = true;
+      }
     }
     const hammerComments = (await github.reviewComments(owner, repo, prNumber)).filter(
       (comment) => comment.user?.login === identity && comment.body?.includes("<!-- hammer:fp="),
@@ -458,6 +472,10 @@ export async function runAction(
       resolved: resolved.map(toFinding),
     });
     await progress.settle();
+    if (result.notReviewed !== undefined) {
+      plan.notReviewed.push(...result.notReviewed);
+      plan.partial = true;
+    }
     const current = await github.pull(owner, repo, prNumber);
     if (
       current.head.sha !== target.headSha ||

@@ -1,4 +1,4 @@
-import { DEFAULT_CAPS, DEFAULT_CONFIG_PATH, type ConfigInputOverrides } from "@anvia/hammer-core";
+import { DEFAULT_CONFIG_PATH, type ConfigInputOverrides } from "@anvia/hammer-core";
 import { z } from "zod";
 
 const optional = <T extends z.ZodType>(schema: T) =>
@@ -32,9 +32,12 @@ const schema = z.object({
   review_drafts: optional(bool),
   ignore: optional(globs),
   include: optional(globs),
-  max_files: count.default(DEFAULT_CAPS.max_files),
-  max_diff_lines: count.default(DEFAULT_CAPS.max_diff_lines),
-  max_turns: count.default(DEFAULT_CAPS.max_turns),
+  max_files: optional(count),
+  max_diff_lines: optional(count),
+  max_turns: optional(count),
+  max_diff_tokens: optional(count),
+  shard_tokens: optional(count),
+  max_shards: optional(count),
   max_tokens: optional(count),
   max_cost_usd: optional(z.coerce.number().nonnegative()),
   verify: optional(bool),
@@ -48,13 +51,7 @@ export function readInputs(getInput: (name: string) => string): ActionInputs {
   const raw = Object.fromEntries(
     Object.keys(schema.shape).map((key) => {
       const value = getInput(key);
-      const defaulted = [
-        "config-path",
-        "max_files",
-        "max_diff_lines",
-        "max_turns",
-        "fail_on_error",
-      ].includes(key);
+      const defaulted = ["config-path", "fail_on_error"].includes(key);
       return [key, value === "" && defaulted ? undefined : value];
     }),
   );
@@ -72,6 +69,9 @@ export function configOverrides(inputs: ActionInputs): ConfigInputOverrides {
     "max_files",
     "max_diff_lines",
     "max_turns",
+    "max_diff_tokens",
+    "shard_tokens",
+    "max_shards",
     "max_tokens",
     "max_cost_usd",
     "verify",

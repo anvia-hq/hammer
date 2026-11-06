@@ -75,11 +75,32 @@ function clipAll(value: unknown, max: number): unknown {
   return Array.isArray(value) ? value.map((entry) => clip(entry, max)) : value;
 }
 
+const SEVERITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2, nit: 3 };
+
+function severityRank(finding: unknown): number {
+  if (!isRecord(finding) || typeof finding.severity !== "string") return 4;
+  return SEVERITY_RANK[finding.severity] ?? 4;
+}
+
+function capFindings(findings: unknown[], max: number): unknown[] {
+  if (findings.length <= max) return findings;
+  return findings
+    .map((finding, index) => ({ finding, index }))
+    .sort((a, b) => severityRank(a.finding) - severityRank(b.finding) || a.index - b.index)
+    .slice(0, max)
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => entry.finding);
+}
+
+function capList(value: unknown, max: number): unknown {
+  return Array.isArray(value) ? value.slice(0, max) : value;
+}
+
 // A model that runs a few characters over a text limit should not cost the whole review.
 function trimOverlong(candidate: unknown): unknown {
   if (!isRecord(candidate)) return candidate;
   const findings = Array.isArray(candidate.findings)
-    ? candidate.findings.map((finding: unknown) =>
+    ? capFindings(candidate.findings, 25).map((finding: unknown) =>
         isRecord(finding)
           ? {
               ...finding,
@@ -93,9 +114,11 @@ function trimOverlong(candidate: unknown): unknown {
   return {
     ...candidate,
     summary: clip(candidate.summary, 600),
-    ...(candidate.changes !== undefined ? { changes: clipAll(candidate.changes, 160) } : {}),
+    ...(candidate.changes !== undefined
+      ? { changes: clipAll(capList(candidate.changes, 6), 160) }
+      : {}),
     findings,
-    generalNotes: clipAll(candidate.generalNotes, 300),
+    generalNotes: clipAll(capList(candidate.generalNotes, 5), 300),
   };
 }
 
