@@ -144,7 +144,7 @@ function hasGitSegment(relativePath: string): boolean {
 
 const SEARCH_SKIPPED_DIRS = new Set(["node_modules", "coverage", ".next", ".turbo"]);
 
-async function collectFiles(absoluteDir: string, out: string[]): Promise<void> {
+export async function collectFiles(absoluteDir: string, out: string[]): Promise<void> {
   const dirents = await fs.readdir(absoluteDir, { withFileTypes: true });
   for (const entry of dirents) {
     if (entry.name === ".git") continue;

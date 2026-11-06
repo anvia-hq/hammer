@@ -19,6 +19,7 @@ import type { BuildReviewPromptInput } from "./prompt";
 import { buildReviewerTools, runSinglePassReview, type SinglePassRunOptions } from "./run";
 import { promptCacheProviderOptions } from "./model";
 import type { SkillSet } from "./skills";
+import { findChangeLeads } from "./leads";
 import { shardFiles } from "./shard";
 import { applyVerification, VERIFICATION_INSTRUCTIONS } from "./verify";
 
@@ -206,10 +207,12 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
       SOFT_TURNS + 2 * Math.ceil(diff.totalLines / DIFF_PAGE_LINES),
       true,
     );
+    const changeLeads = await findChangeLeads(shardFilesList, input.checkoutRoot);
     const outcome = await runSinglePassReview(
       {
         ...input,
         files: shardFilesList,
+        ...(changeLeads !== "" ? { changeLeads } : {}),
         priorFindings: context,
         resolvedFindings: resolvedContext,
         ...(shardNote ? { shardNote } : {}),

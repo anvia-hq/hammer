@@ -132,6 +132,22 @@ describe("buildReviewPrompt resolved findings", () => {
   });
 });
 
+describe("buildReviewPrompt change leads and shards", () => {
+  it("adds change impact leads as untrusted data", () => {
+    const { prompt } = buildReviewPrompt({ ...baseInput, changeLeads: "- `loadUser`\n  - a.ts:1" });
+    expect(prompt).toContain("## Change impact leads\n<untrusted>\n- `loadUser`");
+  });
+
+  it("omits the leads section when there are none", () => {
+    expect(buildReviewPrompt(baseInput).prompt).not.toContain("Change impact leads");
+  });
+
+  it("states the shard scope", () => {
+    const { prompt } = buildReviewPrompt({ ...baseInput, shardNote: "This is shard 2 of 3." });
+    expect(prompt).toContain("This is shard 2 of 3.");
+  });
+});
+
 describe("REVIEW_INSTRUCTIONS calibration", () => {
   it("anchors confidence and includes an example finding", async () => {
     const { REVIEW_INSTRUCTIONS } = await import("../src/prompt");

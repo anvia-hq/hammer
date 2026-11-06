@@ -40,6 +40,7 @@ export interface BuildReviewPromptInput {
   priorFindings?: string;
   resolvedFindings?: string;
   shardNote?: string;
+  changeLeads?: string;
 }
 
 export interface ReviewPrompt {
@@ -254,6 +255,7 @@ export function buildReviewPrompt(input: BuildReviewPromptInput): ReviewPrompt {
   if (guidance.text !== "") {
     parts.push("", "## Repo guidance", guidance.text);
   }
+  if (input.changeLeads) parts.push("", "## Change impact leads", untrusted(input.changeLeads));
   if (input.instruction) parts.push("", "Maintainer instruction:", input.instruction);
   if (input.priorFindings)
     parts.push(
