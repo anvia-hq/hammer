@@ -66,20 +66,29 @@ describe("validateBatchOutput", () => {
     }
   });
 
-  it("rejects 26 findings", () => {
+  it("keeps the 25 most severe of 26 findings instead of failing", () => {
     const findings = Array.from({ length: 26 }, (_, i) =>
-      validFinding({ title: `Finding ${i}`, line: i + 1 }),
+      validFinding({
+        title: `Finding ${i}`,
+        line: i + 1,
+        severity: i === 25 ? "high" : "low",
+      }),
     );
     const result = validateBatchOutput(validBatch({ findings }));
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.issues.length).toBeGreaterThan(0);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.findings).toHaveLength(25);
+      expect(result.value.findings.map((f) => f.title)).toContain("Finding 25");
+      expect(result.value.findings.map((f) => f.title)).not.toContain("Finding 24");
+    }
   });
 
-  it("rejects 6 general notes", () => {
+  it("keeps 5 of 6 general notes", () => {
     const result = validateBatchOutput(
       validBatch({ generalNotes: ["n1", "n2", "n3", "n4", "n5", "n6"] }),
     );
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.generalNotes).toHaveLength(5);
   });
 
   it("trims a summary of 601 chars", () => {
@@ -200,14 +209,14 @@ describe("details and changes", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("trims oversized details but still rejects too many changes", () => {
+  it("trims oversized details and extra changes", () => {
     expect(
       validateBatchOutput(validBatch({ findings: [validFinding({ details: "x".repeat(1201) })] }))
         .ok,
     ).toBe(true);
-    expect(validateBatchOutput(validBatch({ changes: Array(7).fill("Changed a thing") })).ok).toBe(
-      false,
-    );
+    const many = validateBatchOutput(validBatch({ changes: Array(7).fill("Changed a thing") }));
+    expect(many.ok).toBe(true);
+    if (many.ok) expect(many.value.changes).toHaveLength(6);
   });
 });
 

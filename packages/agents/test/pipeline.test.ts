@@ -350,3 +350,68 @@ describe("review pipeline truncation salvage", () => {
     expect(result.reviewNote).toContain("salvaged 1 findings");
   });
 });
+
+describe("review pipeline stopped runs", () => {
+  const usage = {
+    inputTokens: 10,
+    outputTokens: 5,
+    totalTokens: 15,
+    cachedInputTokens: 0,
+    cacheCreationInputTokens: 0,
+  };
+  function loopingInput(): ReviewPipelineInput {
+    const request = input([]);
+    let n = 0;
+    request.model = {
+      ...request.model,
+      completion: vi.fn(
+        async (call: { chatHistory: Array<{ role: string; content: unknown }> }) => {
+          const last = call.chatHistory.at(-1);
+          if (last?.role === "user" && String(last.content).includes("stopped before you finished"))
+            return {
+              choice: [{ type: "text" as const, text: JSON.stringify(batch) }],
+              usage,
+              finishReason: "stop" as const,
+              rawResponse: {},
+            };
+          n += 1;
+          return {
+            choice: [
+              {
+                type: "tool-call" as const,
+                toolCallId: `c${n}`,
+                toolName: "list_dir",
+                input: { path: `d${n}` },
+              },
+            ],
+            usage,
+            finishReason: "tool-calls" as const,
+            rawResponse: {},
+          };
+        },
+      ),
+    } as unknown as typeof request.model;
+    return request;
+  }
+
+  it("publishes the findings gathered when the turn limit is hit", async () => {
+    const request = loopingInput();
+    request.config.max_turns = 4;
+    const result = await runReviewPipeline(request);
+    expect(result.findings).toHaveLength(1);
+    expect(result.failed).toBe(false);
+    expect(result.reviewError).toBeUndefined();
+    expect(result.partial).toBe(true);
+    expect(result.reviewNote).toContain("partial");
+  });
+
+  it("publishes the findings gathered when the token budget is exhausted", async () => {
+    const request = loopingInput();
+    request.config.max_turns = 40;
+    request.config.max_tokens = 30;
+    const result = await runReviewPipeline(request);
+    expect(result.findings).toHaveLength(1);
+    expect(result.reviewError).toBeUndefined();
+    expect(result.partial).toBe(true);
+  });
+});

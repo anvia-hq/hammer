@@ -1,7 +1,7 @@
 import { Agent, AgentStructuredOutputError } from "@anvia/core/agent";
 import { createTool } from "@anvia/core/tool";
 import type { AnyTool } from "@anvia/core/tool";
-import type { CompletionModel } from "@anvia/core/completion";
+import type { CompletionModel, Message } from "@anvia/core/completion";
 import { z } from "zod";
 
 import {
@@ -17,6 +17,13 @@ import {
 import { buildPrDiff, renderCheckout, type PrDiff, type PrMeta } from "./diff";
 import { parseModelRefWithBase, promptCacheProviderOptions } from "./model";
 import { buildReviewPrompt, REVIEW_INSTRUCTIONS, type BuildReviewPromptInput } from "./prompt";
+import {
+  compactHistory,
+  describeStop,
+  FINALIZE_PROMPT,
+  hasToolActivity,
+  SALVAGE_RESULT_LIMITS,
+} from "./salvage";
 import { SKILL_REVIEW_INSTRUCTIONS, type SkillSet } from "./skills";
 import { createTextStreamer, type StreamedTextSink } from "./stream";
 import {
@@ -82,6 +89,8 @@ export interface SinglePassRunOptions {
   skills?: SkillSet;
   onText?: StreamedTextSink;
   isNearBudget?: () => boolean;
+  getHistory?: () => Message[];
+  beginFinalize?: () => void;
 }
 
 interface PrDiscussionSource {
@@ -301,6 +310,51 @@ async function runAgent(
   }
 }
 
+function historyAfterFailure(error: unknown, options: SinglePassRunOptions): Message[] {
+  const messages = (error as { messages?: unknown } | null)?.messages;
+  const carried = Array.isArray(messages) ? (messages as Message[]) : [];
+  return carried.length > 0 ? carried : (options.getHistory?.() ?? []);
+}
+
+async function salvageStoppedRun(
+  createAgent: (maxTurns: number, nearBudget?: () => boolean) => Agent<string | ReviewBatch>,
+  history: Message[],
+  error: unknown,
+  options: SinglePassRunOptions,
+): Promise<SinglePassSuccess | null> {
+  options.beginFinalize?.();
+  for (const limit of SALVAGE_RESULT_LIMITS) {
+    try {
+      const finalizer = createAgent(2, () => true);
+      const response = await finalizer.generate({
+        messages: [...compactHistory(history, limit), { role: "user", content: FINALIZE_PROMPT }],
+      });
+      if (response.type !== "response") continue;
+      const usage = toSinglePassUsage(response.usage);
+      const stop = describeStop(error);
+      const valid = validateBatchOutput(response.text);
+      if (valid.ok)
+        return {
+          ok: true,
+          batch: valid.value,
+          usage,
+          partial: true,
+          note: `${stop}; review is partial`,
+        };
+      const salvaged = salvageTruncatedReview(response.text);
+      if (salvaged !== null)
+        return {
+          ok: true,
+          batch: salvaged.batch,
+          usage,
+          partial: true,
+          note: `${stop}; review is partial (${salvaged.salvagedCount} findings salvaged)`,
+        };
+    } catch {}
+  }
+  return null;
+}
+
 export async function runSinglePassReview(
   input: SinglePassRunInput,
   options: SinglePassRunOptions = {},
@@ -358,16 +412,17 @@ export async function runSinglePassReview(
   }
   let agent: Agent<string | ReviewBatch>;
   const providerOptions = promptCacheProviderOptions(options.model.provider);
-  try {
-    agent = new Agent<string | ReviewBatch>({
+  const model = options.model;
+  const createAgent = (maxTurns: number, nearBudget?: () => boolean): Agent<string | ReviewBatch> =>
+    new Agent<string | ReviewBatch>({
       id: "hammer-pr-reviewer",
-      model: options.model,
+      model,
       ...(providerOptions ? { providerOptions } : {}),
       instructions: options.skills
         ? `${REVIEW_INSTRUCTIONS}\n${SKILL_REVIEW_INSTRUCTIONS}`
         : REVIEW_INSTRUCTIONS,
       ...(options.skills ? { skills: options.skills } : {}),
-      ...(options.model.capabilities.outputSchema ? { outputSchema: ReviewBatchSchema } : {}),
+      ...(model.capabilities.outputSchema ? { outputSchema: ReviewBatchSchema } : {}),
       retries: { maxAttempts: 3 },
       maxTokens: 16384,
       tools: buildReviewerTools({
@@ -378,13 +433,19 @@ export async function runSinglePassReview(
         ...(options.diff ? { diff: options.diff } : {}),
         discussion: options.discussion,
         ...(options.onToolCall ? { onToolCall: options.onToolCall } : {}),
-        ...(options.isNearBudget ? { isNearBudget: options.isNearBudget } : {}),
+        ...(nearBudget
+          ? { isNearBudget: nearBudget }
+          : options.isNearBudget
+            ? { isNearBudget: options.isNearBudget }
+            : {}),
       }),
-      maxTurns: options.maxTurns ?? DEFAULT_MAX_TURNS,
+      maxTurns,
       ...(options.reasoningEffort
         ? { controls: { reasoningEffort: options.reasoningEffort } }
         : {}),
     });
+  try {
+    agent = createAgent(options.maxTurns ?? DEFAULT_MAX_TURNS);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return failure("generate_failed", message, "(model)");
@@ -394,7 +455,11 @@ export async function runSinglePassReview(
   try {
     outcome = await runAgent(agent, reviewed.prompt, options);
   } catch (error) {
-    return structuredFailure(error);
+    const failed = structuredFailure(error);
+    if (failed.error !== "generate_failed") return failed;
+    const history = historyAfterFailure(error, options);
+    if (!hasToolActivity(history)) return failed;
+    return (await salvageStoppedRun(createAgent, history, error, options)) ?? failed;
   }
   if (outcome === undefined || outcome.type !== "response") {
     return failure("unexpected_outcome", "Agent run ended without a response.");

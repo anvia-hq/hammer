@@ -1,4 +1,4 @@
-import type { CompletionModel, StreamingCompletionModel } from "@anvia/core/completion";
+import type { CompletionModel, Message, StreamingCompletionModel } from "@anvia/core/completion";
 import { Agent } from "@anvia/core/agent";
 import {
   buildPriorFindingsContext,
@@ -45,6 +45,7 @@ export interface ReviewPipelineInput extends BuildReviewPromptInput {
 const MAX_VERIFY_DIFF_CHARS = 16_000;
 const WIND_DOWN_RATIO = 0.85;
 const SOFT_TURNS = 12;
+const TURN_MARGIN = 3;
 
 function buildDiffContext(findings: Array<{ path: string }>, files: PullFileEntry[]): string {
   const paths = new Set(findings.map((finding) => finding.path));
@@ -68,8 +69,10 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     ...(input.pricing ? { pricing: input.pricing } : {}),
   });
   let verifyDeadline: number | undefined;
+  let finalizing = false;
+  let lastHistory: Message[] = [];
   const guarded = <T extends { abortSignal?: AbortSignal | undefined }>(options: T | undefined) => {
-    if (!budget.canStartBatch().ok) throw new Error("Review budget reached.");
+    if (!finalizing && !budget.canStartBatch().ok) throw new Error("Review budget reached.");
     if (verifyDeadline !== undefined && Date.now() > verifyDeadline)
       throw new Error("Verification time limit reached.");
     const timeout = AbortSignal.timeout(COMPLETION_TIMEOUT_MS);
@@ -103,8 +106,10 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     near =
       tokens >= budget.maxTokens * WIND_DOWN_RATIO ||
       (costUsd !== null && costUsd >= budget.maxCostUsd * WIND_DOWN_RATIO) ||
-      (reviewing && calls > softTurns);
+      (reviewing && calls > softTurns) ||
+      (reviewing && calls >= budget.maxTurns - turnMargin);
   };
+  const turnMargin = Math.min(TURN_MARGIN, Math.floor(budget.maxTurns / 4));
   const isNearBudget = (): boolean => near;
   const upstream = input.model as Partial<StreamingCompletionModel>;
   const model: CompletionModel = {
@@ -113,6 +118,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
     capabilities: input.model.capabilities,
     ...(input.model.controls ? { controls: input.model.controls } : {}),
     async completion(request, options) {
+      lastHistory = request.chatHistory;
       trackWindDown();
       const response = await input.model.completion(request, guarded(options));
       record(response.usage);
@@ -124,7 +130,9 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
             request: Parameters<CompletionModel["completion"]>[0],
             options?: Parameters<CompletionModel["completion"]>[1],
           ) {
-            if (!budget.canStartBatch().ok) throw new Error("Review budget reached.");
+            if (!finalizing && !budget.canStartBatch().ok)
+              throw new Error("Review budget reached.");
+            lastHistory = request.chatHistory;
             trackWindDown();
             const idle = createIdleSignal(STREAM_IDLE_MS, options?.abortSignal);
             try {
@@ -190,8 +198,13 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
         onText: (kind, text) => emit({ type: "text", kind, text }),
         ...(input.skills ? { skills: input.skills } : {}),
         isNearBudget,
+        getHistory: () => lastHistory,
+        beginFinalize: () => {
+          finalizing = true;
+        },
       },
     );
+    finalizing = false;
     if (outcome.ok) {
       const succeeding: {
         ok: true;
