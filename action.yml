@@ -65,17 +65,14 @@ inputs:
     description: Newline-separated globs to allowlist. Overrides config.
     required: false
   max_files:
-    description: Maximum files reviewed after filtering.
+    description: Maximum files reviewed after filtering. Leave empty to use .github/hammer.yml or the default of 50; when set, it is a ceiling that the repository config cannot raise.
     required: false
-    default: "50"
   max_diff_lines:
-    description: Maximum diff lines reviewed after filtering.
+    description: Maximum diff lines reviewed after filtering. Leave empty to use .github/hammer.yml or the default of 3000; when set, it is a ceiling that the repository config cannot raise.
     required: false
-    default: "3000"
   max_turns:
-    description: Maximum agent turns for the review.
+    description: Maximum agent turns for the review. Leave empty to use .github/hammer.yml or the default of 100; when set, it is a ceiling that the repository config cannot raise.
     required: false
-    default: "100"
   max_tokens:
     description: Maximum tokens per run. No limit unless set here or in the repo config.
     required: false

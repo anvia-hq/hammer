@@ -178,6 +178,16 @@ describe("resolveConfig", () => {
     expect(effective.max_comments).toBe(20);
   });
 
+  it("lets the repo config raise caps when the workflow input is unset", () => {
+    const effective = resolveConfig(
+      loadConfig("max_files: 500\nmax_diff_lines: 50000\nmax_turns: 150\n"),
+      {},
+    );
+    expect(effective.max_files).toBe(500);
+    expect(effective.max_diff_lines).toBe(50000);
+    expect(effective.max_turns).toBe(150);
+  });
+
   it("clamps repo caps at the action input values", () => {
     const effective = resolveConfig(
       loadConfig(

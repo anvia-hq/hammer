@@ -122,7 +122,7 @@ Hammer also reads `AGENTS.md`, `CLAUDE.md` and `CONTRIBUTING.md` from the base b
 
 ### Limits
 
-Each run is bounded by 50 files, 3,000 diff lines and 100 agent turns; change them with `max_files`, `max_diff_lines` and `max_turns`. There is no token or cost limit unless you set `max_tokens` or `max_cost_usd` in `.github/hammer.yml`. If a token or cost limit stops the review before it finishes, the summary says the PR was not reviewed. `max_cost_usd` is enforced when Hammer knows the model's price: from the `pricing` input, from an openai-compatible gateway's `/models` endpoint (when `base-url` is set and lists prices), or from the bundled list. Supply `pricing` for models none of these cover.
+Each run is bounded by 50 files, 3,000 diff lines and 100 agent turns; change them with `max_files`, `max_diff_lines` and `max_turns` in `.github/hammer.yml`. A value passed in the workflow `with:` block is a ceiling the repository config cannot raise, so leave the input empty if you want the config file to decide. There is no token or cost limit unless you set `max_tokens` or `max_cost_usd` in `.github/hammer.yml`. If a token or cost limit stops the review before it finishes, the summary says the PR was not reviewed. `max_cost_usd` is enforced when Hammer knows the model's price: from the `pricing` input, from an openai-compatible gateway's `/models` endpoint (when `base-url` is set and lists prices), or from the bundled list. Supply `pricing` for models none of these cover.
 
 ### Inputs
 
