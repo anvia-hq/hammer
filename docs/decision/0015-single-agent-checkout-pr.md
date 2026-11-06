@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Replaces the batching design in PRD F12.
+Accepted. Replaces the batching design in PRD F12. Amended by [0021](0021-large-pr-sharding-and-partial-results.md): large diffs are split into parallel shards, and a stopped run publishes a partial review.
 
 ## Context
 
