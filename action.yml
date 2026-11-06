@@ -73,6 +73,9 @@ inputs:
   max_turns:
     description: Maximum agent turns for the review. Leave empty to use .github/hammer.yml or the default of 100; when set, it is a ceiling that the repository config cannot raise.
     required: false
+  max_diff_tokens:
+    description: Maximum estimated tokens of diff the reviewer sees, counted on the rendered diff. Over it, Hammer drops extra context, then deletion-only hunks, then whole files (lowest priority first) and lists them as not reviewed. Leave empty to use .github/hammer.yml or the default of 120000; when set, it is a ceiling that the repository config cannot raise.
+    required: false
   max_tokens:
     description: Maximum tokens per run. No limit unless set here or in the repo config.
     required: false

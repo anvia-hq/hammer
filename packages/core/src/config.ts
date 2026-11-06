@@ -54,6 +54,7 @@ const repoConfigSchema = z.object({
   max_files: z.number().int().min(1).optional(),
   max_diff_lines: z.number().int().min(1).optional(),
   max_turns: z.number().int().min(1).optional(),
+  max_diff_tokens: z.number().int().min(1000).optional(),
   max_tokens: z.number().int().min(1).optional(),
   max_cost_usd: z.number().nonnegative().optional(),
   verify: z.boolean().default(true),
@@ -72,6 +73,7 @@ export interface ConfigInputOverrides {
   max_files?: number;
   max_diff_lines?: number;
   max_turns?: number;
+  max_diff_tokens?: number;
   max_tokens?: number;
   max_cost_usd?: number;
   verify?: boolean;
@@ -94,6 +96,7 @@ export interface EffectiveConfig {
   max_files: number;
   max_diff_lines: number;
   max_turns: number;
+  max_diff_tokens: number;
   max_tokens?: number | undefined;
   max_cost_usd?: number | undefined;
   verify: boolean;
@@ -109,6 +112,7 @@ export const DEFAULT_CAPS = {
   max_files: 50,
   max_diff_lines: 3000,
   max_turns: 100,
+  max_diff_tokens: 120_000,
 } as const;
 
 const KNOWN_KEYS = new Set(Object.keys(repoConfigSchema.shape));
@@ -222,6 +226,11 @@ export function resolveConfig(
       DEFAULT_CAPS.max_diff_lines,
     ),
     max_turns: clampCap(config.max_turns, inputs.max_turns, DEFAULT_CAPS.max_turns),
+    max_diff_tokens: clampCap(
+      config.max_diff_tokens,
+      inputs.max_diff_tokens,
+      DEFAULT_CAPS.max_diff_tokens,
+    ),
     max_tokens: clampOptionalCap(config.max_tokens, inputs.max_tokens),
     max_cost_usd: clampOptionalCap(config.max_cost_usd, inputs.max_cost_usd),
     verify: inputs.verify ?? config.verify,

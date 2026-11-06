@@ -89,6 +89,7 @@ path_instructions:
       max_files: undefined,
       max_diff_lines: undefined,
       max_turns: undefined,
+      max_diff_tokens: undefined,
       max_tokens: undefined,
       max_cost_usd: undefined,
       verify: true,
@@ -186,6 +187,15 @@ describe("resolveConfig", () => {
     expect(effective.max_files).toBe(500);
     expect(effective.max_diff_lines).toBe(50000);
     expect(effective.max_turns).toBe(150);
+  });
+
+  it("defaults max_diff_tokens and lets the repo config and input bound it", () => {
+    expect(resolveConfig(loadConfig("")).max_diff_tokens).toBe(DEFAULT_CAPS.max_diff_tokens);
+    expect(resolveConfig(loadConfig("max_diff_tokens: 50000\n")).max_diff_tokens).toBe(50000);
+    expect(
+      resolveConfig(loadConfig("max_diff_tokens: 50000\n"), { max_diff_tokens: 30000 })
+        .max_diff_tokens,
+    ).toBe(30000);
   });
 
   it("clamps repo caps at the action input values", () => {

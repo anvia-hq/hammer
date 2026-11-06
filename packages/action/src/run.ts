@@ -33,6 +33,7 @@ import {
   loadReviewSkills,
   parseModelRefWithBase,
   readFile as readCheckoutFile,
+  fitDiff,
   runReviewPipeline,
   type PromptGuidelines,
   type ReviewPipelineInput,
@@ -377,10 +378,22 @@ export async function runAction(
         const value = await github.content(owner, repo, path, pr.base.sha);
         if (value !== undefined) guidelines[key] = value;
       }
-    const fileContents: Record<string, string> = {};
+    let fileContents: Record<string, string> = {};
     for (const file of plan.reviewFiles) {
       const content = await readCheckoutFile(checkout, file.filename);
       if (content.ok) fileContents[file.filename] = content.text.replace(/^\d+: /gm, "");
+    }
+    const fitted = fitDiff(plan.reviewFiles, fileContents, config.max_diff_tokens);
+    if (fitted.stage !== "full") {
+      runtime.info(
+        `[hammer] diff fitted to ${config.max_diff_tokens} tokens (${fitted.stage}): ${fitted.files.length} of ${plan.reviewFiles.length} files, ~${fitted.tokens} tokens`,
+      );
+      plan.reviewFiles = fitted.files;
+      fileContents = fitted.contents;
+      if (fitted.omitted.length > 0) {
+        plan.notReviewed.push(...fitted.omitted);
+        plan.partial = true;
+      }
     }
     const hammerComments = (await github.reviewComments(owner, repo, prNumber)).filter(
       (comment) => comment.user?.login === identity && comment.body?.includes("<!-- hammer:fp="),
