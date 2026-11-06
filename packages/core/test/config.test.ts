@@ -90,6 +90,8 @@ path_instructions:
       max_diff_lines: undefined,
       max_turns: undefined,
       max_diff_tokens: undefined,
+      shard_tokens: undefined,
+      max_shards: undefined,
       max_tokens: undefined,
       max_cost_usd: undefined,
       verify: true,
@@ -196,6 +198,16 @@ describe("resolveConfig", () => {
       resolveConfig(loadConfig("max_diff_tokens: 50000\n"), { max_diff_tokens: 30000 })
         .max_diff_tokens,
     ).toBe(30000);
+  });
+
+  it("resolves shard settings from input, then repo config, then defaults", () => {
+    const defaults = resolveConfig(loadConfig(""));
+    expect(defaults.shard_tokens).toBe(DEFAULT_CAPS.shard_tokens);
+    expect(defaults.max_shards).toBe(DEFAULT_CAPS.max_shards);
+    const repo = resolveConfig(loadConfig("shard_tokens: 8000\nmax_shards: 3\n"));
+    expect([repo.shard_tokens, repo.max_shards]).toEqual([8000, 3]);
+    const input = resolveConfig(loadConfig("max_shards: 3\n"), { max_shards: 1 });
+    expect(input.max_shards).toBe(1);
   });
 
   it("clamps repo caps at the action input values", () => {

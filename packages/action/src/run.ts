@@ -472,6 +472,10 @@ export async function runAction(
       resolved: resolved.map(toFinding),
     });
     await progress.settle();
+    if (result.notReviewed !== undefined) {
+      plan.notReviewed.push(...result.notReviewed);
+      plan.partial = true;
+    }
     const current = await github.pull(owner, repo, prNumber);
     if (
       current.head.sha !== target.headSha ||

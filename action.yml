@@ -76,6 +76,12 @@ inputs:
   max_diff_tokens:
     description: Maximum estimated tokens of diff the reviewer sees, counted on the rendered diff. Over it, Hammer drops extra context, then deletion-only hunks, then whole files (lowest priority first) and lists them as not reviewed. Leave empty to use .github/hammer.yml or the default of 120000; when set, it is a ceiling that the repository config cannot raise.
     required: false
+  shard_tokens:
+    description: When the rendered diff is larger than this many estimated tokens, Hammer splits the files into shards reviewed in parallel by separate agents. Leave empty to use .github/hammer.yml or the default of 20000.
+    required: false
+  max_shards:
+    description: Maximum number of parallel shards (1 turns sharding off). Leave empty to use .github/hammer.yml or the default of 5.
+    required: false
   max_tokens:
     description: Maximum tokens per run. No limit unless set here or in the repo config.
     required: false
