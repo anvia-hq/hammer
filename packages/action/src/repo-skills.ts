@@ -1,4 +1,4 @@
-import { access, cp, mkdir, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 export const REPO_SKILLS_PATH = ".hammer/skills";
@@ -55,20 +55,32 @@ async function stageOne(
     warn(`Skipping ${base}: a skill named ${name} already exists`);
     return undefined;
   }
-  await mkdir(target, { recursive: true });
-  await writeFile(join(target, "SKILL.md"), clip(instructions));
-  const references = (await source.directory(`${base}/references`)) ?? [];
-  const files = references.filter((ref) => ref.type === "file" && NAME_RE.test(ref.name));
-  if (files.length > 0) await mkdir(join(target, "references"), { recursive: true });
-  for (const ref of files.slice(0, MAX_REFERENCES)) {
+  try {
+    await mkdir(target, { recursive: true });
+    await writeFile(join(target, "SKILL.md"), clip(instructions));
+    let references: Array<{ name: string; type: string }> = [];
     try {
-      const text = await source.content(`${base}/references/${ref.name}`);
-      if (text !== undefined) await writeFile(join(target, "references", ref.name), clip(text));
+      references = (await source.directory(`${base}/references`)) ?? [];
     } catch (error) {
       warn(
-        `Skipping ${base}/references/${ref.name}: ${error instanceof Error ? error.message : String(error)}`,
+        `Skipping ${base}/references: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+    const files = references.filter((ref) => ref.type === "file" && NAME_RE.test(ref.name));
+    if (files.length > 0) await mkdir(join(target, "references"), { recursive: true });
+    for (const ref of files.slice(0, MAX_REFERENCES)) {
+      try {
+        const text = await source.content(`${base}/references/${ref.name}`);
+        if (text !== undefined) await writeFile(join(target, "references", ref.name), clip(text));
+      } catch (error) {
+        warn(
+          `Skipping ${base}/references/${ref.name}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  } catch (error) {
+    await rm(target, { recursive: true, force: true });
+    throw error;
   }
   return name;
 }

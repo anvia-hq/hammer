@@ -114,3 +114,26 @@ describe("stageRepoSkills robustness", () => {
     expect(warnings).toHaveLength(2);
   });
 });
+
+describe("stageRepoSkills references listing", () => {
+  it("keeps a skill whose references cannot be listed", async () => {
+    const staging = join(await mkdtemp(join(tmpdir(), "hammer-skills-")), "skills");
+    const base = source({ ".hammer/skills/a/SKILL.md": skill("listfail") });
+    const warnings: string[] = [];
+    const result = await stageRepoSkills(
+      {
+        directory: async (path) => {
+          if (path.endsWith("/a/references")) throw new Error("boom");
+          return base.directory(path);
+        },
+        content: base.content,
+      },
+      bundled,
+      staging,
+      (message) => warnings.push(message),
+    );
+    expect(result.names).toEqual(["listfail"]);
+    expect(await readdir(staging)).toContain("listfail");
+    expect(warnings.some((message) => message.includes("a/references"))).toBe(true);
+  });
+});
