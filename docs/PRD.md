@@ -302,6 +302,7 @@ ignore: ["**/*.generated.ts", "docs/**"]
 include: [] # optional allowlist
 ignore_authors: ["dependabot[bot]", "renovate[bot]"]
 use_repo_guidelines: true
+use_repo_skills: true
 language: en # language of comments
 rules:
   - id: webhooks-idempotent
