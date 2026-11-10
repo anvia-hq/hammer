@@ -21,6 +21,7 @@ describe("loadConfig defaults", () => {
       expect(config.include).toEqual([]);
       expect(config.ignore_authors).toEqual(["dependabot[bot]", "renovate[bot]"]);
       expect(config.use_repo_guidelines).toBe(true);
+      expect(config.use_repo_skills).toBe(true);
       expect(config.language).toBe("en");
       expect(config.rules).toEqual([]);
       expect(config.path_instructions).toEqual([]);
@@ -65,6 +66,7 @@ path_instructions:
       ignore_authors: ["dependabot[bot]", "renovate[bot]"],
       review_bot_pushes: false,
       use_repo_guidelines: true,
+      use_repo_skills: true,
       language: "en",
       rules: [
         {
