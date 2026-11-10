@@ -419,7 +419,9 @@ export async function runAction(
     const openThreads = threads.flatMap((thread) => {
       const first = thread.commentIds[0];
       const comment = first === undefined ? undefined : commentById.get(first);
-      return thread.resolved || comment === undefined
+      const outdatedHere =
+        thread.outdated && plan.reviewFiles.some((file) => file.filename === thread.path);
+      return thread.resolved || outdatedHere || comment === undefined
         ? []
         : [
             {
@@ -485,7 +487,7 @@ export async function runAction(
       ),
       prior: prior.map(toFinding),
       resolved: resolved.map(toFinding),
-      openThreads,
+      openThreads: instruction === "" && !plan.partial ? openThreads : [],
     });
     await progress.settle();
     if (result.notReviewed !== undefined) {
