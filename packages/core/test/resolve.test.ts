@@ -95,4 +95,25 @@ describe("parseFingerprintMarker", () => {
     expect(parseFingerprintMarker(`text\n${formatFingerprintComment(fp)}`)).toEqual(fp);
     expect(parseFingerprintMarker("no marker")).toBeUndefined();
   });
+
+  it("resolves a thread the judge found fixed even when its lines did not change", () => {
+    expect(
+      selectThreadsToResolve({
+        ...base,
+        threads: [thread("t1", { outdated: false })],
+        judgedFixed: new Set(["t1"]),
+      }),
+    ).toEqual(["t1"]);
+  });
+
+  it("still keeps a judged-fixed thread the reviewer restated", () => {
+    expect(
+      selectThreadsToResolve({
+        ...base,
+        threads: [thread("t1", { outdated: false })],
+        judgedFixed: new Set(["t1"]),
+        reported: [{ path, body: flagged.body }],
+      }),
+    ).toEqual([]);
+  });
 });
