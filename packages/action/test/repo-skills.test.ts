@@ -74,3 +74,43 @@ describe("stageRepoSkills", () => {
     );
   });
 });
+
+describe("stageRepoSkills robustness", () => {
+  it("reads only a frontmatter name, not one in the body", async () => {
+    const staging = join(await mkdtemp(join(tmpdir(), "hammer-skills-")), "skills");
+    const result = await stageRepoSkills(
+      source({ ".hammer/skills/a/SKILL.md": "---\ndescription: d\n---\nname: sneaky\n" }),
+      bundled,
+      staging,
+      () => {},
+    );
+    expect(result.names).toEqual([]);
+  });
+
+  it("skips only the file that cannot be read", async () => {
+    const staging = join(await mkdtemp(join(tmpdir(), "hammer-skills-")), "skills");
+    const files = {
+      ".hammer/skills/a/SKILL.md": skill("good"),
+      ".hammer/skills/a/references/big.md": "x",
+      ".hammer/skills/a/references/ok.md": "ok",
+      ".hammer/skills/b/SKILL.md": skill("bad"),
+    };
+    const base = source(files);
+    const warnings: string[] = [];
+    const result = await stageRepoSkills(
+      {
+        directory: base.directory,
+        content: async (path) => {
+          if (path.endsWith("big.md") || path.includes("/b/")) throw new Error("too large");
+          return base.content(path);
+        },
+      },
+      bundled,
+      staging,
+      (message) => warnings.push(message),
+    );
+    expect(result.names).toEqual(["good"]);
+    expect(await readFile(join(staging, "good", "references", "ok.md"), "utf8")).toBe("ok");
+    expect(warnings).toHaveLength(2);
+  });
+});
