@@ -107,6 +107,14 @@ async function fixture(overrides: Record<string, string> = {}) {
         _ref: string,
       ): Promise<string | undefined> => (path === "AGENTS.md" ? "Base branch rule" : undefined),
     ),
+    directory: vi.fn(
+      async (
+        _owner: string,
+        _repo: string,
+        _path: string,
+        _ref: string,
+      ): Promise<Array<{ name: string; type: string }> | undefined> => undefined,
+    ),
     comments: vi.fn(async () => comments),
     reviewComments: vi.fn<GitHubPort["reviewComments"]>(async () => []),
     reviewThreads: vi.fn<GitHubPort["reviewThreads"]>(async () => []),
@@ -243,6 +251,47 @@ describe("Action review flow", () => {
     );
     await cleanup(f.state["review-directory"]!, f.root);
     await expect(readFile(f.outputs.result_path!, "utf8")).rejects.toThrow();
+  });
+  describe("repository skills", () => {
+    const stub = (f: Awaited<ReturnType<typeof fixture>>) => {
+      f.github.directory.mockImplementation(async (_o, _r, path) => {
+        if (path === ".hammer/skills") return [{ name: "anything", type: "dir" }];
+        if (path === ".hammer/skills/anything/references") return [];
+        return undefined;
+      });
+      const original = f.github.content.getMockImplementation()!;
+      f.github.content.mockImplementation(async (owner, repo, path, ref) =>
+        path === ".hammer/skills/anything/SKILL.md"
+          ? "---\nname: team-review\ndescription: Team review focus\n---\nFocus on billing code."
+          : original(owner, repo, path, ref),
+      );
+    };
+
+    it("loads skills from .hammer/skills on the base branch", async () => {
+      const f = await fixture({});
+      stub(f);
+      await f.run();
+      expect(f.runtime.info).toHaveBeenCalledWith(
+        "[hammer] skills: code-review-and-quality, team-review",
+      );
+      expect(f.github.directory.mock.calls.every((call: unknown[]) => call[3] === base)).toBe(true);
+      await cleanup(f.state["review-directory"]!, f.root);
+    });
+
+    it("ignores them when use_repo_skills is false", async () => {
+      const f = await fixture();
+      stub(f);
+      const original = f.github.content.getMockImplementation()!;
+      f.github.content.mockImplementation(async (owner, repo, path, ref) =>
+        path === ".github/hammer.yml"
+          ? "use_repo_skills: false\n"
+          : original(owner, repo, path, ref),
+      );
+      await f.run();
+      expect(f.github.directory).not.toHaveBeenCalled();
+      expect(f.runtime.info).toHaveBeenCalledWith("[hammer] skills: code-review-and-quality");
+      await cleanup(f.state["review-directory"]!, f.root);
+    });
   });
   it("skips fork auto-review before requiring a model key or accessing config", async () => {
     const f = await fixture({ "api-key": "" });

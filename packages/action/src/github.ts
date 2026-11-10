@@ -235,6 +235,20 @@ export class GitHub {
       files: z.array(fileSchema).parse(result.files ?? []),
     };
   }
+  async directory(
+    owner: string,
+    repo: string,
+    path: string,
+    ref: string,
+  ): Promise<Array<{ name: string; type: string }> | undefined> {
+    try {
+      const data = (await this.api.repos.getContent({ owner, repo, path, ref })).data;
+      return z.array(z.object({ name: z.string(), type: z.string() })).parse(data);
+    } catch (error) {
+      if (status(error) === 404) return undefined;
+      throw error;
+    }
+  }
   async content(
     owner: string,
     repo: string,
