@@ -21,6 +21,7 @@ import { promptCacheProviderOptions } from "./model";
 import type { SkillSet } from "./skills";
 import { findChangeLeads } from "./leads";
 import { shardFiles } from "./shard";
+import { applyJudgement, JUDGE_INSTRUCTIONS, type OpenThread } from "./judge";
 import { applyVerification, VERIFICATION_INSTRUCTIONS } from "./verify";
 
 const VERIFY_MAX_TURNS = 15;
@@ -37,6 +38,7 @@ export interface ReviewPipelineInput extends BuildReviewPromptInput {
   model: CompletionModel;
   prior?: PriorFinding[];
   resolved?: PriorFinding[];
+  openThreads?: OpenThread[];
   priorFingerprints?: Set<string>;
   pricing?: PricingFn;
   reasoningEffort?: string;
@@ -381,6 +383,37 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
         ? { unverified: verification.note ?? "no reason given" }
         : {}),
     });
+  const judgeable = review.ok && review.partial !== true && (input.openThreads ?? []).length > 0;
+  if (judgeable) verifyDeadline = Date.now() + VERIFY_TIME_LIMIT_MS;
+  const judgement = await applyJudgement({
+    threads: judgeable ? (input.openThreads ?? []) : [],
+    diffContext: buildDiffContext(input.openThreads ?? [], input.files),
+    canContinue: () => budget.canStartBatch().ok,
+    runJudge: async (prompt) => {
+      const judge = new Agent({
+        id: "hammer-judge",
+        model,
+        ...(providerOptions ? { providerOptions } : {}),
+        instructions: JUDGE_INSTRUCTIONS,
+        tools: buildReviewerTools({
+          checkoutRoot: input.checkoutRoot,
+          files: input.files,
+          fileContents: input.fileContents ?? {},
+          pr: { title: input.title, ...input.pr },
+          discussion: input.discussion,
+          onToolCall: (name, detail) => emit({ type: "tool", name: `judge ${name}`, detail }),
+          isNearBudget,
+        }),
+        maxTurns: Math.min(input.config.max_turns, VERIFY_MAX_TURNS),
+        maxTokens: 4096,
+        retries: { maxAttempts: 3 },
+        ...(input.reasoningEffort ? { controls: { reasoningEffort: input.reasoningEffort } } : {}),
+      });
+      const response = await judge.generate({ prompt });
+      if (response.type !== "response") throw new Error("Thread judging did not finish.");
+      return response.text;
+    },
+  });
   const validated = validateFindings(
     verification.findings,
     input.anchorFiles ?? input.files,
@@ -443,6 +476,7 @@ export async function runReviewPipeline(input: ReviewPipelineInput) {
       ? { outputChars: review.outputChars }
       : {}),
     duplicates: deduped.duplicates.length,
+    judgements: judgement.judged,
     ...(failedShardFiles.length > 0 ? { notReviewed: failedShardFiles } : {}),
     shards: sharding.shards.length,
   };
