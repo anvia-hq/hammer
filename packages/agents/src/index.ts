@@ -91,7 +91,7 @@ export {
 } from "./verify";
 export type { OpenThread, JudgedThread, ApplyJudgementResult } from "./judge";
 export { applyJudgement, buildJudgePrompt, JUDGE_INSTRUCTIONS, MAX_JUDGED_THREADS } from "./judge";
-export { loadReviewSkills, SKILL_REVIEW_INSTRUCTIONS } from "./skills";
+export { loadReviewSkills, REPO_SKILL_INSTRUCTIONS, SKILL_REVIEW_INSTRUCTIONS } from "./skills";
 export type { SkillSet } from "./skills";
 export { runReviewPipeline } from "./pipeline";
 export type { ReviewPipelineInput, ReviewPipelineResult } from "./pipeline";

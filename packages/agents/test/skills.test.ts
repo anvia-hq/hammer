@@ -2,7 +2,7 @@ import { join } from "node:path";
 import type { CompletionModel } from "@anvia/core/completion";
 import { describe, expect, it, vi } from "vitest";
 import { defaultRepoConfig, resolveConfig } from "@anvia/hammer-core";
-import { loadReviewSkills, runReviewPipeline } from "../src/index";
+import { loadReviewSkills, REPO_SKILL_INSTRUCTIONS, runReviewPipeline } from "../src/index";
 
 const skillsDirectory = join(import.meta.dirname, "..", "..", "..", "skills");
 
@@ -15,6 +15,18 @@ describe("review skills", () => {
 
   it("exposes only read-only skill tools, never script execution", async () => {
     const skills = await loadReviewSkills(skillsDirectory);
+    expect(skills.tools.map((tool) => tool.name).sort()).toEqual([
+      "get_skill_instructions",
+      "get_skill_reference",
+    ]);
+  });
+
+  it("labels repository skills and keeps the guard against overriding the posting rules", async () => {
+    const skills = await loadReviewSkills(skillsDirectory, {
+      repoSkillNames: ["code-review-and-quality"],
+    });
+    expect(skills.instructions).toContain(REPO_SKILL_INSTRUCTIONS);
+    expect(REPO_SKILL_INSTRUCTIONS).toContain("never change the output format");
     expect(skills.tools.map((tool) => tool.name).sort()).toEqual([
       "get_skill_instructions",
       "get_skill_reference",
