@@ -31,3 +31,7 @@ Hammer kept one summary comment per PR and rewrote it on every push. A push look
 - A reviewer that rewords a still-valid finding gets a new comment and the old thread is resolved. The finding stays visible in the new thread.
 - Resolving needs `pull-requests: write`, which Hammer already requires. The agent still has no write tool; the Action performs the resolve after validation ([0004](0004-read-only-reviewer.md)).
 - Comments from before this change keep their marker. The newest one with a sha still seeds the incremental review, and a leftover progress comment is rewritten to an interrupted note.
+
+## Amendment: judge open threads against the current code
+
+The outdated rule alone missed fixes made away from the flagged lines. When the review finished without being partial, the pipeline now asks the model (read-only tools, same limits as the verifier) whether each open Hammer thread, up to 20, is fixed in the current code (`packages/agents/src/judge.ts`). A thread is resolved when it is outdated in a reviewed file, or the judge answers `fixed`, and in both cases only if this run's findings do not match its fingerprints. A missing or invalid verdict means open. A judge failure resolves nothing extra.

@@ -415,6 +415,23 @@ export async function runAction(
       title: "Previous finding",
       body: comment.body ?? "",
     });
+    const commentById = new Map(hammerComments.map((comment) => [comment.id, comment]));
+    const openThreads = threads.flatMap((thread) => {
+      const first = thread.commentIds[0];
+      const comment = first === undefined ? undefined : commentById.get(first);
+      const outdatedHere =
+        thread.outdated && plan.reviewFiles.some((file) => file.filename === thread.path);
+      return thread.resolved || outdatedHere || comment === undefined
+        ? []
+        : [
+            {
+              id: thread.id,
+              path: thread.path,
+              line: comment.line ?? comment.original_line ?? 1,
+              body: comment.body ?? "",
+            },
+          ];
+    });
     const instruction =
       decision.kind === "comment" ? decision.command.replace(/^review\s*/i, "") : "";
     const gatewayCatalog =
@@ -470,6 +487,7 @@ export async function runAction(
       ),
       prior: prior.map(toFinding),
       resolved: resolved.map(toFinding),
+      openThreads: instruction === "" && !plan.partial ? openThreads : [],
     });
     await progress.settle();
     if (result.notReviewed !== undefined) {
@@ -498,6 +516,9 @@ export async function runAction(
       const ids = selectThreadsToResolve({
         threads: candidates,
         reviewedPaths: new Set(plan.reviewFiles.map((file) => file.filename)),
+        judgedFixed: new Set(
+          result.judgements.filter((entry) => entry.fixed).map((entry) => entry.id),
+        ),
         reported: [...result.findings, ...result.dropped.map((entry) => entry.finding)],
         complete:
           instruction === "" &&

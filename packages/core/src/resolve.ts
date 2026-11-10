@@ -12,6 +12,7 @@ export interface SelectThreadsOptions {
   reviewedPaths: ReadonlySet<string>;
   reported: DedupeFinding[];
   complete: boolean;
+  judgedFixed?: ReadonlySet<string>;
 }
 
 export function selectThreadsToResolve(options: SelectThreadsOptions): string[] {
@@ -22,7 +23,8 @@ export function selectThreadsToResolve(options: SelectThreadsOptions): string[] 
   }));
   return options.threads
     .filter((thread) => {
-      if (!thread.outdated || !options.reviewedPaths.has(thread.path)) return false;
+      const outdatedHere = thread.outdated && options.reviewedPaths.has(thread.path);
+      if (!outdatedHere && options.judgedFixed?.has(thread.id) !== true) return false;
       const marker = parseFingerprintMarker(thread.body);
       if (marker === undefined) return false;
       return !reported.some(
