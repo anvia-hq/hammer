@@ -23,3 +23,7 @@ Two things don't fit Hammer as written. The SDK's skill tools include `run_skill
 - The review costs one extra turn and a few thousand tokens to load the skill.
 - Review quality changes with this decision. Run the evals with and without `--no-skills` before relying on it.
 - Adding a skill is a directory under `skills/`, a source and license note, and an eval run.
+
+## Amendment: skills from the repository's base branch
+
+Repositories can add skills under `.hammer/skills/<dir>/SKILL.md` (plus `references/*.md`). The Action lists and reads them from the base commit through the contents API, writes them with the bundled skills into a staging directory in the run's temp folder, and loads that directory. The skill's directory is named after its frontmatter `name`, which the loader requires, and a name that matches a bundled skill is skipped. Limits: 5 skills, 20 references each, 100,000 characters per file. Only the two read-only skill tools are exposed, and the prompt says repository skills can steer focus but never the output format or posting rules. `use_repo_skills: false` turns it off. Skills from the PR head are still never read, and a failure falls back to the bundled skills with a warning.

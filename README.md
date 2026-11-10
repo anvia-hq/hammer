@@ -120,6 +120,30 @@ verify_threshold: 6 # 0-10
 
 Hammer also reads `AGENTS.md`, `CLAUDE.md` and `CONTRIBUTING.md` from the base branch as review guidance (turn off with `use_repo_guidelines: false`).
 
+### Repository review skills
+
+Add your own review guidance as skills in your repository. Each skill is a folder with a `SKILL.md` (and optional `references/*.md`):
+
+```
+.hammer/skills/billing/SKILL.md
+.hammer/skills/billing/references/rules.md
+```
+
+```md
+---
+name: billing
+description: What to check in billing code
+---
+
+Focus on rounding, currency and idempotency in `src/billing/`. Ignore generated clients.
+```
+
+- `name` is required and becomes the skill's name. A skill cannot replace the bundled `code-review-and-quality`.
+- Skills are read from the **base branch**, never the PR head, so a change to a skill takes effect after it is merged.
+- They are read-only guidance: they can change what Hammer focuses on or ignores, but not the output format, the posting rules or the secret scan.
+- Limits: 5 skills, 20 reference files each, 100,000 characters per file.
+- Turn off with `use_repo_skills: false`.
+
 ### Limits
 
 Each run is bounded by 50 files, 3,000 diff lines and 100 agent turns; change them with `max_files`, `max_diff_lines` and `max_turns` in `.github/hammer.yml`. A value passed in the workflow `with:` block is a ceiling the repository config cannot raise, so leave the input empty if you want the config file to decide. There is no token or cost limit unless you set `max_tokens` or `max_cost_usd` in `.github/hammer.yml`. If a turn, token or cost limit (or the model's context window) stops the review before it finishes, Hammer asks the model for its findings so far and publishes them as a partial review; only if that fails does the summary say the PR was not reviewed. `max_cost_usd` is enforced when Hammer knows the model's price: from the `pricing` input, from an openai-compatible gateway's `/models` endpoint (when `base-url` is set and lists prices), or from the bundled list. Supply `pricing` for models none of these cover.

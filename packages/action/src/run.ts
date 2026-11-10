@@ -39,6 +39,7 @@ import {
   type ReviewPipelineInput,
 } from "@anvia/hammer-agents";
 import { checkoutHead } from "./checkout";
+import { stageRepoSkills } from "./repo-skills";
 import { GitHub, proxiedFetch, type GitHubPort, type IssueComment } from "./github";
 import { configOverrides, readInputs, type ActionInputs } from "./inputs";
 import { requestPlatformToken } from "./platform";
@@ -442,12 +443,34 @@ export async function runAction(
           )(inputs["base-url"], inputs["api-key"])
         : undefined;
     const pricing = resolvePricing(modelRef, inputs.pricing || undefined, gatewayCatalog);
-    const skills = await loadReviewSkills(
-      dependencies.skillsDirectory ?? DEFAULT_SKILLS_DIRECTORY,
-    ).catch((error: unknown) => {
+    const bundledSkills = dependencies.skillsDirectory ?? DEFAULT_SKILLS_DIRECTORY;
+    const skillsWarning = (error: unknown): undefined => {
       runtime.warning(`Review skills unavailable; continuing without them: ${cleanError(error)}`);
       return undefined;
-    });
+    };
+    let skills = await loadReviewSkills(bundledSkills).catch(skillsWarning);
+    if (skills !== undefined && config.use_repo_skills) {
+      try {
+        const staged = await stageRepoSkills(
+          {
+            directory: (path) => github!.directory(owner, repo, path, pr.base.sha),
+            content: (path) => github!.content(owner, repo, path, pr.base.sha),
+          },
+          bundledSkills,
+          join(directory, "skills"),
+          runtime.warning,
+        );
+        if (staged.names.length > 0) {
+          skills = await loadReviewSkills(staged.directory, {
+            repoSkillNames: staged.names,
+          });
+        }
+      } catch (error) {
+        runtime.warning(
+          `Repository skills unavailable; continuing with bundled skills: ${cleanError(error)}`,
+        );
+      }
+    }
     if (skills?.skills.length)
       runtime.info(`[hammer] skills: ${skills.skills.map((entry) => entry.name).join(", ")}`);
     const result = await runReviewPipeline({
