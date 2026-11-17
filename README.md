@@ -72,7 +72,7 @@ see [0018](docs/decision/0018-opt-in-fork-auto-review.md).
 
 ## Models
 
-`client` is one of `anthropic`, `openai`, `gemini`, `openai-compatible` or `azure`. `model` is the model id for that client.
+`client` is one of `anthropic`, `openai`, `gemini`, `openai-compatible`, `azure` or `claude-agent-sdk`. `model` is the model id for that client.
 
 ```yaml
 # Azure OpenAI
@@ -88,6 +88,48 @@ base-url: https://gateway.example.com/v1
 native-json-schema: "false" # only if the endpoint lacks native JSON-schema output
 api-key: ${{ secrets.GATEWAY_API_KEY }}
 ```
+
+### Claude subscription (`claude-agent-sdk`)
+
+`client: claude-agent-sdk` runs every model call of a review through the Claude Agent SDK on your own Claude subscription instead of a metered API key. It needs a token you create for yourself:
+
+```sh
+claude setup-token   # prints a token, for a Pro, Max, Team or Enterprise plan
+```
+
+Store the token as a repository secret (for example `CLAUDE_CODE_OAUTH_TOKEN`) and drop `api-key`:
+
+```yaml
+- uses: anvia-hq/hammer@v1
+  with:
+    client: claude-agent-sdk
+    model: claude-sonnet-4-5
+    oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+```
+
+`oauth-token` falls back to the `CLAUDE_CODE_OAUTH_TOKEN` environment variable. A missing token fails the run with the `claude setup-token` instruction instead of reviewing nothing.
+
+Hammer downloads the `claude` binary itself: one pinned version per platform, checksum-verified before it is unpacked, into `RUNNER_TEMP/hammer-claude/`. The first run on a runner downloads about 350 MiB; later runs reuse it. Where the temp directory is not warm, cache it:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: ${{ runner.temp }}/hammer-claude
+    key: hammer-claude-0.3.326-${{ runner.os }}-${{ runner.arch }}
+- uses: anvia-hq/hammer@v1
+  with:
+    client: claude-agent-sdk
+    model: claude-sonnet-4-5
+    oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+```
+
+Set `claude-path` (or `CLAUDE_CODE_PATH`) to a `claude` binary you installed yourself to skip the download. Supported platforms are Linux x64 and arm64 (glibc and musl), macOS x64 and arm64, and Windows x64 and arm64; anything else fails with a message naming the alternatives.
+
+On this backend the same read-only controls apply as everywhere else, expressed in the SDK's terms: no built-in tool is enabled, every write, exec and network tool is denied, a `PreToolUse` hook refuses anything that is not one of Hammer's six read-only tools, no `~/.claude` settings, hooks or `.mcp.json` are read, the working directory is the PR-head checkout, and the CLI gets an explicit environment with only your token — `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` are removed so an API key cannot take over silently. See [0022](docs/decision/0022-claude-agent-sdk-backend.md).
+
+**What is billed:** reviews on a subscription draw on that plan's usage limits, not on a per-token API bill, so `cost_usd` is reported as 0 and `max_cost_usd` does not apply. `tokens` is still reported, from the SDK's per-model usage, and `max_turns`, `max_tokens` and the shard limits still bind. Anthropic's third-party policy does not allow a product to log a user in to their Claude account; Hammer never does. It only uses a token the user generated for themselves with `claude setup-token`, keeps it in their own repository secret, and passes it to the CLI running on their own runner.
+
+On `claude-agent-sdk`, `reasoning-effort` maps to the CLI's effort level (`low`, `medium`, `high`, `xhigh` or `max`); any other value fails the run before the first call.
 
 Models that support it accept `reasoning-effort`, with the values the provider documents for that model (for example `low`, `medium`, `high`, and on some models `none`, `minimal`, `xhigh` or `max`). For a model Hammer's client does not list yet, the value is passed to the provider, which rejects it if the model does not support it. For a listed model the run fails with a clear error before any call.
 
@@ -152,30 +194,32 @@ Large PRs: the diff the model sees is measured in estimated tokens. Above `max_d
 
 ### Inputs
 
-| Input                                      | Description                                                           |
-| ------------------------------------------ | --------------------------------------------------------------------- |
-| `client`, `model`, `api-key`               | Required. Model client, model id and API key.                         |
-| `base-url`                                 | Gateway URL (`openai-compatible`) or endpoint (`azure`).              |
-| `native-json-schema`                       | Set `"false"` for endpoints without native JSON-schema output.        |
-| `reasoning-effort`                         | Reasoning effort, for models that support it.                         |
-| `pricing`                                  | JSON of per-million-token USD prices, to enforce `max_cost_usd`.      |
-| `github-token`                             | Defaults to the workflow token.                                       |
-| `hammer-api-key`                           | Repository key from hammer.anvia.dev, so Hammer posts as the bot.     |
-| `platform-url`                             | Token broker that lets Hammer post as the bot. Empty disables it.     |
-| `bot-login`                                | Login of your own GitHub App behind `github-token`.                   |
-| `config-path`                              | Config file path. Default `.github/hammer.yml`.                       |
-| `min_severity`, `max_comments`, `fail_on`  | Override the matching config keys.                                    |
-| `review_drafts`, `ignore`, `include`       | Override the matching config keys. Lists are newline-separated.       |
-| `max_files`, `max_diff_lines`, `max_turns` | Review limits. Empty means use `.github/hammer.yml`.                  |
-| `max_diff_tokens`                          | Token budget for the rendered diff. Default 120000.                   |
-| `shard_tokens`, `max_shards`               | Shard a diff above this size (default 20000) into up to 5 shards.     |
-| `max_tokens`, `max_cost_usd`               | Token and cost limits.                                                |
-| `verify`, `verify_threshold`               | Verification pass on or off, and the minimum score to keep a finding. |
-| `fail_on_error`                            | Fail the job if Hammer itself errors. Default `false`.                |
+| Input                                      | Description                                                                                               |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `client`, `model`, `api-key`               | Required, except for `claude-agent-sdk`. Client, model id and API key.                                    |
+| `oauth-token`                              | Claude subscription token for `claude-agent-sdk`. Falls back to `CLAUDE_CODE_OAUTH_TOKEN`.                |
+| `claude-path`                              | Your own `claude` binary for `claude-agent-sdk`, skipping the download. Falls back to `CLAUDE_CODE_PATH`. |
+| `base-url`                                 | Gateway URL (`openai-compatible`) or endpoint (`azure`).                                                  |
+| `native-json-schema`                       | Set `"false"` for endpoints without native JSON-schema output.                                            |
+| `reasoning-effort`                         | Reasoning effort, for models that support it.                                                             |
+| `pricing`                                  | JSON of per-million-token USD prices, to enforce `max_cost_usd`.                                          |
+| `github-token`                             | Defaults to the workflow token.                                                                           |
+| `hammer-api-key`                           | Repository key from hammer.anvia.dev, so Hammer posts as the bot.                                         |
+| `platform-url`                             | Token broker that lets Hammer post as the bot. Empty disables it.                                         |
+| `bot-login`                                | Login of your own GitHub App behind `github-token`.                                                       |
+| `config-path`                              | Config file path. Default `.github/hammer.yml`.                                                           |
+| `min_severity`, `max_comments`, `fail_on`  | Override the matching config keys.                                                                        |
+| `review_drafts`, `ignore`, `include`       | Override the matching config keys. Lists are newline-separated.                                           |
+| `max_files`, `max_diff_lines`, `max_turns` | Review limits. Empty means use `.github/hammer.yml`.                                                      |
+| `max_diff_tokens`                          | Token budget for the rendered diff. Default 120000.                                                       |
+| `shard_tokens`, `max_shards`               | Shard a diff above this size (default 20000) into up to 5 shards.                                         |
+| `max_tokens`, `max_cost_usd`               | Token and cost limits.                                                                                    |
+| `verify`, `verify_threshold`               | Verification pass on or off, and the minimum score to keep a finding.                                     |
+| `fail_on_error`                            | Fail the job if Hammer itself errors. Default `false`.                                                    |
 
 ### Outputs
 
-`findings_count`, `high_count`, `review_url`, `result_path` (full result JSON), `tokens` and `cost_usd`.
+`findings_count`, `high_count`, `review_url`, `result_path` (full result JSON), `tokens` and `cost_usd`. `cost_usd` is 0 for `claude-agent-sdk`, which bills to a subscription.
 
 ## Live progress
 
@@ -209,7 +253,7 @@ See [docs/security-coverage.md](docs/security-coverage.md) for how each control 
 
 ## Runners
 
-Hammer is a pure-JavaScript Node 24 action with no preinstalled tools, so it runs on GitHub-hosted, Blacksmith and self-hosted Linux runners, x64 and arm64. Verified runners and open items are listed in [docs/runners.md](docs/runners.md).
+Hammer is a pure-JavaScript Node 24 action with no preinstalled tools, so it runs on GitHub-hosted, Blacksmith and self-hosted Linux runners, x64 and arm64. Verified runners and open items are listed in [docs/runners.md](docs/runners.md). The one exception is `client: claude-agent-sdk`, which downloads a checksum-verified `claude` binary into `RUNNER_TEMP`; see [0022](docs/decision/0022-claude-agent-sdk-backend.md).
 
 ## Status
 

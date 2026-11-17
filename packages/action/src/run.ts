@@ -29,16 +29,20 @@ import {
   SUMMARY_MARKER,
 } from "@anvia/hammer-core";
 import {
+  createClaudeSdkBackend,
   createCompletionModel,
   loadReviewSkills,
   parseModelRefWithBase,
   readFile as readCheckoutFile,
   fitDiff,
   runReviewPipeline,
+  type ClaudeQueryFn,
+  type ReviewBackend,
   type PromptGuidelines,
   type ReviewPipelineInput,
 } from "@anvia/hammer-agents";
 import { checkoutHead } from "./checkout";
+import { provisionClaudeBinary } from "./claude-binary";
 import { stageRepoSkills } from "./repo-skills";
 import { GitHub, proxiedFetch, type GitHubPort, type IssueComment } from "./github";
 import { configOverrides, readInputs, type ActionInputs } from "./inputs";
@@ -61,12 +65,27 @@ export interface ActionRuntime {
 export interface ActionDependencies {
   github?: GitHubPort;
   model?: ReviewPipelineInput["model"];
+  backend?: ReviewBackend;
+  claudeQuery?: ClaudeQueryFn;
   checkout?: typeof checkoutHead;
   skillsDirectory?: string;
   platformToken?: typeof requestPlatformToken;
   fetchPricing?: (baseUrl: string, apiKey: string) => Promise<PriceCatalog>;
 }
 const DEFAULT_SKILLS_DIRECTORY = fileURLToPath(new URL("../../../skills", import.meta.url));
+
+// The subscription path is the only credential the child may see: an API key left in the
+// environment would take over silently instead of failing.
+export function claudeSdkEnv(
+  env: NodeJS.ProcessEnv,
+  oauthToken: string,
+): Record<string, string | undefined> {
+  const child: Record<string, string | undefined> = { ...env };
+  child["CLAUDE_CODE_OAUTH_TOKEN"] = oauthToken;
+  delete child["ANTHROPIC_API_KEY"];
+  delete child["ANTHROPIC_AUTH_TOKEN"];
+  return child;
+}
 const eventSchema = z
   .object({
     sender: z.object({ login: z.string(), type: z.string() }).optional(),
@@ -88,6 +107,11 @@ export async function runAction(
   let progress: ProgressReporter | undefined;
   let runComment: RunComment | undefined;
   let commentStatus: CommentStatus | undefined;
+  const modelSecrets = (): string[] => [
+    runtime.getInput("api-key"),
+    runtime.getInput("oauth-token"),
+    env.CLAUDE_CODE_OAUTH_TOKEN ?? "",
+  ];
   const cleanError = (error: unknown): string => {
     let message =
       error instanceof z.ZodError
@@ -95,17 +119,13 @@ export async function runAction(
         : error instanceof Error
           ? error.message
           : String(error);
-    for (const value of [
-      runtime.getInput("api-key"),
-      runtime.getInput("github-token"),
-      githubToken,
-    ]) {
+    for (const value of [...modelSecrets(), runtime.getInput("github-token"), githubToken]) {
       if (value) message = message.split(value).join("[redacted]");
     }
     return redactSecrets(message);
   };
   const secretValues = (): string[] => [
-    runtime.getInput("api-key"),
+    ...modelSecrets(),
     runtime.getInput("github-token"),
     githubToken,
   ];
@@ -166,10 +186,11 @@ export async function runAction(
       await skip(`event ${env.GITHUB_EVENT_NAME ?? "unknown"} is not a review trigger`);
       return;
     }
-    for (const name of ["api-key", "github-token", "hammer-api-key"]) {
+    for (const name of ["api-key", "oauth-token", "github-token", "hammer-api-key"]) {
       const secret = runtime.getInput(name);
       if (secret) runtime.setSecret(secret);
     }
+    if (env.CLAUDE_CODE_OAUTH_TOKEN) runtime.setSecret(env.CLAUDE_CODE_OAUTH_TOKEN);
     inputs = readInputs(runtime.getInput);
     githubToken = inputs["github-token"];
     let botLogin = inputs["bot-login"];
@@ -277,10 +298,18 @@ export async function runAction(
       await skip(skipped.reason ?? "review skipped");
       return;
     }
-    if (!inputs["api-key"]) throw new Error("API key missing or rejected.");
+    const claudeSdk = inputs.client === "claude-agent-sdk";
+    const oauthToken = (inputs["oauth-token"] || env.CLAUDE_CODE_OAUTH_TOKEN || "").trim();
+    if (claudeSdk) {
+      if (oauthToken === "")
+        throw new Error(
+          'Claude subscription token missing: run "claude setup-token" and pass the output as the oauth-token input (or the CLAUDE_CODE_OAUTH_TOKEN secret), or use client: anthropic/openai/gemini with an api-key.',
+        );
+    } else if (!inputs["api-key"]) throw new Error("API key missing or rejected.");
     const modelRef = `${inputs.client}/${inputs.model}`;
-    const ref = parseModelRefWithBase(modelRef, inputs["base-url"]);
-    if (!ref.ok) throw new Error(ref.issues.map((issue) => issue.message).join("; "));
+    const ref = claudeSdk ? undefined : parseModelRefWithBase(modelRef, inputs["base-url"]);
+    if (ref !== undefined && !ref.ok)
+      throw new Error(ref.issues.map((issue) => issue.message).join("; "));
     if (inputs["lens-endpoint"] || inputs["otel-endpoint"])
       throw new Error("Tracing endpoints are not wired yet; omit them for this preview.");
     let files = await fetchPullFiles((page, perPage) =>
@@ -436,13 +465,15 @@ export async function runAction(
     const instruction =
       decision.kind === "comment" ? decision.command.replace(/^review\s*/i, "") : "";
     const gatewayCatalog =
-      ref.value.provider === "openai-compatible" && inputs["base-url"]
+      ref?.value.provider === "openai-compatible" && inputs["base-url"]
         ? await (
             dependencies.fetchPricing ??
             ((baseUrl, apiKey) => fetchGatewayCatalog(baseUrl, apiKey, proxiedFetch))
           )(inputs["base-url"], inputs["api-key"])
         : undefined;
-    const pricing = resolvePricing(modelRef, inputs.pricing || undefined, gatewayCatalog);
+    const pricing = claudeSdk
+      ? (): number => 0
+      : resolvePricing(modelRef, inputs.pricing || undefined, gatewayCatalog);
     const bundledSkills = dependencies.skillsDirectory ?? DEFAULT_SKILLS_DIRECTORY;
     const skillsWarning = (error: unknown): undefined => {
       runtime.warning(`Review skills unavailable; continuing without them: ${cleanError(error)}`);
@@ -473,6 +504,25 @@ export async function runAction(
     }
     if (skills?.skills.length)
       runtime.info(`[hammer] skills: ${skills.skills.map((entry) => entry.name).join(", ")}`);
+    let backend: ReviewBackend | undefined = dependencies.backend;
+    if (claudeSdk && backend === undefined) {
+      const configuredPath = (inputs["claude-path"] || env.CLAUDE_CODE_PATH || "").trim();
+      const executablePath =
+        configuredPath !== ""
+          ? configuredPath
+          : await provisionClaudeBinary({ temp, log: (message) => runtime.info(message) });
+      const configDir = join(directory, "claude-config");
+      await mkdir(configDir, { recursive: true });
+      runtime.info(`[hammer] claude-agent-sdk: model ${inputs.model}, binary ${executablePath}`);
+      backend = createClaudeSdkBackend({
+        model: inputs.model,
+        executablePath,
+        cwd: checkout,
+        configDir,
+        env: claudeSdkEnv(env, oauthToken),
+        ...(dependencies.claudeQuery !== undefined ? { query: dependencies.claudeQuery } : {}),
+      });
+    }
     const result = await runReviewPipeline({
       title: pr.title,
       body: pr.body,
@@ -499,12 +549,16 @@ export async function runAction(
       ...(skills ? { skills } : {}),
       ...(inputs["base-url"] ? { baseUrl: inputs["base-url"] } : {}),
       ...(inputs["reasoning-effort"] ? { reasoningEffort: inputs["reasoning-effort"] } : {}),
-      model:
-        dependencies.model ??
-        createCompletionModel(ref.value, {
-          apiKey: inputs["api-key"],
-          nativeJsonSchema: inputs["native-json-schema"],
-        }),
+      ...(backend !== undefined
+        ? { backend }
+        : dependencies.model !== undefined
+          ? { model: dependencies.model }
+          : {
+              model: createCompletionModel(ref!.value, {
+                apiKey: inputs["api-key"],
+                nativeJsonSchema: inputs["native-json-schema"],
+              }),
+            }),
       priorFingerprints: parsePriorFingerprints(
         hammerComments.map((comment) => comment.body ?? ""),
       ),
@@ -569,7 +623,7 @@ export async function runAction(
       plan,
       result,
       modelRef,
-      [inputs["api-key"], githubToken],
+      [...modelSecrets(), githubToken],
       resolveFixed,
     );
     const resultPath = join(directory, "result.json");
@@ -613,7 +667,7 @@ export async function runAction(
             }
           : {}),
         modelSummary: sanitizeForPosting(result.summary, {
-          secrets: [inputs["api-key"], githubToken],
+          secrets: [...modelSecrets(), githubToken],
         }),
       }),
     );

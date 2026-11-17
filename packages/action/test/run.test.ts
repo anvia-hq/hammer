@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,7 +8,12 @@ import {
   formatFingerprintComment,
   type CreateReviewPayload,
 } from "@anvia/hammer-core";
-import type { ReviewPipelineInput } from "@anvia/hammer-agents";
+import type {
+  ClaudeQueryFn,
+  ReviewBackend,
+  ReviewConversationOptions,
+  ReviewPipelineInput,
+} from "@anvia/hammer-agents";
 import { runAction, type ActionRuntime } from "../src/run";
 import type { GitHubPort, IssueComment, PullRequest } from "../src/github";
 import { cleanup } from "../src/post";
@@ -185,6 +191,7 @@ async function fixture(overrides: Record<string, string> = {}) {
     GITHUB_REPOSITORY: "acme/sandbox",
     GITHUB_RUN_ID: "123",
     RUNNER_TEMP: root,
+    CLAUDE_CODE_OAUTH_TOKEN: undefined as string | undefined,
   };
   return {
     root,
@@ -870,4 +877,143 @@ it("publishes a partial result without treating a zero-cost cap as an action err
   expect(f.model.completion).not.toHaveBeenCalled();
   expect(f.summaries.at(-1)).toContain("**Not reviewed.** Review budget reached.");
   expect(f.runtime.setFailed).not.toHaveBeenCalled();
+});
+
+describe("Action claude-agent-sdk client", () => {
+  type SdkOptionsLike = {
+    pathToClaudeCodeExecutable?: string;
+    cwd?: string;
+    settingSources?: string[];
+    tools?: string[];
+    permissionMode?: string;
+    model?: string;
+    allowedTools?: string[];
+    env?: Record<string, string | undefined>;
+  };
+  const sdkBatch = {
+    summary: "Changes user lookup",
+    changes: ["Reworked the user lookup"],
+    findings: [finding],
+    generalNotes: [],
+  };
+  function sdkBackend(script: { fail?: string } = {}): ReviewBackend {
+    return {
+      id: "claude-agent-sdk",
+      createConversation: (options: ReviewConversationOptions) => ({
+        turn: async () => {
+          if (script.fail !== undefined) throw new Error(script.fail);
+          const usage = { inputTokens: 7, outputTokens: 3, totalTokens: 10 };
+          options.onUsage?.(usage);
+          return { text: JSON.stringify(sdkBatch), usage };
+        },
+        salvage: async () => null,
+      }),
+    };
+  }
+
+  it("runs a review with a subscription token and no API key", async () => {
+    const f = await fixture({
+      client: "claude-agent-sdk",
+      model: "claude-sonnet-4-5",
+      "api-key": "",
+      "oauth-token": "sk-ant-oat-super-secret",
+    });
+    await f.run({ backend: sdkBackend() });
+    expect(f.posted).toHaveLength(1);
+    expect(f.posted[0]?.comments[0]?.path).toBe("src/a.ts");
+    expect(f.outputs).toMatchObject({ findings_count: "1", tokens: "10", cost_usd: "0" });
+    expect(f.posted[0]?.body).toContain("claude-agent-sdk/claude-sonnet-4-5");
+    expect(f.runtime.setSecret).toHaveBeenCalledWith("sk-ant-oat-super-secret");
+    const logged = JSON.stringify([
+      ...f.summaries,
+      ...vi.mocked(f.runtime.info).mock.calls,
+      ...vi.mocked(f.runtime.warning).mock.calls,
+      ...f.posted,
+    ]);
+    expect(logged).not.toContain("sk-ant-oat-super-secret");
+  });
+
+  it("fails with setup-token instructions when the token is missing", async () => {
+    const f = await fixture({
+      client: "claude-agent-sdk",
+      model: "claude-sonnet-4-5",
+      "api-key": "",
+      fail_on_error: "true",
+    });
+    await f.run({ backend: sdkBackend() });
+    expect(f.posted).toHaveLength(0);
+    expect(f.runtime.setFailed).toHaveBeenCalledWith(expect.stringContaining("claude setup-token"));
+    expect(f.summaries.at(-1)).toContain("claude setup-token");
+  });
+
+  it("wires the SDK options from the action's own inputs and env, and skips the download", async () => {
+    const f = await fixture({
+      client: "claude-agent-sdk",
+      model: "claude-sonnet-4-5",
+      "api-key": "",
+      "oauth-token": "sk-ant-oat-path",
+      "claude-path": "/opt/hammer-claude",
+    });
+    const seen: SdkOptionsLike[] = [];
+    const claudeQuery: ClaudeQueryFn = (params) => {
+      seen.push((params.options ?? {}) as SdkOptionsLike);
+      const message = {
+        type: "result",
+        subtype: "success",
+        is_error: false,
+        result: JSON.stringify(sdkBatch),
+        structured_output: sdkBatch,
+        stop_reason: "end_turn",
+        usage: {},
+        modelUsage: { "claude-sonnet-4-5": { inputTokens: 11, outputTokens: 4 } },
+        permission_denials: [],
+        errors: [],
+        num_turns: 1,
+        total_cost_usd: 0,
+        duration_ms: 1,
+        duration_api_ms: 1,
+        session_id: "s",
+        uuid: "u",
+      };
+      return (async function* () {
+        yield message as never;
+      })();
+    };
+    await f.run({ model: undefined, claudeQuery });
+    expect(seen[0]).toMatchObject({
+      pathToClaudeCodeExecutable: "/opt/hammer-claude",
+      cwd: expect.stringContaining("head"),
+      settingSources: [],
+      tools: [],
+      permissionMode: "dontAsk",
+      model: "claude-sonnet-4-5",
+    });
+    expect(seen[0]?.allowedTools).toContain("mcp__hammer__read_file");
+    expect(seen[0]?.env?.["CLAUDE_CONFIG_DIR"]).toContain(f.root);
+    expect(seen[0]?.env?.["CLAUDE_CODE_OAUTH_TOKEN"]).toBe("sk-ant-oat-path");
+    expect(seen[0]?.env?.["ANTHROPIC_API_KEY"]).toBeUndefined();
+    expect(seen[0]?.env?.["ANTHROPIC_AUTH_TOKEN"]).toBeUndefined();
+    expect(existsSync(join(f.root, "hammer-claude"))).toBe(false);
+    expect(f.posted).toHaveLength(1);
+    expect(f.outputs).toMatchObject({ findings_count: "1", tokens: "15", cost_usd: "0" });
+  });
+
+  it("reads the token from CLAUDE_CODE_OAUTH_TOKEN and never prints it from an SDK error", async () => {
+    const f = await fixture({
+      client: "claude-agent-sdk",
+      model: "claude-sonnet-4-5",
+      "api-key": "",
+      fail_on_error: "true",
+    });
+    f.env.CLAUDE_CODE_OAUTH_TOKEN = "sk-ant-oat-from-env";
+    await f.run({ backend: sdkBackend({ fail: "Claude rejected sk-ant-oat-from-env" }) });
+    const logged = JSON.stringify([
+      ...f.summaries,
+      ...vi.mocked(f.runtime.warning).mock.calls,
+      vi.mocked(f.runtime.setFailed).mock.calls,
+    ]);
+    expect(logged).not.toContain("sk-ant-oat-from-env");
+    expect(logged).toContain("[redacted]");
+    expect(f.posted).toHaveLength(0);
+  });
 });

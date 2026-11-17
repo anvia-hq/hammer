@@ -13,7 +13,10 @@ const finding = {
   confidence: 0.9,
 };
 const batch = { summary: "Changes a helper", findings: [finding], generalNotes: [] };
-function input(responses: unknown[], structured = false): ReviewPipelineInput {
+function input(
+  responses: unknown[],
+  structured = false,
+): ReviewPipelineInput & { model: NonNullable<ReviewPipelineInput["model"]> } {
   const model: CompletionModel = {
     provider: "test",
     modelId: "fake",

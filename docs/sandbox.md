@@ -27,6 +27,32 @@ Install dependencies and build, then set these environment variables through you
 
 Run `node packages/action/scripts/sandbox.mjs`. Keys are read from the environment and masked by the Action. Do not put keys on the command line or commit them.
 
+## Claude subscription (`claude-agent-sdk`)
+
+The subscription backend needs a token from `claude setup-token` on a Pro, Max, Team or Enterprise plan. No token is committed or stored for CI, so this path has unit tests plus a live script you run yourself:
+
+```sh
+bun install && bun run build
+export HAMMER_SANDBOX_REPOSITORY=owner/repo HAMMER_SANDBOX_PR=3
+export HAMMER_SANDBOX_TOKEN=<fine-grained token: contents read, pull requests write>
+export CLAUDE_CODE_OAUTH_TOKEN=<output of `claude setup-token`>
+export GITHUB_API_URL=https://api.github.com GITHUB_SERVER_URL=https://github.com
+export RUNNER_TEMP=$(mktemp -d) GITHUB_STEP_SUMMARY=$RUNNER_TEMP/summary.md
+node packages/action/scripts/smoke-claude-sdk.mjs
+```
+
+The script runs the built main bundle with `client: claude-agent-sdk`, which provisions the pinned `claude` binary into `RUNNER_TEMP/hammer-claude` on the first run, then checks that a complete (not partial) result was written, that the sticky summary carries the reviewed SHA, that a comment review exists when there are findings, that `cost_usd` is 0, and finally runs the post bundle. `HAMMER_SANDBOX_MODEL` overrides the model (default `claude-sonnet-4-5`).
+
+Without a token you can still check the two hard parts locally: the provisioning download and the binary itself.
+
+```sh
+export RUNNER_TEMP=$(mktemp -d)
+bun -e 'const m = await import("./packages/action/src/claude-binary.ts"); console.log(await m.provisionClaudeBinary({ temp: process.env.RUNNER_TEMP }))'
+"$(find "$RUNNER_TEMP/hammer-claude" -name claude | head -1)" --version
+```
+
+That prints `2.1.326 (Claude Code)`. A bogus token through the same backend fails with the `claude setup-token` instruction instead of an empty review.
+
 ## Custom OpenAI-compatible endpoints
 
 Use `client: openai-compatible` with `model: <model-id>` and the `base-url` input. If the gateway does not support native JSON-schema output, set `native-json-schema: "false"`. This omits the provider-specific schema parameter while preserving local Zod validation, one repair attempt, finding verification, and output filtering. Native schema behavior stays enabled by default.

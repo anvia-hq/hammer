@@ -19,7 +19,7 @@ It runs on the customer's runner with their own model key (BYOK), is MIT-license
 
 1. Install to first review in **under 5 minutes**: add one secret and one workflow file.
 2. Comments are worth reading: few, specific and anchored to a line. Each one says what is wrong, why it matters, and how to fix it.
-3. Read-only and safe by default. The agent cannot run code, push, approve or merge, and cannot reach the network except through the model API.
+3. Read-only and safe by default. The agent cannot run code, push, approve or merge, and cannot reach the network except through the model API. The one other outbound call is the optional, checksum-verified download of the pinned `claude` binary for `client: claude-agent-sdk` ([0022](decision/0022-claude-agent-sdk-backend.md)).
 4. Teams control what gets reviewed (rules, path instructions, ignores, severity threshold) without writing code.
 5. Cost is predictable: hard per-run caps, with tokens and cost reported on every run.
 6. Runs on any GitHub Actions runner: GitHub-hosted, third-party runners such as Blacksmith, and self-hosted. It works on Linux x64 and arm64 and needs only a `runs-on` change (§8.9).
@@ -176,7 +176,7 @@ Commands from users without write access get a 👀 reaction and no run (§9, S1
 | F15 | **Posting:** one `POST /pulls/{n}/reviews` with `event: COMMENT`, `commit_id` = reviewed head SHA, and all inline comments; create the run's summary comment and update it as the run progresses; resolve earlier threads whose flagged lines changed and whose finding was not reported again ([0020](decision/0020-comment-per-run-and-resolve-fixed-threads.md)). On GitHub's generic 422 "internal error", retry after 1 s and 3 s. On a 422 naming a bad anchor, move that comment to the summary and retry once. Never check anchors by creating and deleting pending reviews | No `APPROVE`/`REQUEST_CHANGES` ever sent; tested against a mocked API |
 | F16 | **Outputs and job summary:** action outputs `findings_count`, `high_count`, `review_url`, `result_path` (full JSON written to `$RUNNER_TEMP`), `tokens`, `cost_usd`. Markdown table written to `$GITHUB_STEP_SUMMARY` | Outputs readable in a later workflow step |
 | F17 | **Gate:** `fail_on: none\|high\|medium` (default `none`) sets the exit code from the posted findings | `fail_on: high` with 1 high finding → exit 1 |
-| F18 | **Clients:** separate `client` and `model` inputs (`model` is a bare model id). v1 clients: `anthropic`, `openai`, `gemini`, plus `openai-compatible` and `azure` with `base-url`. Uses `@anvia/anthropic`, `@anvia/openai`, `@anvia/gemini`, `@anvia/azure` | Smoke test per client in CI (nightly, real keys) |
+| F18 | **Clients:** separate `client` and `model` inputs (`model` is a bare model id). v1 clients: `anthropic`, `openai`, `gemini`, plus `openai-compatible` and `azure` with `base-url`. Uses `@anvia/anthropic`, `@anvia/openai`, `@anvia/gemini`, `@anvia/azure`. A sixth client, `claude-agent-sdk`, runs every model call through the Claude Agent SDK on the user's own Claude subscription token (`oauth-token` from `claude setup-token`) with no API key ([0022](decision/0022-claude-agent-sdk-backend.md)) | Smoke test per client in CI (nightly, real keys); the subscription path has unit tests plus a live smoke script |
 | F19 | **Caps:** `max_turns` (default 100); `max_tokens` and `max_cost_usd` apply only when set. Near a cap the agent loses its tools and must finish with the review; turn count counts toward the wind-down. A run still stopped by a cap or the context window is asked for its findings so far and published as a partial review; "Not reviewed" only if that fails | Cap fixture yields a partial review, not a crash |
 | F20 | **Observability (optional):** `lens-endpoint` / `otel-endpoint` inputs attach `@anvia/lens` or `@anvia/otel` observers; trace URL is added to the job summary (not the PR) | Off by default; no outbound calls when unset |
 | F21 | **Runner portability:** works unchanged on GitHub-hosted, Blacksmith (x64 and arm64) and self-hosted Linux runners; no reliance on preinstalled tools or GitHub-hosted image specifics (§8.9) | Release CI runs the end-to-end suite on the runner matrix in §8.9 |
@@ -197,6 +197,7 @@ Hammer is built on the published Anvia SDK packages from npm. Their API referenc
 | `@anvia/gemini` | `client: gemini` models | F18 |
 | `@anvia/azure` | `client: azure` models (with `base-url` as the Azure endpoint) | F18 |
 | `@anvia/lens`, `@anvia/otel` | Optional tracing | F20 |
+| `@anthropic-ai/claude-agent-sdk` | `client: claude-agent-sdk`, the subscription backend: the review, repair, finalize, verify and judge passes run as Claude Code turns with Hammer's read-only MCP tools | F18, F22, [0022](decision/0022-claude-agent-sdk-backend.md) |
 
 Not used in v1: `@anvia/durable`, `@anvia/tool-sandbox`, `@anvia/tool-browser`. Runs are short and stateless, and the reviewer never runs code.
 
@@ -320,23 +321,25 @@ Invalid config: the run fails with a message pointing at the bad key (validated 
 
 ### 8.7 Action inputs
 
-| Input                                                                           | Required | Default               | Notes                                                                                                  |
-| ------------------------------------------------------------------------------- | -------- | --------------------- | ------------------------------------------------------------------------------------------------------ |
-| `client`                                                                        | yes      | —                     | `anthropic` \| `openai` \| `gemini` \| `openai-compatible` \| `azure`                                  |
-| `model`                                                                         | yes      | —                     | Bare model id for the chosen client                                                                    |
-| `api-key`                                                                       | yes      | —                     | Masked on read                                                                                         |
-| `base-url`                                                                      | no       | —                     | For `openai-compatible` and `azure`                                                                    |
-| `reasoning-effort`                                                              | no       | —                     | F23; fails the run if unsupported                                                                      |
-| `github-token`                                                                  | no       | `${{ github.token }}` |                                                                                                        |
-| `config-path`                                                                   | no       | `.github/hammer.yml`  |                                                                                                        |
-| `min_severity`, `max_comments`, `fail_on`, `review_drafts`, `ignore`, `include` | no       | from config           | Override config                                                                                        |
-| `max_files` / `max_diff_lines`                                                  | no       | 50 / 3000             | Empty input defers to `.github/hammer.yml`; a set input is a ceiling                                   |
-| `max_diff_tokens`                                                               | no       | 120000                | Token budget of the rendered diff (F7, [0021](decision/0021-large-pr-sharding-and-partial-results.md)) |
-| `shard_tokens` / `max_shards`                                                   | no       | 20000 / 5             | Shard a larger diff into parallel reviewers (F12); `max_shards: 1` disables                            |
-| `max_turns` / `max_tokens` / `max_cost_usd`                                     | no       | 100 / none / none     |                                                                                                        |
-| `fail_on_error`                                                                 | no       | `false`               | Fail the job if the action itself errors                                                               |
-| `verify` / `verify_threshold`                                                   | no       | `true` / 6            | F22                                                                                                    |
-| `lens-endpoint`, `otel-endpoint`                                                | no       | —                     | F20                                                                                                    |
+| Input                                                                           | Required               | Default                   | Notes                                                                                                  |
+| ------------------------------------------------------------------------------- | ---------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `client`                                                                        | yes                    | —                         | `anthropic` \| `openai` \| `gemini` \| `openai-compatible` \| `azure` \| `claude-agent-sdk`            |
+| `model`                                                                         | yes                    | —                         | Bare model id for the chosen client                                                                    |
+| `api-key`                                                                       | with a key client      | —                         | Masked on read; not needed for `claude-agent-sdk`                                                      |
+| `oauth-token`                                                                   | for `claude-agent-sdk` | `CLAUDE_CODE_OAUTH_TOKEN` | Claude subscription token from `claude setup-token`; masked, never logged                              |
+| `claude-path`                                                                   | no                     | `CLAUDE_CODE_PATH`        | Use this `claude` binary instead of the checksum-verified download                                     |
+| `base-url`                                                                      | no                     | —                         | For `openai-compatible` and `azure`                                                                    |
+| `reasoning-effort`                                                              | no                     | —                         | F23; fails the run if unsupported                                                                      |
+| `github-token`                                                                  | no                     | `${{ github.token }}`     |                                                                                                        |
+| `config-path`                                                                   | no                     | `.github/hammer.yml`      |                                                                                                        |
+| `min_severity`, `max_comments`, `fail_on`, `review_drafts`, `ignore`, `include` | no                     | from config               | Override config                                                                                        |
+| `max_files` / `max_diff_lines`                                                  | no                     | 50 / 3000                 | Empty input defers to `.github/hammer.yml`; a set input is a ceiling                                   |
+| `max_diff_tokens`                                                               | no                     | 120000                    | Token budget of the rendered diff (F7, [0021](decision/0021-large-pr-sharding-and-partial-results.md)) |
+| `shard_tokens` / `max_shards`                                                   | no                     | 20000 / 5                 | Shard a larger diff into parallel reviewers (F12); `max_shards: 1` disables                            |
+| `max_turns` / `max_tokens` / `max_cost_usd`                                     | no                     | 100 / none / none         |                                                                                                        |
+| `fail_on_error`                                                                 | no                     | `false`                   | Fail the job if the action itself errors                                                               |
+| `verify` / `verify_threshold`                                                   | no                     | `true` / 6                | F22                                                                                                    |
+| `lens-endpoint`, `otel-endpoint`                                                | no                     | —                         | F20                                                                                                    |
 
 ### 8.8 Repository layout
 

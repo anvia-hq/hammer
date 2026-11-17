@@ -10,7 +10,7 @@ const roots: string[] = [];
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
-function fakeModel(text: string): ReviewPipelineInput["model"] {
+function fakeModel(text: string): NonNullable<ReviewPipelineInput["model"]> {
   return {
     provider: "test",
     modelId: "fake",

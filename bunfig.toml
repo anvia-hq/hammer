@@ -2,4 +2,12 @@
 # Packages must be at least 3 days old; `minimumReleaseAgeExcludes` lists the Anvia
 # releases that are newer on purpose.
 minimumReleaseAge = 259200
-minimumReleaseAgeExcludes = ["@anvia/anthropic", "@anvia/core", "@anvia/openai"]
+minimumReleaseAgeExcludes = [
+  "@anvia/anthropic",
+  "@anvia/core",
+  "@anvia/openai",
+  # Pinned to one exact version: the Claude bin/tools backend is locked to this SDK
+  # release, and the platform binaries are checksum-verified at that version.
+  "@anthropic-ai/claude-agent-sdk",
+  "@anthropic-ai/claude-agent-sdk-linux-x64",
+]
