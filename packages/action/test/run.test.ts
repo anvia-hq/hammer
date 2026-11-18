@@ -14,7 +14,7 @@ import type {
   ReviewConversationOptions,
   ReviewPipelineInput,
 } from "@anvia/hammer-agents";
-import { runAction, type ActionRuntime } from "../src/run";
+import { claudeSdkEnv, runAction, type ActionRuntime } from "../src/run";
 import type { GitHubPort, IssueComment, PullRequest } from "../src/github";
 import { cleanup } from "../src/post";
 
@@ -183,7 +183,7 @@ async function fixture(overrides: Record<string, string> = {}) {
       "function get(user) {\n  return user.name;\n}\n",
     );
   });
-  const env = {
+  const env: NodeJS.ProcessEnv = {
     GITHUB_EVENT_NAME: "pull_request",
     GITHUB_EVENT_PATH: eventPath,
     GITHUB_API_URL: "https://api.github.com",
@@ -979,6 +979,12 @@ describe("Action claude-agent-sdk client", () => {
         yield message as never;
       })();
     };
+    f.env.ANTHROPIC_API_KEY = "sk-ant-api-should-not-leak";
+    f.env.ANTHROPIC_AUTH_TOKEN = "auth-token-should-not-leak";
+    f.env.GITHUB_TOKEN = "ghs_should-not-leak";
+    f.env["INPUT_API-KEY"] = "input-api-key-should-not-leak";
+    f.env.PATH = "/usr/bin";
+    f.env.HTTPS_PROXY = "http://proxy.internal:3128";
     await f.run({ model: undefined, claudeQuery });
     expect(seen[0]).toMatchObject({
       pathToClaudeCodeExecutable: "/opt/hammer-claude",
@@ -991,8 +997,12 @@ describe("Action claude-agent-sdk client", () => {
     expect(seen[0]?.allowedTools).toContain("mcp__hammer__read_file");
     expect(seen[0]?.env?.["CLAUDE_CONFIG_DIR"]).toContain(f.root);
     expect(seen[0]?.env?.["CLAUDE_CODE_OAUTH_TOKEN"]).toBe("sk-ant-oat-path");
-    expect(seen[0]?.env?.["ANTHROPIC_API_KEY"]).toBeUndefined();
-    expect(seen[0]?.env?.["ANTHROPIC_AUTH_TOKEN"]).toBeUndefined();
+    expect(seen[0]?.env?.["PATH"]).toBe("/usr/bin");
+    expect(seen[0]?.env?.["HTTPS_PROXY"]).toBe("http://proxy.internal:3128");
+    expect(seen[0]?.env).not.toHaveProperty("ANTHROPIC_API_KEY");
+    expect(seen[0]?.env).not.toHaveProperty("ANTHROPIC_AUTH_TOKEN");
+    expect(seen[0]?.env).not.toHaveProperty("GITHUB_TOKEN");
+    expect(seen[0]?.env).not.toHaveProperty("INPUT_API-KEY");
     expect(existsSync(join(f.root, "hammer-claude"))).toBe(false);
     expect(f.posted).toHaveLength(1);
     expect(f.outputs).toMatchObject({ findings_count: "1", tokens: "15", cost_usd: "0" });
@@ -1015,5 +1025,34 @@ describe("Action claude-agent-sdk client", () => {
     expect(logged).not.toContain("sk-ant-oat-from-env");
     expect(logged).toContain("[redacted]");
     expect(f.posted).toHaveLength(0);
+  });
+
+  it("passes only the CLI's own environment and the token to the child", () => {
+    const child = claudeSdkEnv(
+      {
+        PATH: "/usr/bin",
+        HOME: "/home/runner",
+        HTTPS_PROXY: "http://proxy.internal:3128",
+        NO_PROXY: "localhost",
+        LANG: "C.UTF-8",
+        GITHUB_TOKEN: "ghs_runner",
+        ACTIONS_RUNTIME_TOKEN: "runtime",
+        HAMMER_API_KEY: "hammer-key",
+        "INPUT_API-KEY": "sk-ant-api",
+        "INPUT_GITHUB-TOKEN": "ghs_input",
+        ANTHROPIC_API_KEY: "sk-ant-api",
+        ANTHROPIC_AUTH_TOKEN: "auth",
+        CLAUDE_CODE_OAUTH_TOKEN: "stale-token",
+      },
+      "subscription-token",
+    );
+    expect(child).toEqual({
+      PATH: "/usr/bin",
+      HOME: "/home/runner",
+      HTTPS_PROXY: "http://proxy.internal:3128",
+      NO_PROXY: "localhost",
+      LANG: "C.UTF-8",
+      CLAUDE_CODE_OAUTH_TOKEN: "subscription-token",
+    });
   });
 });

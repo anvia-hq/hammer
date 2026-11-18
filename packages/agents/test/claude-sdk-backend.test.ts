@@ -1,9 +1,10 @@
-import type { Options, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { Options, SDKMessage, SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
 import { describe, expect, it } from "vitest";
 
 import { defaultRepoConfig, resolveConfig } from "@anvia/hammer-core";
 import {
   createClaudeSdkBackend,
+  resultUsage,
   runReviewPipeline,
   runSinglePassReview,
   translateQueryError,
@@ -252,6 +253,27 @@ describe("claude-agent-sdk review backend", () => {
     expect(seen).toHaveLength(1);
   });
 
+  it("keeps a runtime error that only mentions a line 401 out of the authentication message", async () => {
+    const built = backend([
+      [
+        result({
+          subtype: "error_during_execution",
+          is_error: true,
+          errors: ["TypeError: cannot read properties of undefined at a.ts:401"],
+        }),
+      ],
+    ]);
+    const outcome = await runSinglePassReview(reviewInput(), {
+      backend: built,
+      checkoutRoot: "/tmp",
+    });
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.issues[0]?.message).toContain("reported an error");
+      expect(outcome.issues[0]?.message).not.toContain("claude setup-token");
+    }
+  });
+
   it("names each error result subtype", async () => {
     for (const [subtype, expected] of [
       ["error_max_budget_usd", "budget"],
@@ -310,6 +332,41 @@ describe("claude-agent-sdk review backend", () => {
     expect(seen[1]?.options?.outputFormat).toBeUndefined();
   });
 });
+
+describe("claude-agent-sdk usage", () => {
+  it("counts cached prompt tokens as input", () => {
+    const usage = resultUsage(
+      result({
+        modelUsage: {
+          "claude-sonnet-4-5": {
+            inputTokens: 10,
+            outputTokens: 5,
+            cacheReadInputTokens: 900,
+            cacheCreationInputTokens: 50,
+          },
+        },
+        usage: { input_tokens: 960, output_tokens: 5 },
+      }) as SDKResultMessage,
+    );
+    expect(usage).toEqual({ inputTokens: 960, outputTokens: 5, totalTokens: 965 });
+  });
+
+  it("reads the API's own snake_case usage when a result carries no model usage", () => {
+    const usage = resultUsage(
+      result({
+        modelUsage: {},
+        usage: {
+          input_tokens: 100,
+          output_tokens: 20,
+          cache_read_input_tokens: 40,
+          cache_creation_input_tokens: 10,
+        },
+      }) as SDKResultMessage,
+    );
+    expect(usage).toEqual({ inputTokens: 150, outputTokens: 20, totalTokens: 170 });
+  });
+});
+
 describe("claude-agent-sdk SDK error translation", () => {
   it("maps an error result the SDK throws into the authentication failure", async () => {
     const built = createClaudeSdkBackend({

@@ -74,16 +74,59 @@ export interface ActionDependencies {
 }
 const DEFAULT_SKILLS_DIRECTORY = fileURLToPath(new URL("../../../skills", import.meta.url));
 
-// The subscription path is the only credential the child may see: an API key left in the
-// environment would take over silently instead of failing.
+// Everything Claude Code needs to start and reach the network, and nothing else: the runner's
+// GitHub token, the Action's own inputs and any model API key stay out of the child.
+const CLAUDE_CHILD_ENV = [
+  "PATH",
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "SHELL",
+  "TMPDIR",
+  "TMP",
+  "TEMP",
+  "LANG",
+  "LANGUAGE",
+  "LC_ALL",
+  "LC_CTYPE",
+  "LC_MESSAGES",
+  "TZ",
+  "TERM",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "ALL_PROXY",
+  "NO_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "all_proxy",
+  "no_proxy",
+  "NODE_EXTRA_CA_CERTS",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+  "SYSTEMROOT",
+  "SYSTEMDRIVE",
+  "COMSPEC",
+  "PATHEXT",
+  "WINDIR",
+  "USERPROFILE",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "PROGRAMDATA",
+  "NUMBER_OF_PROCESSORS",
+  "PROCESSOR_ARCHITECTURE",
+  "OS",
+] as const;
+
 export function claudeSdkEnv(
   env: NodeJS.ProcessEnv,
   oauthToken: string,
 ): Record<string, string | undefined> {
-  const child: Record<string, string | undefined> = { ...env };
+  const child: Record<string, string | undefined> = {};
+  for (const name of CLAUDE_CHILD_ENV) {
+    const value = env[name];
+    if (value !== undefined) child[name] = value;
+  }
   child["CLAUDE_CODE_OAUTH_TOKEN"] = oauthToken;
-  delete child["ANTHROPIC_API_KEY"];
-  delete child["ANTHROPIC_AUTH_TOKEN"];
   return child;
 }
 const eventSchema = z

@@ -1,4 +1,3 @@
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { ReviewBatchSchema } from "@anvia/hammer-core";
 import { describe, expect, it } from "vitest";
 
@@ -60,13 +59,13 @@ describe("claude-agent-sdk options", () => {
     expect(built.maxTurns).toBe(42);
   });
 
-  it("isolates the child environment and keeps the token out of memory it does not need", () => {
+  it("passes the child environment through and pins CLAUDE_CONFIG_DIR", () => {
     const built = options();
-    expect(built.env).toMatchObject({
+    expect(built.env).toEqual({
       PATH: "/usr/bin",
+      CLAUDE_CODE_OAUTH_TOKEN: "tok",
       CLAUDE_CONFIG_DIR: "/tmp/hammer-review-x/claude-config",
     });
-    expect(Object.keys(built.env ?? {})).not.toContain("ANTHROPIC_API_KEY");
   });
 
   it("asks for a JSON schema for the review and nothing for verify or judge", () => {
@@ -150,8 +149,6 @@ describe("claude-agent-sdk options", () => {
     const built = options();
     expect(built.hooks?.PreToolUse).toHaveLength(1);
     expect(built.canUseTool).toBeUndefined();
-    const message = { type: "system", subtype: "init" } as SDKMessage;
-    expect(message.type).toBe("system");
   });
 });
 

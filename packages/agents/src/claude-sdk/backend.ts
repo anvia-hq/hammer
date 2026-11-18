@@ -1,3 +1,4 @@
+import { query as claudeQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { Options, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
 import type {
@@ -70,11 +71,7 @@ export function translateQueryError(error: unknown): unknown {
   return error;
 }
 
-async function loadQuery(options: ClaudeSdkBackendOptions): Promise<ClaudeQueryFn> {
-  if (options.query !== undefined) return options.query;
-  const sdk = await import("@anthropic-ai/claude-agent-sdk");
-  return (params) => sdk.query(params);
-}
+const defaultQuery: ClaudeQueryFn = (params) => claudeQuery(params);
 
 export function createClaudeSdkBackend(options: ClaudeSdkBackendOptions): ReviewBackend {
   return {
@@ -91,19 +88,13 @@ export function createClaudeSdkBackend(options: ClaudeSdkBackendOptions): Review
         tools: ReviewerToolDefinition[];
         maxTurns: number;
       }): Promise<TurnOutcome> => {
-        const queryFn = await loadQuery(options);
+        const queryFn = options.query ?? defaultQuery;
         const controller = new AbortController();
         let timedOut = false;
         const timer = setTimeout(() => {
           timedOut = true;
           controller.abort();
         }, timeoutMs);
-        const parent = conversation.signal;
-        const onAbort = (): void => controller.abort();
-        if (parent !== undefined) {
-          if (parent.aborted) controller.abort();
-          else parent.addEventListener("abort", onAbort, { once: true });
-        }
         const mcpServer = input.tools.length > 0 ? buildSdkMcpServer(input.tools) : undefined;
         const collector = createTurnCollector({
           ...(conversation.onText !== undefined ? { onText: conversation.onText } : {}),
@@ -140,7 +131,6 @@ export function createClaudeSdkBackend(options: ClaudeSdkBackendOptions): Review
           throw translateQueryError(error);
         } finally {
           clearTimeout(timer);
-          parent?.removeEventListener("abort", onAbort);
         }
         return collector.outcome(input.maxTurns);
       };

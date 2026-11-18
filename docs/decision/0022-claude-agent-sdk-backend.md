@@ -52,10 +52,12 @@ Hammer has to state its read-only guarantees in the SDK's terms rather than in `
   - `settingSources: []` and `strictMcpConfig`, so no user, project or local settings, hooks or
     `.mcp.json` are read;
   - `cwd` set to the PR-head checkout, and only Hammer's MCP server mounted;
-  - an explicit child environment: the parent environment with `CLAUDE_CODE_OAUTH_TOKEN` set and
-    `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` removed, so an API key cannot take over
-    silently, and `CLAUDE_CONFIG_DIR` under `RUNNER_TEMP` so the CLI writes no sessions into the
-    runner's home directory.
+  - an allowlisted child environment: only what the CLI needs to start and reach the network
+    (`PATH`, `HOME`, temp, locale, proxy and CA settings, the Windows essentials) plus
+    `CLAUDE_CODE_OAUTH_TOKEN` and a `CLAUDE_CONFIG_DIR` under `RUNNER_TEMP`. The runner's
+    `GITHUB_TOKEN`, the Action's own inputs and any model API key stay out, so no other credential
+    reaches the CLI; the config dir under `RUNNER_TEMP` keeps the CLI from writing sessions into
+    the runner's home directory.
 - **Structured output.** The review turn asks for JSON matching `ReviewBatchSchema`, converted
   with `z.toJSONSchema` (the draft declaration is dropped: the CLI's validator has no
   2020-12 meta schema). The answer is still validated by `validateBatchOutput` and salvaged when
@@ -69,8 +71,11 @@ Hammer has to state its read-only guarantees in the SDK's terms rather than in `
   unsupported platform fails with the supported list and the two ways out (`claude-path`, or an
   API-key client). `claude-path` (or `CLAUDE_CODE_PATH`) skips provisioning entirely.
 - **Cost reporting.** A subscription has no per-token price, so `cost_usd` is 0 and the run says
-  so; tokens are summed from the SDK's `modelUsage`. `max_cost_usd` therefore does not bind on
-  this backend, while `max_turns`, `max_tokens` and the shard limits still do.
+  so; tokens are summed from the SDK's `modelUsage`, with cache reads and cache writes counted as
+  input beside fresh input tokens, so `tokens` and the `max_tokens` budget match what the
+  subscription actually consumed. `max_cost_usd` therefore does not bind on this backend, while
+  `max_turns`, `max_tokens` and the shard limits still do. The CLI has no per-answer output cap, so
+  the 16384-token `maxTokens` the API path puts on a single answer has no equivalent here.
 - **Anthropic's policy.** Anthropic's third-party policy does not let a third-party product log
   a user in to a Claude account. Hammer never does: it uses only a token that the user generated
   for themselves with `claude setup-token` and stored as their own repository secret, and it never

@@ -1,4 +1,5 @@
 import type {
+  ModelUsage,
   SDKAssistantMessage,
   SDKMessage,
   SDKResultError,
@@ -7,7 +8,7 @@ import type {
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 
-import { toUsage, ZERO_USAGE, type SinglePassUsage, type TurnOutcome } from "../backend";
+import { ZERO_USAGE, type SinglePassUsage, type TurnOutcome } from "../backend";
 import { createTextStreamer } from "../stream";
 
 export type ClaudeSdkErrorCode =
@@ -28,7 +29,10 @@ export class ClaudeSdkError extends Error {
   }
 }
 
-const AUTH_PATTERN = /authenticat|unauthor|api key|oauth|credential|401|403|login|invalid token/i;
+// Only the CLI's own authentication wording counts. A bare "401" or "login" also appears in
+// ordinary runtime errors (a stack trace at "a.ts:401"), and those must keep their own message.
+const AUTH_PATTERN =
+  /failed to authenticate|authentication_failed|oauth_org_not_allowed|invalid api key|invalid bearer token|oauth access token is invalid|oauth token (?:is )?(?:invalid|expired)|not logged in|please run \/login|claude setup-token/i;
 
 export function isClaudeSdkError(error: unknown): error is ClaudeSdkError {
   return error instanceof ClaudeSdkError;
@@ -79,23 +83,41 @@ export function describeResultError(result: SDKResultError, maxTurns: number): C
   );
 }
 
+function tokenCount(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
+}
+
+// Cached prompt tokens are input the run paid for too, so the run budget and the tokens
+// output count them beside the fresh input tokens.
+function addModelUsage(usage: SinglePassUsage, entry: ModelUsage): void {
+  usage.inputTokens +=
+    tokenCount(entry.inputTokens) +
+    tokenCount(entry.cacheReadInputTokens) +
+    tokenCount(entry.cacheCreationInputTokens);
+  usage.outputTokens += tokenCount(entry.outputTokens);
+}
+
+// A result without modelUsage reports the API's own usage, whose fields are snake_case.
+function addApiUsage(usage: SinglePassUsage, raw: unknown): void {
+  if (typeof raw !== "object" || raw === null) return;
+  const record = raw as Record<string, unknown>;
+  usage.inputTokens +=
+    tokenCount(record["input_tokens"]) +
+    tokenCount(record["cache_read_input_tokens"]) +
+    tokenCount(record["cache_creation_input_tokens"]);
+  usage.outputTokens += tokenCount(record["output_tokens"]);
+}
+
 export function resultUsage(result: SDKResultMessage): SinglePassUsage {
   const usage = { ...ZERO_USAGE };
   const modelUsage = result.modelUsage;
   const entries =
     typeof modelUsage === "object" && modelUsage !== null ? Object.values(modelUsage) : [];
   if (entries.length > 0) {
-    for (const entry of entries) {
-      usage.inputTokens += Number.isFinite(entry.inputTokens) ? entry.inputTokens : 0;
-      usage.outputTokens += Number.isFinite(entry.outputTokens) ? entry.outputTokens : 0;
-    }
+    for (const entry of entries) addModelUsage(usage, entry);
   } else {
-    const fallback = toUsage(result.usage);
-    usage.inputTokens = fallback.inputTokens;
-    usage.outputTokens = fallback.outputTokens;
+    addApiUsage(usage, result.usage);
   }
-  usage.inputTokens = Math.floor(usage.inputTokens);
-  usage.outputTokens = Math.floor(usage.outputTokens);
   usage.totalTokens = usage.inputTokens + usage.outputTokens;
   return usage;
 }

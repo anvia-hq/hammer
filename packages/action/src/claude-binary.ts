@@ -244,7 +244,6 @@ async function extractBinary(
 
 export interface ProvisionOptions {
   temp: string;
-  version?: string;
   platform?: NodeJS.Platform;
   arch?: string;
   musl?: boolean;
@@ -254,7 +253,6 @@ export interface ProvisionOptions {
 }
 
 export async function provisionClaudeBinary(options: ProvisionOptions): Promise<string> {
-  const version = options.version ?? CLAUDE_SDK_VERSION;
   const query: PlatformQuery = {
     ...(options.platform !== undefined ? { platform: options.platform } : {}),
     ...(options.arch !== undefined ? { arch: options.arch } : {}),
@@ -267,7 +265,7 @@ export async function provisionClaudeBinary(options: ProvisionOptions): Promise<
   if (entry === undefined) throw unsupportedPlatform(query);
   const log = options.log ?? (() => {});
   const request = options.request ?? proxiedFetch;
-  const directory = join(options.temp, "hammer-claude", version, key);
+  const directory = join(options.temp, "hammer-claude", CLAUDE_SDK_VERSION, key);
   const binaryPath = join(directory, entry.binary);
   await mkdir(directory, { recursive: true });
   if (await verifiedBinary(binaryPath)) {
@@ -279,7 +277,7 @@ export async function provisionClaudeBinary(options: ProvisionOptions): Promise<
   const archive = join(directory, `${entry.binary}.download`);
   const extracted = join(directory, `${entry.binary}.extract`);
   log(
-    `[hammer] downloading ${entry.package}@${version} (${Math.round(entry.unpackedSize / 1_048_576)} MiB unpacked)`,
+    `[hammer] downloading ${entry.package}@${CLAUDE_SDK_VERSION} (${Math.round(entry.unpackedSize / 1_048_576)} MiB unpacked)`,
   );
   try {
     const actual = await download(entry.tarball, archive, request);

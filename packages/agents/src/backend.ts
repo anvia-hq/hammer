@@ -21,7 +21,6 @@ export interface ReviewConversationOptions {
   outputSchema?: z.ZodType<ReviewBatch> | undefined;
   onText?: StreamedTextSink | undefined;
   beginFinalize?: (() => void) | undefined;
-  signal?: AbortSignal | undefined;
   startGuard?: (() => void) | undefined;
   onUsage?: ((usage: SinglePassUsage) => void) | undefined;
   skills?: SkillSet | undefined;

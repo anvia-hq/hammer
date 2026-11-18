@@ -18,7 +18,7 @@ import type {
   ReviewConversationOptions,
   TurnOutcome,
 } from "./backend";
-import { ZERO_USAGE } from "./backend";
+import { addUsage, ZERO_USAGE } from "./backend";
 import type { PrDiff, PrMeta } from "./diff";
 import { parseModelRefWithBase } from "./model";
 import type { BuildReviewPromptInput } from "./prompt";
@@ -97,14 +97,6 @@ const REVIEW_MAX_TOKENS = 16384;
 
 function failure(error: SinglePassErrorCode, message: string, path = "(run)"): SinglePassFailure {
   return { ok: false, error, issues: [{ path, message }] };
-}
-
-function addUsage(left: SinglePassUsage, right: SinglePassUsage): SinglePassUsage {
-  return {
-    inputTokens: left.inputTokens + right.inputTokens,
-    outputTokens: left.outputTokens + right.outputTokens,
-    totalTokens: left.totalTokens + right.totalTokens,
-  };
 }
 
 function structuredFailure(error: unknown): SinglePassFailure {
