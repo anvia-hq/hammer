@@ -630,11 +630,11 @@ export async function runAction(
           runtime.warning,
         );
         if (staged.names.length > 0) {
-          skillsDirectory = staged.directory;
-          repoSkillNames = staged.names;
           skills = await loadReviewSkills(staged.directory, {
             repoSkillNames: staged.names,
           });
+          skillsDirectory = staged.directory;
+          repoSkillNames = staged.names;
         }
       } catch (error) {
         runtime.warning(

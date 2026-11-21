@@ -62,7 +62,11 @@ export const spawnCodex: CodexExecFn = (params) =>
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (chunk: string) => {
       stderr.push(chunk);
-      if (stderr.join("").length > STDERR_TAIL_CHARS * 2) stderr.splice(0, stderr.length - 1);
+      if (stderr.join("").length > STDERR_TAIL_CHARS * 2) {
+        const tail = stderr.join("").slice(-STDERR_TAIL_CHARS);
+        stderr.length = 0;
+        stderr.push(tail);
+      }
     });
 
     child.on("error", (error: Error) => {
