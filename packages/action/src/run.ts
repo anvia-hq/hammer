@@ -689,7 +689,6 @@ export async function runAction(
           args: [codexMcpEntry()],
           env: { [CODEX_CONTEXT_ENV]: contextPath },
         },
-        log: (message) => runtime.info(message),
         ...(dependencies.codexExec !== undefined ? { exec: dependencies.codexExec } : {}),
       });
     }

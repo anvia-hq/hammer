@@ -32,7 +32,6 @@ export interface CodexBackendOptions {
   mcpServer?: CodexMcpServer | undefined;
   exec?: CodexExecFn | undefined;
   turnTimeoutMs?: number | undefined;
-  log?: ((message: string) => void) | undefined;
 }
 
 const DEFAULT_TURN_TIMEOUT_MS = 600_000;
