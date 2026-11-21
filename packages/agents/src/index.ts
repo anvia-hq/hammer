@@ -70,7 +70,7 @@ export {
 export type { CodexArgInput, CodexEffort, CodexMcpServer } from "./codex/options";
 export { CodexError, isCodexError } from "./codex/errors";
 export type { CodexErrorCode } from "./codex/errors";
-export { codexUsage, createCodexCollector, itemText } from "./codex/events";
+export { codexUsage, createCodexCollector } from "./codex/events";
 export { spawnCodex } from "./codex/exec";
 export type { CodexExecFn, CodexExecParams } from "./codex/exec";
 export {

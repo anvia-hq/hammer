@@ -44,7 +44,7 @@ export function codexUsage(raw: CodexUsage | undefined): SinglePassUsage {
   return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
 }
 
-export function itemText(item: CodexItem | undefined): string {
+function itemText(item: CodexItem | undefined): string {
   if (item === undefined) return "";
   if (item.type === "agent_message" && typeof item.text === "string") return item.text;
   return "";
