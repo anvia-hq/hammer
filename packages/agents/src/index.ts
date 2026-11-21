@@ -56,6 +56,23 @@ export { buildReviewerToolDefinitions } from "./reviewer-tools";
 export type { DiscussionSource, ReviewerToolOptions } from "./reviewer-tools";
 export { createClaudeSdkBackend, translateQueryError } from "./claude-sdk/backend";
 export type { ClaudeQueryFn, ClaudeSdkBackendOptions } from "./claude-sdk/backend";
+export { createCodexBackend } from "./codex/backend";
+export type { CodexBackendOptions } from "./codex/backend";
+export {
+  buildCodexArgs,
+  CODEX_EFFORT_LEVELS,
+  CODEX_MCP_SERVER,
+  codexEffort,
+  codexReviewSchema,
+  dropNullOptionals,
+  mcpServerOverrides,
+} from "./codex/options";
+export type { CodexArgInput, CodexEffort, CodexMcpServer } from "./codex/options";
+export { CodexError, isCodexError } from "./codex/errors";
+export type { CodexErrorCode } from "./codex/errors";
+export { codexUsage, createCodexCollector, itemText } from "./codex/events";
+export { spawnCodex } from "./codex/exec";
+export type { CodexExecFn, CodexExecParams } from "./codex/exec";
 export {
   buildSdkOptions,
   buildToolDenyHook,
@@ -79,7 +96,9 @@ export {
   resultUsage,
   isClaudeSdkError,
 } from "./claude-sdk/messages";
-export type { ClaudeSdkErrorCode, TranscriptEntry } from "./claude-sdk/messages";
+export type { ClaudeSdkErrorCode } from "./claude-sdk/messages";
+export { renderTranscript, withTranscript } from "./transcript";
+export type { TranscriptEntry } from "./transcript";
 export type { AgentToolReason } from "./tools";
 export {
   getPrDiscussion,
