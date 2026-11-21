@@ -117,3 +117,7 @@ read-only guarantees in Codex's terms.
   a non-zero exit with the tail of stderr, a turn timeout, and an error event from the stream.
 - An answer can arrive without the CLI reporting a finish reason, so a review that was cut off is
   detected from the JSON it did not finish, as before.
+- The MCP server's tool context is written once per run, so a sharded review serves the whole pull
+  request's diff to every shard rather than only that shard's files. The shard prompt still frames
+  the work, and findings a shard repeats are deduplicated as before; it only means a shard may read
+  slightly more than the `@anvia/*` and Claude paths hand it.
