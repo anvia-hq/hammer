@@ -15,6 +15,15 @@ export interface CodexCredentials {
   tokens: Record<string, unknown>;
 }
 
+export const CODEX_TOKEN_FIELDS = ["access_token", "refresh_token", "id_token"] as const;
+
+export function codexTokenValues(credentials: CodexCredentials): string[] {
+  return CODEX_TOKEN_FIELDS.flatMap((name) => {
+    const value = credentials.tokens[name];
+    return typeof value === "string" && value !== "" ? [value] : [];
+  });
+}
+
 const SETUP =
   'Run "codex login --device-auth" on your own machine, store the ~/.codex/auth.json it writes as the repository secret behind the codex-auth-json input, and let the Codex CLI refresh it in place.';
 
@@ -46,9 +55,7 @@ export function parseCodexAuth(raw: string): CodexCredentials {
     throw new CodexAuthError(
       `codex-auth-json has no "tokens" object, so it is not the file "codex login --device-auth" writes. ${SETUP}`,
     );
-  const missing = ["access_token", "refresh_token", "id_token"].filter(
-    (name) => !nonEmpty(tokens[name]),
-  );
+  const missing = CODEX_TOKEN_FIELDS.filter((name) => !nonEmpty(tokens[name]));
   if (missing.length > 0)
     throw new CodexAuthError(
       `codex-auth-json is missing ${missing.join(", ")} under "tokens". ${SETUP}`,

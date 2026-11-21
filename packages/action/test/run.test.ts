@@ -1169,6 +1169,23 @@ describe("Action codex client", () => {
       expect(logged).not.toContain(secret);
   });
 
+  it("registers each token of the pasted session on its own as a secret", async () => {
+    const f = await fixture({
+      client: "codex",
+      model: "gpt-5.1-codex",
+      "api-key": "",
+      "codex-auth-json": CODEX_AUTH_JSON,
+      "codex-path": "/opt/hammer-codex",
+    });
+    await f.run({ model: undefined, codexExec: recordCodex(JSON.stringify(codexBatch)) });
+    for (const token of [
+      "codex-access-token-super-secret",
+      "codex-refresh-token-super-secret",
+      "codex-id-token-super-secret",
+    ])
+      expect(f.runtime.setSecret).toHaveBeenCalledWith(token);
+  });
+
   it("mounts Hammer's own MCP server with the tool context written for it", async () => {
     const f = await fixture({
       client: "codex",

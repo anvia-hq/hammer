@@ -45,7 +45,7 @@ import {
 } from "@anvia/hammer-agents";
 import { checkoutHead } from "./checkout";
 import { provisionClaudeBinary } from "./claude-binary";
-import { parseCodexAuth, seedCodexHome } from "./codex-auth";
+import { codexTokenValues, parseCodexAuth, seedCodexHome } from "./codex-auth";
 import { provisionCodexBinary } from "./codex-binary";
 import { CODEX_CONTEXT_ENV, writeCodexToolContext } from "./codex-context";
 import { stageRepoSkills } from "./repo-skills";
@@ -178,6 +178,16 @@ export function codexMcpEntry(): string {
   return fileURLToPath(new URL("./codex-mcp.js", import.meta.url));
 }
 
+// GitHub masks a multi-line secret line by line, so the bare tokens a pasted auth.json holds are
+// registered on their own as well; an unusable value is left to the codex client's own validation.
+export function codexSecrets(raw: string): string[] {
+  try {
+    return codexTokenValues(parseCodexAuth(raw));
+  } catch {
+    return [];
+  }
+}
+
 export function claudeSdkEnv(
   env: NodeJS.ProcessEnv,
   oauthToken: string,
@@ -216,6 +226,7 @@ export async function runAction(
     runtime.getInput("oauth-token"),
     runtime.getInput("codex-auth-json"),
     env.CLAUDE_CODE_OAUTH_TOKEN ?? "",
+    ...codexSecrets(runtime.getInput("codex-auth-json")),
   ];
   const cleanError = (error: unknown): string => {
     let message =
@@ -302,6 +313,7 @@ export async function runAction(
       if (secret) runtime.setSecret(secret);
     }
     if (env.CLAUDE_CODE_OAUTH_TOKEN) runtime.setSecret(env.CLAUDE_CODE_OAUTH_TOKEN);
+    for (const value of codexSecrets(runtime.getInput("codex-auth-json"))) runtime.setSecret(value);
     inputs = readInputs(runtime.getInput);
     githubToken = inputs["github-token"];
     let botLogin = inputs["bot-login"];
