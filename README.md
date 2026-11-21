@@ -72,7 +72,7 @@ see [0018](docs/decision/0018-opt-in-fork-auto-review.md).
 
 ## Models
 
-`client` is one of `anthropic`, `openai`, `gemini`, `openai-compatible`, `azure` or `claude-agent-sdk`. `model` is the model id for that client.
+`client` is one of `anthropic`, `openai`, `gemini`, `openai-compatible`, `azure`, `claude-agent-sdk` or `codex`. `model` is the model id for that client.
 
 ```yaml
 # Azure OpenAI
@@ -130,6 +130,46 @@ On this backend the same read-only controls apply as everywhere else, expressed 
 **What is billed:** reviews on a subscription draw on that plan's usage limits, not on a per-token API bill, so `cost_usd` is reported as 0 and `max_cost_usd` does not apply. `tokens` is still reported, from the SDK's per-model usage with cached prompt tokens counted as input, and `max_turns`, `max_tokens` and the shard limits still bind. Anthropic's third-party policy does not allow a product to log a user in to their Claude account; Hammer never does. It only uses a token the user generated for themselves with `claude setup-token`, keeps it in their own repository secret, and passes it to the CLI running on their own runner.
 
 On `claude-agent-sdk`, `reasoning-effort` maps to the CLI's effort level (`low`, `medium`, `high`, `xhigh` or `max`); any other value fails the run before the first call.
+
+### ChatGPT subscription (`codex`)
+
+`client: codex` runs every model call of a review through the OpenAI Codex CLI on your own ChatGPT plan instead of a metered API key. It needs the session Codex stores for you, which you create with a device login (it prints a URL and a code, so it works on a server too):
+
+```sh
+codex login --device-auth   # writes ~/.codex/auth.json
+```
+
+Store that whole file as one repository secret and drop `api-key`. `model` is required on this backend: there is no default.
+
+```yaml
+- uses: anvia-hq/hammer@v1
+  with:
+    client: codex
+    model: gpt-5.1-codex
+    codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
+```
+
+Hammer writes the session to a `CODEX_HOME` under `RUNNER_TEMP` with mode 0600 before Codex starts and lets Codex refresh it there; the file is never logged and the post step deletes it. An empty or malformed session fails the run with the `codex login --device-auth` instruction instead of reviewing nothing. Because each run starts from the secret, a session Codex refreshed during a review is not carried into the next one: if OpenAI stops accepting the stored session, run the device login again and update the secret.
+
+Hammer downloads the `codex` binary itself: one pinned version per platform, checksum-verified before it is unpacked, into `RUNNER_TEMP/hammer-codex/`. The first run on a runner downloads about 400 MiB; later runs reuse it. Where the temp directory is not warm, cache it:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: ${{ runner.temp }}/hammer-codex
+    key: hammer-codex-0.171.0-${{ runner.os }}-${{ runner.arch }}
+- uses: anvia-hq/hammer@v1
+  with:
+    client: codex
+    model: gpt-5.1-codex
+    codex-auth-json: ${{ secrets.CODEX_AUTH_JSON }}
+```
+
+Set `codex-path` (or `CODEX_PATH`) to a `codex` binary you installed yourself to skip the download. Supported platforms are Linux x64 and arm64 (the static builds, so glibc and musl both work), macOS x64 and arm64, and Windows x64 and arm64; anything else fails with a message naming the alternatives.
+
+The same read-only controls apply, expressed in Codex's terms: it runs `codex exec` with a read-only sandbox, every built-in tool turned off (shell, web search, image viewing and multi-agent), no user or project config read, an `AGENTS.md` in the pull request ignored, and only Hammer's own MCP server mounted — a stdio server bundled with the action that serves Hammer's six read-only tools with the same path guard, secret denylist, output caps and damping, plus the two read-only skill tools. Its child environment is an allowlist, with `CODEX_HOME` and `HOME` both pointing at the seeded directory, so the runner's `GITHUB_TOKEN`, the Action's inputs and any model API key never reach it. See [0023](docs/decision/0023-codex-cli-backend.md).
+
+**What is billed:** reviews draw on the plan's usage limits, so `cost_usd` is 0 and `max_cost_usd` does not apply. `tokens` is still reported, from the CLI's per-turn usage with cached input counted as input, and `max_tokens`, `max_turns` and the shard limits still bind: the CLI has no turn limit of its own, so Hammer counts a turn's tool calls against `max_turns` and stops it there. A turn is also bounded by a 10-minute timeout. Hammer never logs a user in to a ChatGPT account; it only uses the session the user generated for themselves with `codex login --device-auth`, kept in their own repository secret and passed to the CLI on their own runner. On `codex`, `reasoning-effort` maps to the CLI's effort level (`low`, `medium`, `high`, `xhigh`, `max` or `ultra`); any other value fails the run before the first call.
 
 Models that support it accept `reasoning-effort`, with the values the provider documents for that model (for example `low`, `medium`, `high`, and on some models `none`, `minimal`, `xhigh` or `max`). For a model Hammer's client does not list yet, the value is passed to the provider, which rejects it if the model does not support it. For a listed model the run fails with a clear error before any call.
 
@@ -196,9 +236,11 @@ Large PRs: the diff the model sees is measured in estimated tokens. Above `max_d
 
 | Input                                      | Description                                                                                               |
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| `client`, `model`, `api-key`               | Required, except for `claude-agent-sdk`. Client, model id and API key.                                    |
+| `client`, `model`, `api-key`               | Required, except for `claude-agent-sdk` and `codex`. Client, model id and API key.                        |
 | `oauth-token`                              | Claude subscription token for `claude-agent-sdk`. Falls back to `CLAUDE_CODE_OAUTH_TOKEN`.                |
 | `claude-path`                              | Your own `claude` binary for `claude-agent-sdk`, skipping the download. Falls back to `CLAUDE_CODE_PATH`. |
+| `codex-auth-json`                          | Contents of `~/.codex/auth.json` for `codex`, from `codex login --device-auth`. Never logged.             |
+| `codex-path`                               | Your own `codex` binary for `codex`, skipping the download. Falls back to `CODEX_PATH`.                   |
 | `base-url`                                 | Gateway URL (`openai-compatible`) or endpoint (`azure`).                                                  |
 | `native-json-schema`                       | Set `"false"` for endpoints without native JSON-schema output.                                            |
 | `reasoning-effort`                         | Reasoning effort, for models that support it.                                                             |
@@ -219,7 +261,7 @@ Large PRs: the diff the model sees is measured in estimated tokens. Above `max_d
 
 ### Outputs
 
-`findings_count`, `high_count`, `review_url`, `result_path` (full result JSON), `tokens` and `cost_usd`. `cost_usd` is 0 for `claude-agent-sdk`, which bills to a subscription.
+`findings_count`, `high_count`, `review_url`, `result_path` (full result JSON), `tokens` and `cost_usd`. `cost_usd` is 0 for `claude-agent-sdk` and `codex`, which bill to a subscription.
 
 ## Live progress
 
@@ -253,7 +295,7 @@ See [docs/security-coverage.md](docs/security-coverage.md) for how each control 
 
 ## Runners
 
-Hammer is a pure-JavaScript Node 24 action with no preinstalled tools, so it runs on GitHub-hosted, Blacksmith and self-hosted Linux runners, x64 and arm64. Verified runners and open items are listed in [docs/runners.md](docs/runners.md). The one exception is `client: claude-agent-sdk`, which downloads a checksum-verified `claude` binary into `RUNNER_TEMP`; see [0022](docs/decision/0022-claude-agent-sdk-backend.md).
+Hammer is a pure-JavaScript Node 24 action with no preinstalled tools, so it runs on GitHub-hosted, Blacksmith and self-hosted Linux runners, x64 and arm64. Verified runners and open items are listed in [docs/runners.md](docs/runners.md). The exceptions are `client: claude-agent-sdk` and `client: codex`, which download a checksum-verified `claude` or `codex` binary into `RUNNER_TEMP`; see [0022](docs/decision/0022-claude-agent-sdk-backend.md) and [0023](docs/decision/0023-codex-cli-backend.md).
 
 ## Status
 

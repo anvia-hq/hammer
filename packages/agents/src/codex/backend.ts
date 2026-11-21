@@ -12,7 +12,7 @@ import type {
 import { SALVAGE_RESULT_LIMITS, describeStop, FINALIZE_PROMPT } from "../salvage";
 import type { SkillSet } from "../skills";
 import { withTranscript, type TranscriptEntry } from "../transcript";
-import { codexTimeoutError } from "./errors";
+import { codexTimeoutError, codexTurnLimitError } from "./errors";
 import { createCodexCollector } from "./events";
 import { spawnCodex, type CodexExecFn } from "./exec";
 import {
@@ -72,6 +72,7 @@ export function createCodexBackend(options: CodexBackendOptions): ReviewBackend 
         prompt: string;
         tools: ReviewerToolDefinition[];
         withSchema: boolean;
+        maxTurns: number;
       }): Promise<TurnOutcome> => {
         const controller = new AbortController();
         let timedOut = false;
@@ -100,7 +101,13 @@ export function createCodexBackend(options: CodexBackendOptions): ReviewBackend 
             env: options.env,
             signal: controller.signal,
           });
-          for await (const line of stream) collector.push(line);
+          for await (const line of stream) {
+            collector.push(line);
+            if (collector.toolCalls() > input.maxTurns) {
+              controller.abort();
+              throw codexTurnLimitError(input.maxTurns);
+            }
+          }
         } catch (error) {
           if (timedOut) throw codexTimeoutError(timeoutMs);
           throw error;
@@ -119,6 +126,7 @@ export function createCodexBackend(options: CodexBackendOptions): ReviewBackend 
             prompt: withTranscript(transcript, prompt),
             tools: conversation.tools,
             withSchema: true,
+            maxTurns: conversation.maxTurns,
           });
           conversation.onUsage?.(outcome.usage);
           return outcome;
@@ -133,6 +141,7 @@ export function createCodexBackend(options: CodexBackendOptions): ReviewBackend 
                 prompt: `${withTranscript(transcript, "", limit)}\n\n${FINALIZE_PROMPT}`.trim(),
                 tools: [],
                 withSchema: true,
+                maxTurns: conversation.maxTurns,
               });
               conversation.onUsage?.(outcome.usage);
               const accepted = hooks.accept({ text: outcome.text, usage: outcome.usage, stop });

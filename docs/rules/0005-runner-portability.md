@@ -12,7 +12,10 @@ Hammer must run unchanged on GitHub-hosted, Blacksmith and self-hosted Linux run
   - Exception: `client: claude-agent-sdk` downloads the pinned `claude` binary from npm into
     `RUNNER_TEMP` and verifies its sha512 before extracting (see [0022](../decision/0022-claude-agent-sdk-backend.md)).
     It is opt-in, pinned to one version per platform, written only under `RUNNER_TEMP`, and skipped
-    when `claude-path` is set. Every other backend stays pure JavaScript.
+    when `claude-path` is set.
+  - Exception: `client: codex` downloads the pinned `codex` binary the same way, with the same
+    checks, and is skipped when `codex-path` is set (see
+    [0023](../decision/0023-codex-cli-backend.md)). Every other backend stays pure JavaScript.
 - Do not rely on tools preinstalled on GitHub-hosted images. `git` is optional and has the API tarball fallback.
 - Write only under `RUNNER_TEMP`, and clean up in the post step.
 - Read GitHub hosts from `GITHUB_API_URL` and `GITHUB_SERVER_URL`. Never hard-code `api.github.com`.

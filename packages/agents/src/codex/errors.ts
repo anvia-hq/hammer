@@ -37,6 +37,13 @@ export function codexTimeoutError(timeoutMs: number): CodexError {
   );
 }
 
+export function codexTurnLimitError(maxTurns: number): CodexError {
+  return new CodexError(
+    "execution",
+    `Codex reached the ${maxTurns}-turn limit (tool calls) and was stopped. Raise max_turns, lower shard_tokens so each shard is smaller, or narrow the review with the include input.`,
+  );
+}
+
 export function codexExitError(code: number, stderr: string): CodexError {
   const detail = stderr.trim().slice(-600);
   if (AUTH_PATTERN.test(detail)) return codexAuthenticationError(detail);

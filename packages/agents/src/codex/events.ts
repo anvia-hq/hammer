@@ -85,6 +85,7 @@ export interface CodexTurnCollector {
   push(line: string): void;
   outcome(): TurnOutcome;
   transcript(): TranscriptEntry[];
+  toolCalls(): number;
 }
 
 export function createCodexCollector(options: {
@@ -97,6 +98,7 @@ export function createCodexCollector(options: {
   let text = "";
   let usage: SinglePassUsage = { ...ZERO_USAGE };
   let completed = false;
+  let toolCalls = 0;
   let failure: CodexError | undefined;
 
   const emit = (kind: "text" | "reasoning", value: string): void => {
@@ -128,6 +130,7 @@ export function createCodexCollector(options: {
 
   const handleStarted = (item: CodexItem): void => {
     if (item.type === "mcp_tool_call" || item.type === "command_execution") {
+      toolCalls += 1;
       options.transcript.push({ role: "assistant", text: toolCallLine(item) });
       streamer?.toolCall(turn);
     }
@@ -184,6 +187,9 @@ export function createCodexCollector(options: {
     },
     transcript() {
       return options.transcript;
+    },
+    toolCalls() {
+      return toolCalls;
     },
   };
 }

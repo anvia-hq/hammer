@@ -422,7 +422,7 @@ export async function runAction(
     if (codex) {
       if (inputs.model.trim() === "")
         throw new Error(
-          "Model missing: client codex has no default model. Set model to the Codex model id you want the review to run on, such as gpt-5.1-codex.",
+          'Model missing: client codex has no default model. Set model to the Codex model id you want the review to run on (such as gpt-5.1-codex), and pass the session from "codex login --device-auth" as codex-auth-json.',
         );
       if (inputs["codex-auth-json"].trim() === "")
         throw new Error(

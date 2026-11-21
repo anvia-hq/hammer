@@ -340,6 +340,49 @@ describe("codex review backend", () => {
     expect(override(seen[1]?.params.args ?? [], "mcp_servers.")).toBeUndefined();
   });
 
+  it("stops a turn at the max_turns limit and salvages what the review found", async () => {
+    const seen: Recorded[] = [];
+    const built = await backend(
+      [
+        [
+          line({ type: "thread.started", thread_id: "t" }),
+          line({ type: "turn.started" }),
+          ...["a.ts", "b.ts", "c.ts"].flatMap((path, index) => [
+            line({
+              type: "item.started",
+              item: { id: `t${index}`, type: "mcp_tool_call", server: "hammer", tool: "read_file" },
+            }),
+            line({
+              type: "item.completed",
+              item: {
+                id: `t${index}`,
+                type: "mcp_tool_call",
+                server: "hammer",
+                tool: "read_file",
+                status: "completed",
+                result: { content: [{ type: "text", text: path }] },
+              },
+            }),
+          ]),
+        ],
+        turn(JSON.stringify(batch)),
+      ],
+      seen,
+    );
+    const outcome = await runSinglePassReview(reviewInput(), {
+      backend: built,
+      checkoutRoot: "/tmp",
+      maxTurns: 2,
+    });
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.partial).toBe(true);
+      expect(outcome.note).toContain("turn limit reached");
+      expect(outcome.batch.findings).toHaveLength(1);
+    }
+    expect(seen).toHaveLength(2);
+  });
+
   it("names the device login when Codex reports an authentication failure", async () => {
     const built = await backend([
       [line({ type: "turn.failed", error: { message: "401 Unauthorized: not logged in" } })],
