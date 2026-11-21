@@ -47,7 +47,7 @@ import { checkoutHead } from "./checkout";
 import { provisionClaudeBinary } from "./claude-binary";
 import { codexTokenValues, parseCodexAuth, seedCodexHome } from "./codex-auth";
 import { provisionCodexBinary } from "./codex-binary";
-import { CODEX_CONTEXT_ENV, writeCodexToolContext } from "./codex-context";
+import { startCodexToolHost, type CodexToolHost } from "./codex-tool-host";
 import { stageRepoSkills } from "./repo-skills";
 import { GitHub, proxiedFetch, type GitHubPort, type IssueComment } from "./github";
 import { configOverrides, readInputs, type ActionInputs } from "./inputs";
@@ -615,8 +615,6 @@ export async function runAction(
       runtime.warning(`Review skills unavailable; continuing without them: ${cleanError(error)}`);
       return undefined;
     };
-    let skillsDirectory = bundledSkills;
-    let repoSkillNames: string[] | undefined;
     let skills = await loadReviewSkills(bundledSkills).catch(skillsWarning);
     if (skills !== undefined && config.use_repo_skills) {
       try {
@@ -633,8 +631,6 @@ export async function runAction(
           skills = await loadReviewSkills(staged.directory, {
             repoSkillNames: staged.names,
           });
-          skillsDirectory = staged.directory;
-          repoSkillNames = staged.names;
         }
       } catch (error) {
         runtime.warning(
@@ -645,6 +641,7 @@ export async function runAction(
     if (skills?.skills.length)
       runtime.info(`[hammer] skills: ${skills.skills.map((entry) => entry.name).join(", ")}`);
     let backend: ReviewBackend | undefined = dependencies.backend;
+    let toolHost: CodexToolHost | undefined;
     if (claudeSdk && backend === undefined) {
       const configuredPath = (inputs["claude-path"] || env.CLAUDE_CODE_PATH || "").trim();
       const executablePath =
@@ -672,24 +669,8 @@ export async function runAction(
           : await provisionCodexBinary({ temp, log: (message) => runtime.info(message) });
       const codexHome = await seedCodexHome(directory, credentials);
       const workDirectory = join(directory, "codex");
-      const contextPath = await writeCodexToolContext(workDirectory, {
-        checkoutRoot: checkout,
-        files: plan.reviewFiles,
-        fileContents,
-        pr: { title: pr.title },
-        discussion: {
-          title: pr.title,
-          body: pr.body,
-          comments: comments
-            .slice(-20)
-            .map((comment) => ({ author: comment.user?.login ?? "unknown", body: comment.body })),
-        },
-        ...(skills !== undefined
-          ? {
-              skills: { directory: skillsDirectory, ...(repoSkillNames ? { repoSkillNames } : {}) },
-            }
-          : {}),
-      });
+      const host = await startCodexToolHost();
+      toolHost = host;
       runtime.info(`[hammer] codex: model ${inputs.model}, binary ${executablePath}`);
       backend = createCodexBackend({
         model: inputs.model,
@@ -700,8 +681,9 @@ export async function runAction(
         mcpServer: {
           command: process.execPath,
           args: [codexMcpEntry()],
-          env: { [CODEX_CONTEXT_ENV]: contextPath },
+          env: {},
         },
+        toolSession: (tools) => host.session(tools),
         ...(dependencies.codexExec !== undefined ? { exec: dependencies.codexExec } : {}),
       });
     }
@@ -748,6 +730,7 @@ export async function runAction(
       resolved: resolved.map(toFinding),
       openThreads: instruction === "" && !plan.partial ? openThreads : [],
     });
+    await toolHost?.close();
     await progress.settle();
     if (result.notReviewed !== undefined) {
       plan.notReviewed.push(...result.notReviewed);

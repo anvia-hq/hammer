@@ -1,5 +1,6 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync, readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -25,33 +26,45 @@ for (const path of [bundle, mcpBundle]) {
   }
 }
 
-// The Codex backend spawns dist/codex-mcp.js as its MCP server, so the shipped artifact has to
-// answer an MCP handshake and list Hammer's read-only tools from a context file.
-const mcpDirectory = mkdtempSync(join(tmpdir(), "hammer-mcp-smoke-"));
-const checkout = join(mcpDirectory, "head");
-mkdirSync(join(checkout, "src"), { recursive: true });
-writeFileSync(join(checkout, "src", "a.ts"), "export const retry = 1;\n");
-const contextPath = join(mcpDirectory, "codex-tools.json");
-writeFileSync(
-  contextPath,
-  JSON.stringify({
-    checkoutRoot: checkout,
-    files: [
-      {
-        filename: "src/a.ts",
-        sha: "0".repeat(40),
-        status: "modified",
-        additions: 1,
-        deletions: 0,
-        changes: 1,
-        patch: "@@ -0,0 +1 @@\n+export const retry = 1;",
-      },
-    ],
-    fileContents: { "src/a.ts": "1: export const retry = 1;" },
-    pr: { title: "smoke" },
-    discussion: { title: "smoke", body: "", comments: [] },
-  }),
-);
+// The Codex backend spawns dist/codex-mcp.js as its MCP server, and that server asks the run's tool
+// host for the tools of the conversation it serves, so the shipped artifact has to answer an MCP
+// handshake, list the tools the host reports and forward a call back to it.
+const toolNames = [
+  "checkout_pr",
+  "get_pr_discussion",
+  "list_dir",
+  "read_diff",
+  "read_file",
+  "search",
+];
+const toolHost = createServer((request, response) => {
+  const send = (status, body) => {
+    response.writeHead(status, { "content-type": "application/json" });
+    response.end(JSON.stringify(body));
+  };
+  if (request.headers.authorization !== "Bearer smoke-token") return send(401, { error: "x" });
+  const url = new URL(request.url ?? "/", "http://127.0.0.1");
+  if (request.method === "GET" && url.pathname === "/tools")
+    return send(200, {
+      tools: toolNames.map((name) => ({
+        name,
+        description: name,
+        inputSchema: { type: "object" },
+      })),
+    });
+  if (request.method === "POST" && url.pathname === "/call") {
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(chunk));
+    request.on("end", () => {
+      const { name } = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+      send(200, { text: name === "read_file" ? "1: export const retry = 1;" : `called ${name}` });
+    });
+    return;
+  }
+  send(404, { error: "not found" });
+});
+await new Promise((resolve) => toolHost.listen(0, "127.0.0.1", resolve));
+const toolHostPort = toolHost.address().port;
 const handshake = [
   {
     jsonrpc: "2.0",
@@ -74,12 +87,36 @@ const handshake = [
 ]
   .map((message) => `${JSON.stringify(message)}\n`)
   .join("");
-const mcpOut = execFileSync(process.execPath, [mcpBundle], {
-  encoding: "utf8",
-  input: handshake,
-  timeout: 30_000,
-  env: { ...process.env, HAMMER_CODEX_CONTEXT: contextPath },
+const mcpOut = await new Promise((resolve, reject) => {
+  const child = spawn(process.execPath, [mcpBundle], {
+    env: {
+      ...process.env,
+      HAMMER_CODEX_TOOL_URL: `http://127.0.0.1:${toolHostPort}`,
+      HAMMER_CODEX_TOOL_TOKEN: "smoke-token",
+      HAMMER_CODEX_TOOL_SESSION: "s1",
+    },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const timer = setTimeout(() => {
+    child.kill("SIGKILL");
+    reject(new Error("codex-mcp did not exit after the handshake"));
+  }, 30_000);
+  let out = "";
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    out += chunk;
+  });
+  child.on("error", (error) => {
+    clearTimeout(timer);
+    reject(error);
+  });
+  child.on("close", () => {
+    clearTimeout(timer);
+    resolve(out);
+  });
+  child.stdin.end(handshake);
 });
+toolHost.close();
 const replies = mcpOut
   .split("\n")
   .filter(Boolean)
@@ -94,7 +131,6 @@ if (!called.includes("export const retry = 1;")) {
   console.error("codex-mcp did not answer a read_file call");
   process.exit(1);
 }
-rmSync(mcpDirectory, { recursive: true, force: true });
 
 const directory = mkdtempSync(join(tmpdir(), "hammer-bundle-smoke-"));
 const summary = join(directory, "summary.md");

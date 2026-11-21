@@ -17,7 +17,6 @@ import type {
   ReviewPipelineInput,
 } from "@anvia/hammer-agents";
 import { claudeSdkEnv, codexEnv, codexMcpEntry, runAction, type ActionRuntime } from "../src/run";
-import { readCodexToolContext } from "../src/codex-context";
 import type { GitHubPort, IssueComment, PullRequest } from "../src/github";
 import { cleanup } from "../src/post";
 
@@ -1186,7 +1185,7 @@ describe("Action codex client", () => {
       expect(f.runtime.setSecret).toHaveBeenCalledWith(token);
   });
 
-  it("mounts Hammer's own MCP server with the tool context written for it", async () => {
+  it("serves Hammer's tools to Codex through the run's tool host", async () => {
     const f = await fixture({
       client: "codex",
       model: "gpt-5.1-codex",
@@ -1195,20 +1194,45 @@ describe("Action codex client", () => {
       "codex-path": "/opt/hammer-codex",
     });
     const seen: CodexExecParams[] = [];
-    await f.run({ model: undefined, codexExec: recordCodex(JSON.stringify(codexBatch), seen) });
+    let listed: string[] = [];
+    let discussion = "";
+    let rejected = 0;
+    const exec: CodexExecFn = (params) => {
+      seen.push(params);
+      return (async function* () {
+        const env = params.args.find((entry) => entry.startsWith("mcp_servers.hammer.env=")) ?? "";
+        const field = (name: string): string =>
+          new RegExp(`${name}" = "([^"]+)"`).exec(env)?.[1] ?? "";
+        const url = field("HAMMER_CODEX_TOOL_URL");
+        const token = field("HAMMER_CODEX_TOOL_TOKEN");
+        const session = field("HAMMER_CODEX_TOOL_SESSION");
+        const headers = { authorization: `Bearer ${token}` };
+        const listResponse = await fetch(`${url}/tools?session=${session}`, { headers });
+        listed = ((await listResponse.json()) as { tools: Array<{ name: string }> }).tools.map(
+          (tool) => tool.name,
+        );
+        const callResponse = await fetch(`${url}/call`, {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ session, name: "get_pr_discussion", input: {} }),
+        });
+        discussion = ((await callResponse.json()) as { text: string }).text;
+        const anonymous = await fetch(`${url}/tools?session=${session}`);
+        if (anonymous.status === 401) rejected += 1;
+        for (const line of codexLines(JSON.stringify(codexBatch))) yield line;
+      })();
+    };
+    await f.run({ model: undefined, codexExec: exec });
     const argv = seen[0]?.args ?? [];
     expect(argv).toContain(`mcp_servers.hammer.command="${process.execPath}"`);
     expect(argv).toContain('mcp_servers.hammer.args=["' + codexMcpEntry() + '"]');
     expect(codexMcpEntry()).toContain("codex-mcp");
     expect(argv).toContain("mcp_servers.hammer.required=true");
-    const envOverride = argv.find((entry) => entry.startsWith("mcp_servers.hammer.env=")) ?? "";
-    const contextPath = /HAMMER_CODEX_CONTEXT" = "([^"]+)"/.exec(envOverride)?.[1] ?? "";
-    expect(existsSync(contextPath)).toBe(true);
-    const context = await readCodexToolContext(contextPath);
-    expect(context.checkoutRoot).toContain("head");
-    expect(context.files.map((file) => file.filename)).toEqual(["src/a.ts"]);
-    expect(context.pr.title).toBe("Update user lookup");
-    expect(context.skills?.directory).toContain("skills");
+    expect(listed).toContain("read_file");
+    expect(listed).toContain("read_diff");
+    expect(discussion).toContain("Update user lookup");
+    expect(rejected).toBe(1);
+    expect(f.posted).toHaveLength(1);
   });
 
   it("fails with the device login instruction when the session is missing", async () => {

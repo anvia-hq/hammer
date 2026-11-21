@@ -43,13 +43,16 @@ read-only guarantees in Codex's terms.
     session, the user runs `codex login --device-auth` again and updates the secret. Hammer cannot
     rotate a repository secret on the user's behalf.
 - **Hammer's own tools, over MCP.** Codex reaches tools through MCP servers, so Hammer ships a
-  second bundle, `dist/codex-mcp.js`, a stdio MCP server that Codex starts as a child process. The
-  reviewer's tool context (checkout root, reviewed files and their contents, the PR, the discussion,
-  the skills directory) is written as JSON into the run directory and its path is passed through
-  the server's `env`. The server rebuilds `buildReviewerToolDefinitions`, so the six read-only tools
-  keep the same path guard, secret denylist, output caps and repeated-call damping, and bridges only
-  the two read-only skill tools: the script-running skill tool is never built (rule 0004). Tools run
-  in that child process, not in Codex's sandbox.
+  second bundle, `dist/codex-mcp.js`, a stdio MCP server that Codex starts as a child process. That
+  child cannot hold Hammer's live tool definitions, so the run starts a loopback tool host
+  (`packages/action/src/codex-tool-host.ts`): bound to `127.0.0.1` on an ephemeral port, with a
+  random bearer token, asking for the tools of the session named in the server's `env` and executing
+  every call in the Action process. Each conversation registers its own tools, so a shard's server
+  serves that shard's files and diff, the budget wind-down and the tool progress events exactly as
+  the in-process backends do. The six read-only tools keep the same path guard, secret denylist,
+  output caps and repeated-call damping, and only the two read-only skill tools are bridged: the
+  script-running skill tool is never built (rule 0004). Tools run outside Codex's sandbox, in the
+  Action's own process.
 - **Read-only controls, asserted in tests.** Every turn runs
   `codex exec --json --skip-git-repo-check --ephemeral --ignore-user-config --ignore-rules
   --sandbox read-only`, with these config overrides on the command line so no user or project config
@@ -119,7 +122,6 @@ read-only guarantees in Codex's terms.
   a non-zero exit with the tail of stderr, a turn timeout, and an error event from the stream.
 - An answer can arrive without the CLI reporting a finish reason, so a review that was cut off is
   detected from the JSON it did not finish, as before.
-- The MCP server's tool context is written once per run, so a sharded review serves the whole pull
-  request's diff to every shard rather than only that shard's files. The shard prompt still frames
-  the work, and findings a shard repeats are deduplicated as before; it only means a shard may read
-  slightly more than the `@anvia/*` and Claude paths hand it.
+- The MCP server keeps no tools of its own: it reads the list for its session from the loopback tool
+  host and forwards every call back to it, so the tools run in the Action process with the shard's
+  own files and diff, its budget wind-down and its progress events.

@@ -5,8 +5,14 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { codexMcpTools, createCodexMcpServer } from "../src/codex-mcp";
-import { readCodexToolContext, writeCodexToolContext } from "../src/codex-context";
+import {
+  buildReviewerToolDefinitions,
+  loadReviewSkills,
+  skillToolDefinitions,
+  type ReviewerToolDefinition,
+} from "@anvia/hammer-agents";
+import { createProxyMcpServer, httpToolProxy } from "../src/codex-mcp";
+import { startCodexToolHost } from "../src/codex-tool-host";
 
 const SKILLS_DIRECTORY = join(import.meta.dirname, "..", "..", "..", "skills");
 const roots: string[] = [];
@@ -15,14 +21,17 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-async function roundTrip(input: { skills?: boolean } = {}) {
+async function definitionsFor(input: { skills?: boolean } = {}): Promise<{
+  definitions: ReviewerToolDefinition[];
+  close: () => Promise<void>;
+}> {
   const root = await mkdtemp(join(tmpdir(), "hammer-codex-mcp-"));
   roots.push(root);
   const checkoutRoot = join(root, "head");
   await mkdir(join(checkoutRoot, "src"), { recursive: true });
   await writeFile(join(checkoutRoot, "src/a.ts"), "export const retry = 1;\n");
   await writeFile(join(checkoutRoot, ".env"), "TOKEN=secret\n");
-  const contextPath = await writeCodexToolContext(join(root, "codex"), {
+  const reviewer = buildReviewerToolDefinitions({
     checkoutRoot,
     files: [
       {
@@ -38,10 +47,25 @@ async function roundTrip(input: { skills?: boolean } = {}) {
     fileContents: { "src/a.ts": "1: export const retry = 1;" },
     pr: { title: "Add retry" },
     discussion: { title: "Add retry", body: "PR body", comments: [] },
-    ...(input.skills === true ? { skills: { directory: SKILLS_DIRECTORY } } : {}),
   });
-  const context = await readCodexToolContext(contextPath);
-  const server = createCodexMcpServer(await codexMcpTools(context));
+  if (input.skills !== true) return { definitions: reviewer, close: async () => {} };
+  const skills = await loadReviewSkills(SKILLS_DIRECTORY);
+  return {
+    definitions: [
+      ...reviewer,
+      ...skillToolDefinitions(
+        skills.tools as unknown as Array<{ name: string; call(input: unknown): Promise<unknown> }>,
+      ),
+    ],
+    close: async () => {},
+  };
+}
+
+async function roundTrip(input: { skills?: boolean } = {}) {
+  const { definitions } = await definitionsFor(input);
+  const host = await startCodexToolHost();
+  const env = host.session(definitions) as NodeJS.ProcessEnv;
+  const server = createProxyMcpServer(httpToolProxy(env));
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
   const client = new Client({ name: "hammer-test", version: "0.0.0" });
@@ -51,6 +75,7 @@ async function roundTrip(input: { skills?: boolean } = {}) {
     close: async () => {
       await client.close();
       await server.close();
+      await host.close();
     },
   };
 }
@@ -69,6 +94,8 @@ describe("codex stdio MCP server", () => {
         "search",
       ]);
       for (const tool of listed.tools) expect(tool.description ?? "").not.toBe("");
+      const readFile = listed.tools.find((tool) => tool.name === "read_file");
+      expect(readFile?.inputSchema).toMatchObject({ type: "object" });
     } finally {
       await session.close();
     }
@@ -123,6 +150,30 @@ describe("codex stdio MCP server", () => {
     } finally {
       await session.close();
     }
+  });
+
+  it("serves only the tools of the session it was given", async () => {
+    const first = await definitionsFor();
+    const host = await startCodexToolHost();
+    try {
+      const firstEnv = host.session(first.definitions) as NodeJS.ProcessEnv;
+      const proxy = httpToolProxy(firstEnv);
+      expect((await proxy.list()).map((tool) => tool.name)).toContain("read_file");
+      const other = await definitionsFor();
+      const otherEnv = host.session(other.definitions) as NodeJS.ProcessEnv;
+      const otherProxy = httpToolProxy(otherEnv);
+      expect((await otherProxy.list()).map((tool) => tool.name)).toEqual(
+        (await proxy.list()).map((tool) => tool.name),
+      );
+      const rejected = httpToolProxy({ ...firstEnv, HAMMER_CODEX_TOOL_SESSION: "missing" });
+      await expect(rejected.list()).rejects.toThrow(/refused the tool list/);
+    } finally {
+      await host.close();
+    }
+  });
+
+  it("refuses to start without the Action's tool host settings", () => {
+    expect(() => httpToolProxy({})).toThrow(/must all be set/);
   });
 
   it("is bundled as its own entry next to index and post", async () => {

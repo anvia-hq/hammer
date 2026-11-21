@@ -13,6 +13,7 @@ import type {
 import { SALVAGE_RESULT_LIMITS, describeStop, FINALIZE_PROMPT } from "../salvage";
 import type { SkillSet } from "../skills";
 import { withTranscript, type TranscriptEntry } from "../transcript";
+import { skillToolDefinitions } from "../claude-sdk/tools";
 import { codexTimeoutError, codexTurnLimitError, isCodexError } from "./errors";
 import { createCodexCollector } from "./events";
 import { spawnCodex, type CodexExecFn } from "./exec";
@@ -31,6 +32,7 @@ export interface CodexBackendOptions {
   workDirectory: string;
   env: Record<string, string | undefined>;
   mcpServer?: CodexMcpServer | undefined;
+  toolSession?: ((tools: ReviewerToolDefinition[]) => Record<string, string>) | undefined;
   exec?: CodexExecFn | undefined;
   turnTimeoutMs?: number | undefined;
 }
@@ -87,6 +89,23 @@ export function createCodexBackend(options: CodexBackendOptions): ReviewBackend 
       const effort = codexEffort(conversation.reasoningEffort);
       const timeoutMs = options.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS;
       const exec = options.exec ?? spawnCodex;
+      const definitions = [
+        ...conversation.tools,
+        ...skillToolDefinitions(
+          (conversation.skills?.tools ?? []) as unknown as Array<{
+            name: string;
+            call(input: unknown): Promise<unknown>;
+          }>,
+        ),
+      ];
+      // The MCP server runs in its own process, so each conversation registers its own tools with
+      // the host and hands that session to the server it starts: shard files and diff, the budget
+      // wind-down and the tool progress events all reach Codex exactly as the in-process tools do.
+      const sessionEnv = definitions.length > 0 ? options.toolSession?.(definitions) : undefined;
+      const mcpServer =
+        options.mcpServer === undefined || sessionEnv === undefined
+          ? options.mcpServer
+          : { ...options.mcpServer, env: { ...options.mcpServer.env, ...sessionEnv } };
 
       const runTurn = async (input: {
         prompt: string;
@@ -104,7 +123,7 @@ export function createCodexBackend(options: CodexBackendOptions): ReviewBackend 
           ...(conversation.onText !== undefined ? { onText: conversation.onText } : {}),
           transcript,
         });
-        const mount = input.tools.length > 0 ? options.mcpServer : undefined;
+        const mount = input.tools.length > 0 ? mcpServer : undefined;
         try {
           const schemaPathForTurn = input.withSchema ? await schemaFile(conversation) : undefined;
           const stream = exec({
@@ -150,7 +169,7 @@ export function createCodexBackend(options: CodexBackendOptions): ReviewBackend 
           conversation.startGuard?.();
           const outcome = await runTurn({
             prompt: withTranscript(transcript, prompt),
-            tools: conversation.tools,
+            tools: definitions,
             withSchema: true,
             maxTurns: conversation.maxTurns,
           });
