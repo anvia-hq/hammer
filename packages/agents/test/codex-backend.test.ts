@@ -228,6 +228,16 @@ describe("codex exec argv", () => {
     expect(() => codexEffort("maximum")).toThrow(/not supported by client codex/);
   });
 
+  it("refuses a conversation that needs tools when no MCP server is configured", async () => {
+    const built = await backend([turn(JSON.stringify(batch))], [], { mcpServer: undefined });
+    const outcome = await runSinglePassReview(reviewInput(), {
+      backend: built,
+      checkoutRoot: "/tmp",
+    });
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.issues[0]?.message).toContain("needs an mcpServer");
+  });
+
   it("mounts no MCP server for a turn that has no tools", async () => {
     const seen: Recorded[] = [];
     const built = await backend(
@@ -437,6 +447,7 @@ describe("codex review backend", () => {
       cwd: "/tmp/hammer/head",
       workDirectory: await workDirectory(),
       env: {},
+      mcpServer: MCP_SERVER,
       exec: scriptedExec([new CodexError("exit", "Codex exited with code 2: boom")], seen),
     });
     const outcome = await runSinglePassReview(reviewInput(), {
@@ -497,6 +508,7 @@ describe("codex review backend", () => {
       cwd: "/tmp/hammer/head",
       workDirectory: await workDirectory(),
       env: {},
+      mcpServer: MCP_SERVER,
       turnTimeoutMs: 5,
       exec: () =>
         (async function* () {

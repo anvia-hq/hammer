@@ -61,6 +61,12 @@ export function createCodexBackend(options: CodexBackendOptions): ReviewBackend 
   return {
     id: "codex",
     createConversation(conversation: ReviewConversationOptions): ReviewConversation {
+      // Codex reaches tools only through an MCP server, so a conversation that needs tools and
+      // was handed no server would review without ever reading the checkout.
+      if (conversation.tools.length > 0 && options.mcpServer === undefined)
+        throw new Error(
+          "The codex backend needs an mcpServer to expose Hammer's read-only tools; without it the reviewer cannot read the pull request.",
+        );
       const transcript: TranscriptEntry[] = [];
       const instructions = skillInstructions(conversation.instructions, conversation.skills);
       const effort = codexEffort(conversation.reasoningEffort);
