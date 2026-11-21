@@ -165,6 +165,9 @@ export function createCodexCollector(options: {
       if (event.type === "turn.completed") {
         usage = codexUsage(event.usage);
         completed = true;
+        // An `error` event is not always terminal: Codex can report a stream problem and then
+        // finish the turn, and a completed turn carries its own text and usage.
+        failure = undefined;
         streamer?.end();
         return;
       }

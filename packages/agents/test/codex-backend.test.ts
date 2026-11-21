@@ -37,7 +37,7 @@ const batch = {
 const MCP_SERVER = {
   command: "/usr/bin/node",
   args: ["/opt/hammer/dist/codex-mcp.js"],
-  env: { HAMMER_CODEX_CONTEXT: "/tmp/hammer/context.json" },
+  env: { HAMMER_CODEX_TOOL_SESSION: "s1" },
 };
 
 function line(event: Record<string, unknown>): string {
@@ -192,7 +192,7 @@ describe("codex exec argv", () => {
     expect(override(argv, "mcp_servers.hammer.command=")).toBe('"/usr/bin/node"');
     expect(override(argv, "mcp_servers.hammer.args=")).toBe('["/opt/hammer/dist/codex-mcp.js"]');
     expect(override(argv, "mcp_servers.hammer.env=")).toBe(
-      '{ "HAMMER_CODEX_CONTEXT" = "/tmp/hammer/context.json" }',
+      '{ "HAMMER_CODEX_TOOL_SESSION" = "s1" }',
     );
     expect(override(argv, "mcp_servers.hammer.required=")).toBe("true");
     expect(override(argv, "developer_instructions=")).toContain("You are Hammer");
@@ -310,6 +310,22 @@ describe("codex review backend", () => {
       expect(outcome.batch.findings).toHaveLength(1);
       expect(outcome.usage).toEqual({ inputTokens: 120, outputTokens: 30, totalTokens: 150 });
     }
+  });
+
+  it("accepts a turn that completes after a non-terminal error event", async () => {
+    const built = await backend([
+      [
+        line({ type: "turn.started" }),
+        line({ type: "error", message: "stream closed, retrying" }),
+        ...turn(JSON.stringify(batch)),
+      ],
+    ]);
+    const outcome = await runSinglePassReview(reviewInput(), {
+      backend: built,
+      checkoutRoot: "/tmp",
+    });
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) expect(outcome.batch.findings).toHaveLength(1);
   });
 
   it("repairs a schema violation by replaying the transcript", async () => {
