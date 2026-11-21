@@ -33,7 +33,7 @@ export function codexAuthenticationError(detail: string): CodexError {
 export function codexTimeoutError(timeoutMs: number): CodexError {
   return new CodexError(
     "timeout",
-    `Codex did not finish this turn within ${Math.round(timeoutMs / 1000)} seconds and was stopped.`,
+    `Codex hit the time limit: it did not finish this turn within ${Math.round(timeoutMs / 1000)} seconds and was stopped.`,
   );
 }
 

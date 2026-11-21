@@ -1,4 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type {
@@ -12,7 +13,7 @@ import type {
 import { SALVAGE_RESULT_LIMITS, describeStop, FINALIZE_PROMPT } from "../salvage";
 import type { SkillSet } from "../skills";
 import { withTranscript, type TranscriptEntry } from "../transcript";
-import { codexTimeoutError, codexTurnLimitError } from "./errors";
+import { codexTimeoutError, codexTurnLimitError, isCodexError } from "./errors";
 import { createCodexCollector } from "./events";
 import { spawnCodex, type CodexExecFn } from "./exec";
 import {
@@ -42,20 +43,34 @@ function skillInstructions(instructions: string, skills: SkillSet | undefined): 
 }
 
 export function createCodexBackend(options: CodexBackendOptions): ReviewBackend {
-  let schemaPath: string | undefined;
+  const schemaFiles = new Map<string, Promise<string>>();
 
-  const schemaFile = async (
-    conversation: ReviewConversationOptions,
-  ): Promise<string | undefined> => {
+  // Shards share this backend and run in parallel, so a schema is written once: the file name is
+  // derived from the schema itself, and concurrent callers await the same write instead of
+  // truncating a file a sibling's Codex process may already be reading.
+  const schemaFile = (conversation: ReviewConversationOptions): Promise<string> | undefined => {
     if (conversation.outputSchema === undefined) return undefined;
-    if (schemaPath !== undefined) return schemaPath;
-    await mkdir(options.workDirectory, { recursive: true });
-    const path = join(options.workDirectory, "review-schema.json");
-    await writeFile(path, `${JSON.stringify(codexReviewSchema(conversation.outputSchema))}\n`, {
-      mode: 0o600,
+    const json = `${JSON.stringify(codexReviewSchema(conversation.outputSchema))}\n`;
+    const key = createHash("sha256").update(json).digest("hex").slice(0, 16);
+    const cached = schemaFiles.get(key);
+    if (cached !== undefined) return cached;
+    const ready = (async (): Promise<string> => {
+      await mkdir(options.workDirectory, { recursive: true });
+      const path = join(options.workDirectory, `codex-schema-${key}.json`);
+      try {
+        await writeFile(path, json, { mode: 0o600 });
+      } catch (error) {
+        await rm(path, { force: true });
+        throw error;
+      }
+      return path;
+    })();
+    const tracked = ready.catch((error: unknown) => {
+      schemaFiles.delete(key);
+      throw error;
     });
-    schemaPath = path;
-    return path;
+    schemaFiles.set(key, tracked);
+    return tracked;
   };
 
   return {
@@ -115,6 +130,12 @@ export function createCodexBackend(options: CodexBackendOptions): ReviewBackend 
           }
         } catch (error) {
           if (timedOut) throw codexTimeoutError(timeoutMs);
+          // Codex exits non-zero right after a `turn.failed` or `error` event, which would
+          // otherwise replace the reason the collector recorded with a bare exit line.
+          if (isCodexError(error) && error.code === "exit") {
+            const recorded = collector.failure();
+            if (recorded !== undefined) throw recorded;
+          }
           throw error;
         } finally {
           clearTimeout(timer);

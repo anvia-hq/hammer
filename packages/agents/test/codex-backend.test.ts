@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -207,7 +207,7 @@ describe("codex exec argv", () => {
     await runSinglePassReview(reviewInput(), { backend: built, checkoutRoot: "/tmp" });
     const argv = seen[0]?.params.args ?? [];
     const path = argv[argv.indexOf("--output-schema") + 1] ?? "";
-    expect(path).toContain("review-schema.json");
+    expect(path).toContain("codex-schema-");
     const schema = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
     expect(schema["additionalProperties"]).toBe(false);
     expect(schema["required"]).toEqual(["summary", "changes", "findings", "generalNotes"]);
@@ -456,6 +456,55 @@ describe("codex review backend", () => {
     });
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) expect(outcome.issues[0]?.message).toContain("exited with code 2");
+  });
+
+  it("keeps the failure Codex streamed before an exit instead of the bare exit line", async () => {
+    const failing = createCodexBackend({
+      model: "gpt-5.1-codex",
+      executablePath: "/opt/hammer/bin/codex",
+      cwd: "/tmp/hammer/head",
+      workDirectory: await workDirectory(),
+      env: {},
+      mcpServer: MCP_SERVER,
+      exec: () =>
+        (async function* () {
+          yield line({ type: "turn.started" });
+          yield line({ type: "turn.failed", error: { message: "token expired" } });
+          throw new CodexError("exit", "Codex exited with code 1: ");
+        })(),
+    });
+    const outcome = await runSinglePassReview(reviewInput(), {
+      backend: failing,
+      checkoutRoot: "/tmp",
+    });
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.issues[0]?.message).toContain("codex login --device-auth");
+  });
+
+  it("reuses the schema file instead of rewriting it for the next conversation", async () => {
+    const directory = await workDirectory();
+    const seen: Recorded[] = [];
+    const built = await backend([turn(JSON.stringify(batch)), turn(JSON.stringify(batch))], seen, {
+      workDirectory: directory,
+    });
+    const options = {
+      instructions: "Review the change.",
+      tools: [],
+      maxTurns: 3,
+      outputSchema: ReviewBatchSchema,
+    };
+    await built.createConversation(options).turn("first");
+    const argv = seen[0]?.params.args ?? [];
+    const path = argv[argv.indexOf("--output-schema") + 1] ?? "";
+    expect(path).toContain("codex-schema-");
+    await chmod(directory, 0o500);
+    try {
+      const outcome = await built.createConversation(options).turn("second");
+      expect(outcome?.text).toContain("retry");
+      expect(seen[1]?.params.args).toContain(path);
+    } finally {
+      await chmod(directory, 0o700);
+    }
   });
 
   it("stops a turn at the budget guard instead of starting it", async () => {

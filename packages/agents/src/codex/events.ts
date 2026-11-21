@@ -84,6 +84,7 @@ function toolResultText(item: CodexItem): string {
 export interface CodexTurnCollector {
   push(line: string): void;
   outcome(): TurnOutcome;
+  failure(): CodexError | undefined;
   transcript(): TranscriptEntry[];
   toolCalls(): number;
 }
@@ -184,6 +185,9 @@ export function createCodexCollector(options: {
       if (!completed)
         throw new CodexError("missing_result", "Codex ended without a result for this turn.");
       return { text, usage };
+    },
+    failure() {
+      return failure;
     },
     transcript() {
       return options.transcript;
