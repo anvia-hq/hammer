@@ -85,7 +85,7 @@ Hammer has to state its read-only guarantees in the SDK's terms rather than in `
 ## Consequences
 
 - A team on a Claude subscription can turn on Hammer without an API key: `client:
-claude-agent-sdk`, `model: <claude model id>`, `oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}`.
+  claude-agent-sdk`, `model: <claude model id>`, `oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}`.
 - The first run downloads ~350 MiB into `RUNNER_TEMP` (~7 s on a fast runner); later runs reuse
   it, and the README shows an `actions/cache` recipe for runners without a warm temp directory.
 - This is the documented exception to rule 0005: a native binary, downloaded at runtime, pinned
