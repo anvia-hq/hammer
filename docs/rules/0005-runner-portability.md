@@ -9,6 +9,10 @@ Accepted
 Hammer must run unchanged on GitHub-hosted, Blacksmith and self-hosted Linux runners, on x64 and arm64 (PRD §8.9).
 
 - Add only pure-JavaScript dependencies. No native modules, `postinstall` binaries, or tools downloaded at runtime.
+  - Exception: `client: claude-agent-sdk` downloads the pinned `claude` binary from npm into
+    `RUNNER_TEMP` and verifies its sha512 before extracting (see [0022](../decision/0022-claude-agent-sdk-backend.md)).
+    It is opt-in, pinned to one version per platform, written only under `RUNNER_TEMP`, and skipped
+    when `claude-path` is set. Every other backend stays pure JavaScript.
 - Do not rely on tools preinstalled on GitHub-hosted images. `git` is optional and has the API tarball fallback.
 - Write only under `RUNNER_TEMP`, and clean up in the post step.
 - Read GitHub hosts from `GITHUB_API_URL` and `GITHUB_SERVER_URL`. Never hard-code `api.github.com`.

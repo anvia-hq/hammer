@@ -22,3 +22,23 @@ describe("readInputs size caps", () => {
     expect(overrides).toMatchObject({ max_files: 20, max_turns: 30 });
   });
 });
+
+describe("readInputs claude-agent-sdk inputs", () => {
+  it("accepts a subscription token and an explicit claude path without an api key", () => {
+    const inputs = read({
+      client: "claude-agent-sdk",
+      model: "claude-sonnet-4-5",
+      "oauth-token": "sk-ant-oat",
+      "claude-path": "/opt/claude",
+    });
+    expect(inputs["api-key"]).toBe("");
+    expect(inputs["oauth-token"]).toBe("sk-ant-oat");
+    expect(inputs["claude-path"]).toBe("/opt/claude");
+  });
+
+  it("leaves both optional so the environment can supply them", () => {
+    const inputs = read({ client: "anthropic", model: "claude-sonnet-5-5" });
+    expect(inputs["oauth-token"]).toBe("");
+    expect(inputs["claude-path"]).toBe("");
+  });
+});

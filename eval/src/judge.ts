@@ -19,7 +19,7 @@ export interface LlmJudge {
 export function createLlmJudge(options: {
   reviewerModel: string;
   judgeModel: string;
-  model: ReviewPipelineInput["model"];
+  model: NonNullable<ReviewPipelineInput["model"]>;
 }): LlmJudge {
   if (options.reviewerModel === options.judgeModel)
     throw new Error("The judge must use a different model from the reviewer.");

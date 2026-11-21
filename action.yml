@@ -7,14 +7,20 @@ branding:
 
 inputs:
   client:
-    description: Model client (anthropic | openai | gemini | openai-compatible | azure).
+    description: Model client (anthropic | openai | gemini | openai-compatible | azure | claude-agent-sdk). claude-agent-sdk runs every model call through the Claude Agent SDK on your own Claude subscription token instead of an API key.
     required: true
   model:
-    description: Model id for the chosen client, e.g. claude-sonnet-5-5.
+    description: Model id for the chosen client, e.g. claude-sonnet-5-5. For claude-agent-sdk it is the model id passed to the Claude Code CLI.
     required: true
   api-key:
-    description: API key for the model client.
-    required: true
+    description: API key for the model client. Required for every client except claude-agent-sdk, which uses oauth-token.
+    required: false
+  oauth-token:
+    description: Claude subscription token from `claude setup-token`, used by client claude-agent-sdk. Falls back to the CLAUDE_CODE_OAUTH_TOKEN environment variable. Requires a Pro, Max, Team or Enterprise plan. Never logged.
+    required: false
+  claude-path:
+    description: Path to a `claude` binary to use with client claude-agent-sdk, skipping Hammer's checksum-verified download. Falls back to the CLAUDE_CODE_PATH environment variable.
+    required: false
   pricing:
     description: JSON mapping provider/model-id to input and output USD prices per million tokens. Takes precedence over prices Hammer reads from an openai-compatible gateway's /models endpoint and over its bundled list.
     required: false
@@ -71,7 +77,7 @@ inputs:
     description: Maximum diff lines reviewed after filtering. Leave empty to use .github/hammer.yml or the default of 3000; when set, it is a ceiling that the repository config cannot raise.
     required: false
   max_turns:
-    description: Maximum agent turns for the review. Leave empty to use .github/hammer.yml or the default of 100; when set, it is a ceiling that the repository config cannot raise.
+    description: Maximum agent turns for the review, passed to the model as its turn limit. Leave empty to use .github/hammer.yml or the default of 100; when set, it is a ceiling that the repository config cannot raise.
     required: false
   max_diff_tokens:
     description: Maximum estimated tokens of diff the reviewer sees, counted on the rendered diff. Over it, Hammer drops extra context, then deletion-only hunks, then whole files (lowest priority first) and lists them as not reviewed. Leave empty to use .github/hammer.yml or the default of 120000; when set, it is a ceiling that the repository config cannot raise.
@@ -86,7 +92,7 @@ inputs:
     description: Maximum tokens per run. No limit unless set here or in the repo config.
     required: false
   max_cost_usd:
-    description: Maximum model cost per run in USD. No limit unless set here or in the repo config.
+    description: Maximum model cost per run in USD. No limit unless set here or in the repo config. Not enforced for client claude-agent-sdk, where every call reports no per-token price.
     required: false
   verify:
     description: Run the verification pass on findings.
@@ -115,9 +121,9 @@ outputs:
   result_path:
     description: Path to the full result JSON.
   tokens:
-    description: Total tokens used.
+    description: Total tokens used. For client claude-agent-sdk, read from the SDK's per-model usage.
   cost_usd:
-    description: Estimated model cost in USD.
+    description: Estimated model cost in USD. 0 for client claude-agent-sdk, which bills to your subscription and not per token.
 
 runs:
   using: node24

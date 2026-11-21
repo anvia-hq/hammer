@@ -41,6 +41,45 @@ export type {
   SinglePassUsage,
 } from "./run";
 export { buildReviewerTools, runSinglePassReview } from "./run";
+export type {
+  ReviewBackend,
+  ReviewConversation,
+  ReviewConversationOptions,
+  ReviewerToolDefinition,
+  SalvageAttempt,
+  SalvageHooks,
+  TurnOutcome,
+} from "./backend";
+export { createAnviaBackend } from "./anvia-backend";
+export type { AnviaBackendOptions } from "./anvia-backend";
+export { buildReviewerToolDefinitions } from "./reviewer-tools";
+export type { DiscussionSource, ReviewerToolOptions } from "./reviewer-tools";
+export { createClaudeSdkBackend, translateQueryError } from "./claude-sdk/backend";
+export type { ClaudeQueryFn, ClaudeSdkBackendOptions } from "./claude-sdk/backend";
+export {
+  buildSdkOptions,
+  buildToolDenyHook,
+  DENIED_BUILT_IN_TOOLS,
+  HAMMER_MCP_SERVER,
+  MCP_TOOL_PREFIX,
+  reviewJsonSchema,
+  SDK_EFFORT_LEVELS,
+  sdkEffort,
+} from "./claude-sdk/options";
+export {
+  buildSdkMcpServer,
+  mcpToolName,
+  sdkToolNames,
+  skillToolDefinitions,
+} from "./claude-sdk/tools";
+export {
+  ClaudeSdkError,
+  describeResultError,
+  describeResultText,
+  resultUsage,
+  isClaudeSdkError,
+} from "./claude-sdk/messages";
+export type { ClaudeSdkErrorCode, TranscriptEntry } from "./claude-sdk/messages";
 export type { AgentToolReason } from "./tools";
 export {
   getPrDiscussion,

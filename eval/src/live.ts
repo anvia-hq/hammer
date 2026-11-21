@@ -60,7 +60,7 @@ export interface LiveEvalOptions {
   modelRef: string;
   baseUrl?: string;
   gatewayCatalog?: PriceCatalog;
-  model: ReviewPipelineInput["model"];
+  model: NonNullable<ReviewPipelineInput["model"]>;
   skills?: ReviewPipelineInput["skills"];
   judge?: LlmJudge;
   judgeModel?: string;

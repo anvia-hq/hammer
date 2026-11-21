@@ -13,6 +13,12 @@ actually enabled in `.github/workflows/runner-matrix.yml`.
 | Other drop-in providers (Depot, Namespace, RunsOn, Ubicloud, …) | x64/arm64 | not yet verified             |
 | macOS / Windows runners                                         | —         | not yet verified             |
 
+Every row refers to the pure-JavaScript clients. `client: claude-agent-sdk` downloads a pinned,
+checksum-verified `claude` binary into `RUNNER_TEMP` on first use, so it needs an outbound HTTPS
+path to the npm registry on that runner unless `claude-path` points at a binary already installed
+there; it also needs a runner the SDK publishes a binary for (Linux, macOS and Windows on x64 and
+arm64). See [0022](decision/0022-claude-agent-sdk-backend.md).
+
 The Blacksmith jobs run only when the workflow is started by hand with
 `run_blacksmith` ticked (they need the Blacksmith app on the repository), and
 the self-hosted entry is `if: false`; neither gates releases. The live

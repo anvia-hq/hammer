@@ -16,6 +16,8 @@ const schema = z.object({
   model: z.string(),
   pricing: z.string(),
   "api-key": z.string(),
+  "oauth-token": z.string(),
+  "claude-path": z.string(),
   "github-token": z.string(),
   "bot-login": z.string(),
   "platform-url": z.string(),
