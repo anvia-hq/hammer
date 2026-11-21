@@ -29,8 +29,8 @@ proves the same path against fork code today.
 - Core `decideEvent` accepts `pull_request_target` with the same trigger
   actions (`opened`, `synchronize`, `reopened`, `ready_for_review`) and the
   same payload validation as `pull_request`. The run keeps `kind:
-"pull_request"` and records `source: "pull_request" |
-"pull_request_target"` so downstream logic (incremental scope, head-SHA
+  "pull_request"` and records `source: "pull_request" |
+  "pull_request_target"` so downstream logic (incremental scope, head-SHA
   staleness, merge-from-base, plan, publish) is unchanged.
 - The action entry allows `GITHUB_EVENT_NAME=pull_request_target` and reviews
   fork PRs only through that event. `pull_request` + fork still skips with the

@@ -17,12 +17,12 @@
     "typecheck": "bun run --filter '*' typecheck"
   },
   "devDependencies": {
-    "@types/node": "^24.9.1",
-    "oxfmt": "0.64.0",
-    "oxlint": "^1.79.0",
-    "tsup": "^8.5.0",
+    "@types/node": "^24.19.2",
+    "oxfmt": "0.79.0",
+    "oxlint": "^1.94.0",
+    "tsup": "^9.0.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11"
+    "vitest": "^5.1.0"
   },
   "engines": {
     "node": ">=24",
