@@ -15,7 +15,7 @@ export function isCodexError(error: unknown): error is CodexError {
 }
 
 const SETUP =
-  'Run "codex login --device-auth" on your own machine, store the ~/.codex/auth.json it writes as the repository secret behind the codex-auth-json input, and let the Codex CLI refresh it in place.';
+  'Run "codex login --device-auth" on your own machine, store the ~/.codex/auth.json it writes as the repository secret behind the codex-auth-json input, and update the secret when the session expires.';
 
 // Only Codex's own authentication wording counts; a bare "401" also appears in ordinary runtime
 // errors (a stack trace at "a.ts:401"), and those must keep their own message.

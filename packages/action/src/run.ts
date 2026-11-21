@@ -438,7 +438,7 @@ export async function runAction(
         );
       if (inputs["codex-auth-json"].trim() === "")
         throw new Error(
-          'Codex ChatGPT login missing: run "codex login --device-auth" on your own machine, store the ~/.codex/auth.json it writes as the repository secret behind the codex-auth-json input, and let the Codex CLI refresh it in place.',
+          'Codex ChatGPT login missing: run "codex login --device-auth" on your own machine, store the ~/.codex/auth.json it writes as the repository secret behind the codex-auth-json input, and update the secret when the session expires.',
         );
     }
     if (!subscription && !inputs["api-key"]) throw new Error("API key missing or rejected.");
