@@ -105,8 +105,8 @@ export function createCodexBackend(options: CodexBackendOptions): ReviewBackend 
           transcript,
         });
         const mount = input.tools.length > 0 ? options.mcpServer : undefined;
-        const schemaPathForTurn = input.withSchema ? await schemaFile(conversation) : undefined;
         try {
+          const schemaPathForTurn = input.withSchema ? await schemaFile(conversation) : undefined;
           const stream = exec({
             executablePath: options.executablePath,
             args: buildCodexArgs({

@@ -25,7 +25,7 @@ export function codexTokenValues(credentials: CodexCredentials): string[] {
 }
 
 const SETUP =
-  'Run "codex login --device-auth" on your own machine, store the ~/.codex/auth.json it writes as the repository secret behind the codex-auth-json input, and let the Codex CLI refresh it in place.';
+  'Run "codex login --device-auth" on your own machine, store the ~/.codex/auth.json it writes as the repository secret behind the codex-auth-json input, and update the secret when the session expires.';
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

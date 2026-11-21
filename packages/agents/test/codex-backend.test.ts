@@ -1,7 +1,7 @@
 import { chmod, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { defaultRepoConfig, resolveConfig, ReviewBatchSchema } from "@anvia/hammer-core";
 import {
@@ -548,6 +548,38 @@ describe("codex review backend", () => {
     expect(seen).toHaveLength(3);
     expect(seen[1]?.params.args).not.toContain("--output-schema");
     expect(override(seen[1]?.params.args ?? [], "mcp_servers.hammer.required=")).toBe("true");
+  });
+
+  it("clears the turn timer when writing the output schema file fails", async () => {
+    const directory = await workDirectory();
+    await chmod(directory, 0o500);
+    const clearSpy = vi.spyOn(globalThis, "clearTimeout");
+    try {
+      const failing = createCodexBackend({
+        model: "gpt-5.1-codex",
+        executablePath: "/opt/hammer/bin/codex",
+        cwd: "/tmp/hammer/head",
+        workDirectory: directory,
+        env: {},
+        mcpServer: MCP_SERVER,
+        turnTimeoutMs: 60_000,
+        exec: scriptedExec([]),
+      });
+      await expect(
+        failing
+          .createConversation({
+            instructions: "Review the change.",
+            tools: [],
+            maxTurns: 3,
+            outputSchema: ReviewBatchSchema,
+          })
+          .turn("first"),
+      ).rejects.toThrow();
+      expect(clearSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      clearSpy.mockRestore();
+      await chmod(directory, 0o700);
+    }
   });
 
   it("stops a turn that runs past its timeout", async () => {

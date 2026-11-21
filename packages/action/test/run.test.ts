@@ -1226,6 +1226,25 @@ describe("Action codex client", () => {
     expect(f.summaries.at(-1)).toContain("codex login --device-auth");
   });
 
+  it("rejects malformed codex-auth-json before downloading the Codex binary", async () => {
+    const f = await fixture({
+      client: "codex",
+      model: "gpt-5.1-codex",
+      "api-key": "",
+      "codex-auth-json": "not-json",
+      fail_on_error: "true",
+    });
+    await f.run();
+    expect(f.posted).toHaveLength(0);
+    expect(f.runtime.setFailed).toHaveBeenCalledWith(expect.stringContaining("not valid JSON"));
+    const logged = vi
+      .mocked(f.runtime.info)
+      .mock.calls.map(([line]) => String(line))
+      .join("\n");
+    expect(logged).not.toContain("codex-binary");
+    expect(logged).not.toContain("Downloading");
+  });
+
   it("fails with a clear message when client codex has no model", async () => {
     const f = await fixture({
       client: "codex",

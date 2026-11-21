@@ -664,12 +664,13 @@ export async function runAction(
       });
     }
     if (codex && backend === undefined) {
+      const credentials = parseCodexAuth(inputs["codex-auth-json"]);
       const configuredPath = (inputs["codex-path"] || env.CODEX_PATH || "").trim();
       const executablePath =
         configuredPath !== ""
           ? configuredPath
           : await provisionCodexBinary({ temp, log: (message) => runtime.info(message) });
-      const codexHome = await seedCodexHome(directory, parseCodexAuth(inputs["codex-auth-json"]));
+      const codexHome = await seedCodexHome(directory, credentials);
       const workDirectory = join(directory, "codex");
       const contextPath = await writeCodexToolContext(workDirectory, {
         checkoutRoot: checkout,
