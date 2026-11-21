@@ -18,6 +18,8 @@ const schema = z.object({
   "api-key": z.string(),
   "oauth-token": z.string(),
   "claude-path": z.string(),
+  "codex-path": z.string(),
+  "codex-auth-json": z.string(),
   "github-token": z.string(),
   "bot-login": z.string(),
   "platform-url": z.string(),

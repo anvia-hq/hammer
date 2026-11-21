@@ -52,7 +52,7 @@ export type {
 } from "./backend";
 export { createAnviaBackend } from "./anvia-backend";
 export type { AnviaBackendOptions } from "./anvia-backend";
-export { buildReviewerToolDefinitions } from "./reviewer-tools";
+export { buildReviewerToolDefinitions, toolText } from "./reviewer-tools";
 export type { DiscussionSource, ReviewerToolOptions } from "./reviewer-tools";
 export { createClaudeSdkBackend, translateQueryError } from "./claude-sdk/backend";
 export type { ClaudeQueryFn, ClaudeSdkBackendOptions } from "./claude-sdk/backend";

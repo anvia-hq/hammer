@@ -2,7 +2,7 @@ import type { Options } from "tsup";
 
 export default {
   // Actions run dist/ directly with no install step, so every dependency is bundled in.
-  entry: { index: "src/index.ts", post: "src/post.ts" },
+  entry: { index: "src/index.ts", post: "src/post.ts", "codex-mcp": "src/codex-mcp.ts" },
   format: ["esm"],
   platform: "node",
   target: "node24",

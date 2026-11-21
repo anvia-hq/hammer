@@ -10,11 +10,14 @@ import {
 } from "@anvia/hammer-core";
 import type {
   ClaudeQueryFn,
+  CodexExecFn,
+  CodexExecParams,
   ReviewBackend,
   ReviewConversationOptions,
   ReviewPipelineInput,
 } from "@anvia/hammer-agents";
-import { claudeSdkEnv, runAction, type ActionRuntime } from "../src/run";
+import { claudeSdkEnv, codexEnv, codexMcpEntry, runAction, type ActionRuntime } from "../src/run";
+import { readCodexToolContext } from "../src/codex-context";
 import type { GitHubPort, IssueComment, PullRequest } from "../src/github";
 import { cleanup } from "../src/post";
 
@@ -1053,6 +1056,197 @@ describe("Action claude-agent-sdk client", () => {
       NO_PROXY: "localhost",
       LANG: "C.UTF-8",
       CLAUDE_CODE_OAUTH_TOKEN: "subscription-token",
+    });
+  });
+});
+
+const CODEX_AUTH_JSON = JSON.stringify({
+  auth_mode: "chatgpt",
+  OPENAI_API_KEY: null,
+  tokens: {
+    id_token: "codex-id-token-super-secret",
+    access_token: "codex-access-token-super-secret",
+    refresh_token: "codex-refresh-token-super-secret",
+  },
+  last_refresh: "2026-11-20T00:00:00Z",
+});
+
+function codexLines(text: string): string[] {
+  return [
+    JSON.stringify({ type: "thread.started", thread_id: "t" }),
+    JSON.stringify({ type: "turn.started" }),
+    JSON.stringify({ type: "item.completed", item: { id: "i", type: "agent_message", text } }),
+    JSON.stringify({
+      type: "turn.completed",
+      usage: { input_tokens: 120, cached_input_tokens: 100, output_tokens: 30 },
+    }),
+  ];
+}
+
+function recordCodex(text: string, seen: CodexExecParams[] = []): CodexExecFn {
+  return (params) => {
+    seen.push(params);
+    return (async function* () {
+      for (const line of codexLines(text)) yield line;
+    })();
+  };
+}
+
+async function findAuthFile(root: string): Promise<string | undefined> {
+  const { readdir } = await import("node:fs/promises");
+  for (const entry of await readdir(root)) {
+    const candidate = join(root, entry, "codex-home", "auth.json");
+    if (existsSync(candidate)) return candidate;
+  }
+  return undefined;
+}
+
+describe("Action codex client", () => {
+  const codexBatch = {
+    summary: "Changes user lookup",
+    findings: [finding],
+    generalNotes: [],
+  };
+
+  it("runs a review on a ChatGPT login with no API key and reports no cost", async () => {
+    const f = await fixture({
+      client: "codex",
+      model: "gpt-5.1-codex",
+      "api-key": "",
+      "codex-auth-json": CODEX_AUTH_JSON,
+      "codex-path": "/opt/hammer-codex",
+    });
+    const seen: CodexExecParams[] = [];
+    await f.run({ model: undefined, codexExec: recordCodex(JSON.stringify(codexBatch), seen) });
+    expect(f.posted).toHaveLength(1);
+    expect(f.outputs).toMatchObject({ findings_count: "1", tokens: "150", cost_usd: "0" });
+    expect(f.posted[0]?.body).toContain("codex/gpt-5.1-codex");
+    expect(seen[0]?.executablePath).toBe("/opt/hammer-codex");
+    expect(seen[0]?.args).toEqual(expect.arrayContaining(["--model", "gpt-5.1-codex"]));
+    expect(seen[0]?.args).toEqual(expect.arrayContaining(["--sandbox", "read-only"]));
+    expect(seen[0]?.args.at(-1)).toBe("-");
+    expect(seen[0]?.prompt).toContain("Update user lookup");
+    expect(existsSync(join(f.root, "hammer-codex"))).toBe(false);
+  });
+
+  it("writes the ChatGPT session into an isolated CODEX_HOME and never logs it", async () => {
+    const f = await fixture({
+      client: "codex",
+      model: "gpt-5.1-codex",
+      "api-key": "",
+      "codex-auth-json": CODEX_AUTH_JSON,
+      "codex-path": "/opt/hammer-codex",
+    });
+    const seen: CodexExecParams[] = [];
+    f.env.GITHUB_TOKEN = "ghs_should-not-leak";
+    f.env["INPUT_API-KEY"] = "input-api-key-should-not-leak";
+    f.env.OPENAI_API_KEY = "sk-openai-should-not-leak";
+    f.env.PATH = "/usr/bin";
+    await f.run({ model: undefined, codexExec: recordCodex(JSON.stringify(codexBatch), seen) });
+    const child = seen[0]?.env ?? {};
+    expect(child["CODEX_HOME"]).toContain(f.root);
+    expect(child["HOME"]).toBe(child["CODEX_HOME"]);
+    expect(child["PATH"]).toBe("/usr/bin");
+    expect(child).not.toHaveProperty("GITHUB_TOKEN");
+    expect(child).not.toHaveProperty("INPUT_API-KEY");
+    expect(child).not.toHaveProperty("OPENAI_API_KEY");
+    expect(Object.keys(child).sort()).not.toContain("codex-auth-json");
+    const authPath = await findAuthFile(f.root);
+    expect(authPath).toBeDefined();
+    const { stat } = await import("node:fs/promises");
+    expect((await stat(authPath!)).mode & 0o777).toBe(0o600);
+    const logged = JSON.stringify([
+      ...f.summaries,
+      ...vi.mocked(f.runtime.info).mock.calls,
+      ...vi.mocked(f.runtime.warning).mock.calls,
+      ...f.posted,
+    ]);
+    for (const secret of [
+      "codex-access-token-super-secret",
+      "codex-refresh-token-super-secret",
+      "codex-id-token-super-secret",
+    ])
+      expect(logged).not.toContain(secret);
+  });
+
+  it("mounts Hammer's own MCP server with the tool context written for it", async () => {
+    const f = await fixture({
+      client: "codex",
+      model: "gpt-5.1-codex",
+      "api-key": "",
+      "codex-auth-json": CODEX_AUTH_JSON,
+      "codex-path": "/opt/hammer-codex",
+    });
+    const seen: CodexExecParams[] = [];
+    await f.run({ model: undefined, codexExec: recordCodex(JSON.stringify(codexBatch), seen) });
+    const argv = seen[0]?.args ?? [];
+    expect(argv).toContain(`mcp_servers.hammer.command="${process.execPath}"`);
+    expect(argv).toContain('mcp_servers.hammer.args=["' + codexMcpEntry() + '"]');
+    expect(codexMcpEntry()).toContain("codex-mcp");
+    expect(argv).toContain("mcp_servers.hammer.required=true");
+    const envOverride = argv.find((entry) => entry.startsWith("mcp_servers.hammer.env=")) ?? "";
+    const contextPath = /HAMMER_CODEX_CONTEXT" = "([^"]+)"/.exec(envOverride)?.[1] ?? "";
+    expect(existsSync(contextPath)).toBe(true);
+    const context = await readCodexToolContext(contextPath);
+    expect(context.checkoutRoot).toContain("head");
+    expect(context.files.map((file) => file.filename)).toEqual(["src/a.ts"]);
+    expect(context.pr.title).toBe("Update user lookup");
+    expect(context.skills?.directory).toContain("skills");
+  });
+
+  it("fails with the device login instruction when the session is missing", async () => {
+    const f = await fixture({
+      client: "codex",
+      model: "gpt-5.1-codex",
+      "api-key": "",
+      fail_on_error: "true",
+    });
+    await f.run();
+    expect(f.posted).toHaveLength(0);
+    expect(f.runtime.setFailed).toHaveBeenCalledWith(
+      expect.stringContaining("codex login --device-auth"),
+    );
+    expect(f.summaries.at(-1)).toContain("codex login --device-auth");
+  });
+
+  it("fails with a clear message when client codex has no model", async () => {
+    const f = await fixture({
+      client: "codex",
+      model: "",
+      "api-key": "",
+      "codex-auth-json": CODEX_AUTH_JSON,
+      fail_on_error: "true",
+    });
+    await f.run();
+    expect(f.posted).toHaveLength(0);
+    expect(f.runtime.setFailed).toHaveBeenCalledWith(expect.stringContaining("no default model"));
+  });
+
+  it("passes only what Codex needs to start to the child", () => {
+    const child = codexEnv(
+      {
+        PATH: "/usr/bin",
+        HOME: "/home/runner",
+        HTTPS_PROXY: "http://proxy.internal:3128",
+        NO_PROXY: "localhost",
+        LANG: "C.UTF-8",
+        GITHUB_TOKEN: "ghs_runner",
+        ACTIONS_RUNTIME_TOKEN: "runtime",
+        HAMMER_API_KEY: "hammer-key",
+        "INPUT_CODEX-AUTH-JSON": "auth-json-input",
+        ANTHROPIC_API_KEY: "sk-ant-api",
+        OPENAI_API_KEY: "sk-openai",
+        CODEX_API_KEY: "codex-api-key",
+      },
+      "/runner-temp/hammer-review-1/codex-home",
+    );
+    expect(child).toEqual({
+      PATH: "/usr/bin",
+      HTTPS_PROXY: "http://proxy.internal:3128",
+      NO_PROXY: "localhost",
+      LANG: "C.UTF-8",
+      CODEX_HOME: "/runner-temp/hammer-review-1/codex-home",
+      HOME: "/runner-temp/hammer-review-1/codex-home",
     });
   });
 });

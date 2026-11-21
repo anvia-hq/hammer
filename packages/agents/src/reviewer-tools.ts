@@ -39,6 +39,16 @@ export interface ReviewerToolOptions {
   isNearBudget?: () => boolean;
 }
 
+export function toolText(result: unknown): string {
+  if (typeof result === "string") return result;
+  if (result === undefined) return "";
+  try {
+    return JSON.stringify(result);
+  } catch {
+    return String(result);
+  }
+}
+
 async function resolveDiscussion(
   discussion: PrDiscussionInput | DiscussionSource | undefined,
 ): Promise<PrDiscussionInput> {

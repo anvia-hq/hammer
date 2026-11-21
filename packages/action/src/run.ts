@@ -30,6 +30,7 @@ import {
 } from "@anvia/hammer-core";
 import {
   createClaudeSdkBackend,
+  createCodexBackend,
   createCompletionModel,
   loadReviewSkills,
   parseModelRefWithBase,
@@ -37,12 +38,16 @@ import {
   fitDiff,
   runReviewPipeline,
   type ClaudeQueryFn,
+  type CodexExecFn,
   type ReviewBackend,
   type PromptGuidelines,
   type ReviewPipelineInput,
 } from "@anvia/hammer-agents";
 import { checkoutHead } from "./checkout";
 import { provisionClaudeBinary } from "./claude-binary";
+import { parseCodexAuth, seedCodexHome } from "./codex-auth";
+import { provisionCodexBinary } from "./codex-binary";
+import { CODEX_CONTEXT_ENV, writeCodexToolContext } from "./codex-context";
 import { stageRepoSkills } from "./repo-skills";
 import { GitHub, proxiedFetch, type GitHubPort, type IssueComment } from "./github";
 import { configOverrides, readInputs, type ActionInputs } from "./inputs";
@@ -67,6 +72,7 @@ export interface ActionDependencies {
   model?: ReviewPipelineInput["model"];
   backend?: ReviewBackend;
   claudeQuery?: ClaudeQueryFn;
+  codexExec?: CodexExecFn;
   checkout?: typeof checkoutHead;
   skillsDirectory?: string;
   platformToken?: typeof requestPlatformToken;
@@ -117,6 +123,61 @@ const CLAUDE_CHILD_ENV = [
   "OS",
 ] as const;
 
+// Codex runs from CODEX_HOME alone: HOME points at the same directory under RUNNER_TEMP, so no
+// lookup reaches the runner's own ~/.codex, and no token or Action input reaches the child.
+const CODEX_CHILD_ENV = [
+  "PATH",
+  "TMPDIR",
+  "TMP",
+  "TEMP",
+  "LANG",
+  "LANGUAGE",
+  "LC_ALL",
+  "LC_CTYPE",
+  "LC_MESSAGES",
+  "TZ",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "ALL_PROXY",
+  "NO_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "all_proxy",
+  "no_proxy",
+  "NODE_EXTRA_CA_CERTS",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+  "SYSTEMROOT",
+  "SYSTEMDRIVE",
+  "COMSPEC",
+  "PATHEXT",
+  "WINDIR",
+  "NUMBER_OF_PROCESSORS",
+  "PROCESSOR_ARCHITECTURE",
+  "OS",
+  "USERPROFILE",
+  "APPDATA",
+  "LOCALAPPDATA",
+] as const;
+
+export function codexEnv(
+  env: NodeJS.ProcessEnv,
+  codexHome: string,
+): Record<string, string | undefined> {
+  const child: Record<string, string | undefined> = {};
+  for (const name of CODEX_CHILD_ENV) {
+    const value = env[name];
+    if (value !== undefined) child[name] = value;
+  }
+  child["CODEX_HOME"] = codexHome;
+  child["HOME"] = codexHome;
+  return child;
+}
+
+export function codexMcpEntry(): string {
+  return fileURLToPath(new URL("./codex-mcp.js", import.meta.url));
+}
+
 export function claudeSdkEnv(
   env: NodeJS.ProcessEnv,
   oauthToken: string,
@@ -153,6 +214,7 @@ export async function runAction(
   const modelSecrets = (): string[] => [
     runtime.getInput("api-key"),
     runtime.getInput("oauth-token"),
+    runtime.getInput("codex-auth-json"),
     env.CLAUDE_CODE_OAUTH_TOKEN ?? "",
   ];
   const cleanError = (error: unknown): string => {
@@ -229,7 +291,13 @@ export async function runAction(
       await skip(`event ${env.GITHUB_EVENT_NAME ?? "unknown"} is not a review trigger`);
       return;
     }
-    for (const name of ["api-key", "oauth-token", "github-token", "hammer-api-key"]) {
+    for (const name of [
+      "api-key",
+      "oauth-token",
+      "github-token",
+      "hammer-api-key",
+      "codex-auth-json",
+    ]) {
       const secret = runtime.getInput(name);
       if (secret) runtime.setSecret(secret);
     }
@@ -342,15 +410,28 @@ export async function runAction(
       return;
     }
     const claudeSdk = inputs.client === "claude-agent-sdk";
+    const codex = inputs.client === "codex";
+    const subscription = claudeSdk || codex;
     const oauthToken = (inputs["oauth-token"] || env.CLAUDE_CODE_OAUTH_TOKEN || "").trim();
     if (claudeSdk) {
       if (oauthToken === "")
         throw new Error(
           'Claude subscription token missing: run "claude setup-token" and pass the output as the oauth-token input (or the CLAUDE_CODE_OAUTH_TOKEN secret), or use client: anthropic/openai/gemini with an api-key.',
         );
-    } else if (!inputs["api-key"]) throw new Error("API key missing or rejected.");
+    }
+    if (codex) {
+      if (inputs.model.trim() === "")
+        throw new Error(
+          "Model missing: client codex has no default model. Set model to the Codex model id you want the review to run on, such as gpt-5.1-codex.",
+        );
+      if (inputs["codex-auth-json"].trim() === "")
+        throw new Error(
+          'Codex ChatGPT login missing: run "codex login --device-auth" on your own machine, store the ~/.codex/auth.json it writes as the repository secret behind the codex-auth-json input, and let the Codex CLI refresh it in place.',
+        );
+    }
+    if (!subscription && !inputs["api-key"]) throw new Error("API key missing or rejected.");
     const modelRef = `${inputs.client}/${inputs.model}`;
-    const ref = claudeSdk ? undefined : parseModelRefWithBase(modelRef, inputs["base-url"]);
+    const ref = subscription ? undefined : parseModelRefWithBase(modelRef, inputs["base-url"]);
     if (ref !== undefined && !ref.ok)
       throw new Error(ref.issues.map((issue) => issue.message).join("; "));
     if (inputs["lens-endpoint"] || inputs["otel-endpoint"])
@@ -514,7 +595,7 @@ export async function runAction(
             ((baseUrl, apiKey) => fetchGatewayCatalog(baseUrl, apiKey, proxiedFetch))
           )(inputs["base-url"], inputs["api-key"])
         : undefined;
-    const pricing = claudeSdk
+    const pricing = subscription
       ? (): number => 0
       : resolvePricing(modelRef, inputs.pricing || undefined, gatewayCatalog);
     const bundledSkills = dependencies.skillsDirectory ?? DEFAULT_SKILLS_DIRECTORY;
@@ -522,6 +603,8 @@ export async function runAction(
       runtime.warning(`Review skills unavailable; continuing without them: ${cleanError(error)}`);
       return undefined;
     };
+    let skillsDirectory = bundledSkills;
+    let repoSkillNames: string[] | undefined;
     let skills = await loadReviewSkills(bundledSkills).catch(skillsWarning);
     if (skills !== undefined && config.use_repo_skills) {
       try {
@@ -535,6 +618,8 @@ export async function runAction(
           runtime.warning,
         );
         if (staged.names.length > 0) {
+          skillsDirectory = staged.directory;
+          repoSkillNames = staged.names;
           skills = await loadReviewSkills(staged.directory, {
             repoSkillNames: staged.names,
           });
@@ -564,6 +649,48 @@ export async function runAction(
         configDir,
         env: claudeSdkEnv(env, oauthToken),
         ...(dependencies.claudeQuery !== undefined ? { query: dependencies.claudeQuery } : {}),
+      });
+    }
+    if (codex && backend === undefined) {
+      const configuredPath = (inputs["codex-path"] || env.CODEX_PATH || "").trim();
+      const executablePath =
+        configuredPath !== ""
+          ? configuredPath
+          : await provisionCodexBinary({ temp, log: (message) => runtime.info(message) });
+      const codexHome = await seedCodexHome(directory, parseCodexAuth(inputs["codex-auth-json"]));
+      const workDirectory = join(directory, "codex");
+      const contextPath = await writeCodexToolContext(workDirectory, {
+        checkoutRoot: checkout,
+        files: plan.reviewFiles,
+        fileContents,
+        pr: { title: pr.title },
+        discussion: {
+          title: pr.title,
+          body: pr.body,
+          comments: comments
+            .slice(-20)
+            .map((comment) => ({ author: comment.user?.login ?? "unknown", body: comment.body })),
+        },
+        ...(skills !== undefined
+          ? {
+              skills: { directory: skillsDirectory, ...(repoSkillNames ? { repoSkillNames } : {}) },
+            }
+          : {}),
+      });
+      runtime.info(`[hammer] codex: model ${inputs.model}, binary ${executablePath}`);
+      backend = createCodexBackend({
+        model: inputs.model,
+        executablePath,
+        cwd: checkout,
+        workDirectory,
+        env: codexEnv(env, codexHome.directory),
+        mcpServer: {
+          command: process.execPath,
+          args: [codexMcpEntry()],
+          env: { [CODEX_CONTEXT_ENV]: contextPath },
+        },
+        log: (message) => runtime.info(message),
+        ...(dependencies.codexExec !== undefined ? { exec: dependencies.codexExec } : {}),
       });
     }
     const result = await runReviewPipeline({

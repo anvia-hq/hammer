@@ -2,17 +2,10 @@ import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 
 import type { ReviewerToolDefinition } from "../backend";
+import { toolText } from "../reviewer-tools";
 import { HAMMER_MCP_SERVER, MCP_TOOL_PREFIX } from "./options";
 
-export function toolText(result: unknown): string {
-  if (typeof result === "string") return result;
-  if (result === undefined) return "";
-  try {
-    return JSON.stringify(result);
-  } catch {
-    return String(result);
-  }
-}
+export { toolText };
 
 export function mcpToolName(name: string): string {
   return `${MCP_TOOL_PREFIX}${name}`;
