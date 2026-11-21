@@ -111,7 +111,9 @@ read-only guarantees in Codex's terms.
   pinned with a checksum, opt-in, writing only under `RUNNER_TEMP`, skipped when `codex-path` is
   set.
 - Every call is one `codex` process, and each one also starts Hammer's MCP server; a turn is
-  bounded by a 10-minute timeout.
+  bounded by a 10-minute timeout. That server is a new process per turn, so the repeated-call
+  damping it applies starts over each turn: a tool call Hammer already answered can be repeated in
+  the next one. The `@anvia/*` and Claude backends keep the set for the whole conversation.
 - Failures map to distinct messages: an authentication failure (which names
   `codex login --device-auth` and the `codex-auth-json` secret), a turn that ended without a result,
   a non-zero exit with the tail of stderr, a turn timeout, and an error event from the stream.
