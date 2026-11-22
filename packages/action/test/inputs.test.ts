@@ -42,3 +42,23 @@ describe("readInputs claude-agent-sdk inputs", () => {
     expect(inputs["claude-path"]).toBe("");
   });
 });
+
+describe("readInputs codex inputs", () => {
+  it("accepts a ChatGPT session and an explicit codex path without an api key", () => {
+    const inputs = read({
+      client: "codex",
+      model: "gpt-5.1-codex",
+      "codex-auth-json": '{"tokens":{"access_token":"a"}}',
+      "codex-path": "/opt/codex",
+    });
+    expect(inputs["api-key"]).toBe("");
+    expect(inputs["codex-auth-json"]).toBe('{"tokens":{"access_token":"a"}}');
+    expect(inputs["codex-path"]).toBe("/opt/codex");
+  });
+
+  it("leaves both optional so the environment can supply them", () => {
+    const inputs = read({ client: "anthropic", model: "claude-sonnet-5-5" });
+    expect(inputs["codex-auth-json"]).toBe("");
+    expect(inputs["codex-path"]).toBe("");
+  });
+});

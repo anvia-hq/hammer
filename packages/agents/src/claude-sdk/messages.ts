@@ -10,6 +10,7 @@ import type {
 
 import { ZERO_USAGE, type SinglePassUsage, type TurnOutcome } from "../backend";
 import { createTextStreamer } from "../stream";
+import type { TranscriptEntry } from "../transcript";
 
 export type ClaudeSdkErrorCode =
   | "authentication"
@@ -172,10 +173,7 @@ function toolResultText(message: SDKUserMessage): string {
   return parts.join("\n");
 }
 
-export interface TranscriptEntry {
-  role: "assistant" | "tool";
-  text: string;
-}
+export type { TranscriptEntry };
 
 interface StreamEventLike {
   type?: string;
@@ -256,14 +254,4 @@ export function createTurnCollector(options: {
       return options.transcript;
     },
   };
-}
-
-export function renderTranscript(entries: readonly TranscriptEntry[], limit: number): string {
-  const lines: string[] = [];
-  for (const entry of entries) {
-    const text =
-      entry.text.length <= limit ? entry.text : `${entry.text.slice(0, limit)}\n[truncated]`;
-    lines.push(entry.role === "assistant" ? `Assistant: ${text}` : `Tool result: ${text}`);
-  }
-  return lines.join("\n\n");
 }

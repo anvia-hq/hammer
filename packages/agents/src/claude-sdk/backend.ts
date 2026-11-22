@@ -11,8 +11,9 @@ import type {
 } from "../backend";
 import { SALVAGE_RESULT_LIMITS, describeStop, FINALIZE_PROMPT } from "../salvage";
 import type { SkillSet } from "../skills";
+import { withTranscript, type TranscriptEntry } from "../transcript";
 import { ClaudeSdkError, describeResultText } from "./messages";
-import { createTurnCollector, renderTranscript, type TranscriptEntry } from "./messages";
+import { createTurnCollector } from "./messages";
 import { buildSdkOptions, sdkEffort } from "./options";
 import { buildSdkMcpServer, sdkToolNames, skillToolDefinitions } from "./tools";
 
@@ -32,22 +33,6 @@ export interface ClaudeSdkBackendOptions {
 }
 
 const DEFAULT_TURN_TIMEOUT_MS = 600_000;
-const TRANSCRIPT_ENTRY_LIMIT = 4_000;
-const TRANSCRIPT_CHAR_LIMIT = 120_000;
-
-function withTranscript(
-  transcript: readonly TranscriptEntry[],
-  prompt: string,
-  entryLimit = TRANSCRIPT_ENTRY_LIMIT,
-): string {
-  if (transcript.length === 0) return prompt;
-  const rendered = renderTranscript(transcript, entryLimit);
-  const clipped =
-    rendered.length <= TRANSCRIPT_CHAR_LIMIT
-      ? rendered
-      : `[earlier transcript truncated]\n${rendered.slice(rendered.length - TRANSCRIPT_CHAR_LIMIT)}`;
-  return `## Earlier in this review\n\n<transcript>\n${clipped}\n</transcript>\n\n${prompt}`;
-}
 
 function skillDefinitions(skills: SkillSet | undefined): ReviewerToolDefinition[] {
   if (skills === undefined) return [];

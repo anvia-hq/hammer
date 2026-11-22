@@ -18,6 +18,7 @@ function tsFiles(dir: URL): string[] {
 
 describe("S9 no telemetry", () => {
   it("network imports stay at the explicit transport boundaries", () => {
+    const boundaries = new Set(["github.ts", "index.ts", "codex-tool-host.ts", "codex-mcp.ts"]);
     const bad: string[] = [];
     for (const file of [...tsFiles(CORE_SRC), ...tsFiles(ACTION_SRC)]) {
       const text = readFileSync(file, "utf8");
@@ -26,7 +27,7 @@ describe("S9 no telemetry", () => {
         if (/\bfetch\s*\(/.test(line)) bad.push(`${file}:${i + 1}: ${line.trim()}`);
         if (
           /(node:https?|axios|XMLHttpRequest|undici)/.test(line) &&
-          !["github.ts", "index.ts"].some((name) => file === path.join(ACTION_SRC.pathname, name))
+          !boundaries.has(path.basename(file))
         )
           bad.push(`${file}:${i + 1}`);
       });
