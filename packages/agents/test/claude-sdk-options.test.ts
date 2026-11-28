@@ -68,7 +68,7 @@ describe("claude-agent-sdk options", () => {
     });
   });
 
-  it("asks for a JSON schema for the review and nothing for verify or judge", () => {
+  it("asks for a JSON schema for the review and permits StructuredOutput only when schema is set", async () => {
     const withSchema = buildSdkOptions({
       instructions: "review",
       model: "claude-sonnet-4-5",
@@ -77,12 +77,69 @@ describe("claude-agent-sdk options", () => {
       configDir: "/tmp/cfg",
       env: {},
       maxTurns: 10,
-      toolNames: [],
+      toolNames: ["mcp__hammer__read_file"],
       partialMessages: false,
       outputSchema: ReviewBatchSchema,
     });
     expect(withSchema.outputFormat).toMatchObject({ type: "json_schema" });
-    expect(options().outputFormat).toBeUndefined();
+    expect(withSchema.allowedTools).toEqual(["mcp__hammer__read_file", "StructuredOutput"]);
+    expect(withSchema.disallowedTools).not.toContain("StructuredOutput");
+    expect(withSchema.disallowedTools).toContain("Bash");
+    const schemaHook = withSchema.hooks?.PreToolUse?.[0]?.hooks[0];
+    expect(schemaHook).toBeDefined();
+    expect(
+      await schemaHook?.(
+        {
+          hook_event_name: "PreToolUse",
+          tool_name: "StructuredOutput",
+          tool_input: {},
+          tool_use_id: "x",
+          session_id: "s",
+          cwd: "/tmp",
+        } as never,
+        undefined,
+        { signal: new AbortController().signal },
+      ),
+    ).toEqual({});
+    expect(
+      await schemaHook?.(
+        {
+          hook_event_name: "PreToolUse",
+          tool_name: "Bash",
+          tool_input: {},
+          tool_use_id: "x",
+          session_id: "s",
+          cwd: "/tmp",
+        } as never,
+        undefined,
+        { signal: new AbortController().signal },
+      ),
+    ).toMatchObject({
+      hookSpecificOutput: { permissionDecision: "deny", hookEventName: "PreToolUse" },
+    });
+
+    const withoutSchema = options();
+    expect(withoutSchema.outputFormat).toBeUndefined();
+    expect(withoutSchema.allowedTools).not.toContain("StructuredOutput");
+    expect(withoutSchema.disallowedTools).toContain("StructuredOutput");
+    const plainHook = withoutSchema.hooks?.PreToolUse?.[0]?.hooks[0];
+    expect(plainHook).toBeDefined();
+    expect(
+      await plainHook?.(
+        {
+          hook_event_name: "PreToolUse",
+          tool_name: "StructuredOutput",
+          tool_input: {},
+          tool_use_id: "x",
+          session_id: "s",
+          cwd: "/tmp",
+        } as never,
+        undefined,
+        { signal: new AbortController().signal },
+      ),
+    ).toMatchObject({
+      hookSpecificOutput: { permissionDecision: "deny", hookEventName: "PreToolUse" },
+    });
   });
 
   it("mounts only Hammer's MCP server", () => {
