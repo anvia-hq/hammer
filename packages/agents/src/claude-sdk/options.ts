@@ -5,6 +5,7 @@ import { z } from "zod";
 
 export const HAMMER_MCP_SERVER = "hammer";
 export const MCP_TOOL_PREFIX = `mcp__${HAMMER_MCP_SERVER}__`;
+export const STRUCTURED_OUTPUT_TOOL = "StructuredOutput";
 
 // Every built-in tool is denied. The read-only ones (Read, Grep, Glob) are denied too: they
 // reach the checkout without Hammer's path guard and secret denylist (rule 0004).
@@ -94,6 +95,15 @@ export function reviewJsonSchema(schema: z.ZodType<ReviewBatch>): Record<string,
 }
 
 export function buildSdkOptions(input: SdkOptionsInput): Options {
+  // Claude Code fulfills outputFormat: json_schema via its internal StructuredOutput tool, so
+  // permit it (and only it, alongside Hammer's MCP tools) when an output schema is requested.
+  const structuredOutput = input.outputSchema !== undefined;
+  const allowedTools = structuredOutput
+    ? [...input.toolNames, STRUCTURED_OUTPUT_TOOL]
+    : input.toolNames;
+  const disallowedTools = structuredOutput
+    ? DENIED_BUILT_IN_TOOLS.filter((name) => name !== STRUCTURED_OUTPUT_TOOL)
+    : [...DENIED_BUILT_IN_TOOLS];
   return {
     cwd: input.cwd,
     pathToClaudeCodeExecutable: input.executablePath,
@@ -101,8 +111,8 @@ export function buildSdkOptions(input: SdkOptionsInput): Options {
     systemPrompt: input.instructions,
     settingSources: [],
     tools: [],
-    allowedTools: input.toolNames,
-    disallowedTools: [...DENIED_BUILT_IN_TOOLS],
+    allowedTools,
+    disallowedTools,
     permissionMode: "dontAsk",
     ...(input.mcpServer !== undefined
       ? { mcpServers: { [HAMMER_MCP_SERVER]: input.mcpServer }, strictMcpConfig: true }
@@ -111,7 +121,7 @@ export function buildSdkOptions(input: SdkOptionsInput): Options {
     maxTurns: input.maxTurns,
     ...(input.effort !== undefined ? { effort: input.effort } : {}),
     includePartialMessages: input.partialMessages,
-    hooks: { PreToolUse: [buildToolDenyHook(input.toolNames)] },
+    hooks: { PreToolUse: [buildToolDenyHook(allowedTools)] },
     ...(input.outputSchema !== undefined
       ? {
           outputFormat: {
